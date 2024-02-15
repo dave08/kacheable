@@ -1,0 +1,35 @@
+[versions]
+
+kotlin = "1.9.22"
+ksp = "1.9.22-1.0.17"
+
+kotlinxSerialization = "1.6.2"
+lettuceVersion = "6.3.0.RELEASE"
+kotlinxCoroutines = "1.7.3"
+
+kotest = "5.8.0"
+kotest-testContainers = "2.0.2"
+testContainers = "1.19.5"
+strikt = "0.34.1"
+
+[libraries]
+
+# Core libraries
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuceVersion" }
+kotlinx-coroutines-bom = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-bom", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core" }
+kotlinx-coroutines-debug = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-debug" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test" }
+
+# Test libraries
+kotest-runner-junit5 = { group = "io.kotest", name = "kotest-runner-junit5", version.ref = "kotest" }
+kotest-extensions-testContainers = { group = "io.kotest.extensions", name = "kotest-extensions-testcontainers", version.ref = "kotest-testContainers" }
+testContainers-core = { group = "org.testcontainers", name = "testcontainers", version.ref = "testContainers"}
+strikt-core = { group = "io.strikt", name = "strikt-core", version.ref = "strikt" }
+
+[plugins]
+
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp"}
+kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
