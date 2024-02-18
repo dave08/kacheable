@@ -1,8 +1,9 @@
 package com.github.dave08.kacheable.blocking
 
+import com.github.dave08.kacheable.Kacheable
 import kotlinx.serialization.KSerializer
 
-object NoopBlockingKacheable : BlockingKacheable {
+internal object NoopBlockingKacheable : BlockingKacheable {
     override fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R =
         block()
 
@@ -14,3 +15,5 @@ object NoopBlockingKacheable : BlockingKacheable {
         block: () -> R
     ): R = block()
 }
+
+fun BlockingKacheableNoOp(): BlockingKacheable = NoopBlockingKacheable

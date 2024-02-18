@@ -2,7 +2,7 @@ package com.github.dave08.kacheable
 
 import kotlinx.serialization.KSerializer
 
-object NoopKacheable : Kacheable {
+internal object NoopKacheable : Kacheable {
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
         block()
 
@@ -14,3 +14,5 @@ object NoopKacheable : Kacheable {
         block: suspend () -> R
     ): R = block()
 }
+
+fun KacheableNoOp(): Kacheable = NoopKacheable

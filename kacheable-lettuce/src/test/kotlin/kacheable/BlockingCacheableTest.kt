@@ -3,7 +3,6 @@ package  kacheable
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.blocking.BlockingKacheable
-import com.github.dave08.kacheable.blocking.BlockingKacheableImpl
 import com.github.dave08.kacheable.blocking.RedisBlockingKacheableStore
 import io.kotest.core.spec.style.FreeSpec
 import io.kotest.extensions.testcontainers.perTest
@@ -28,7 +27,7 @@ class BlockingCacheableTest : FreeSpec() {
         extensions(container.perTest())
 
         "Saves the result of a function with no parameters" {
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn)))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
             val results = mutableListOf<Bar>()
 
             results += (1..5).map { testClass.bar() }
@@ -43,7 +42,7 @@ class BlockingCacheableTest : FreeSpec() {
         }
 
         "Saves the result of a function with multiple parameters" {
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn)))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
 
             testClass.baz(32, "something")
 
@@ -52,7 +51,7 @@ class BlockingCacheableTest : FreeSpec() {
 
         "Sets expiry from last write" {
             val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
             testClass.bar()
 
@@ -60,7 +59,7 @@ class BlockingCacheableTest : FreeSpec() {
         }
 
         "Saves cache with default configs when not specified" {
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), emptyMap()))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), emptyMap()))
 
             testClass.bar()
 
@@ -69,7 +68,7 @@ class BlockingCacheableTest : FreeSpec() {
 
         "Sets expiry from last access" {
             val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_access, 30.minutes)).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
             testClass.bar()
             delay(100)
@@ -81,7 +80,7 @@ class BlockingCacheableTest : FreeSpec() {
         "When function result is null" - {
             "and nullPlaceholder setting is not set, the cache entry isn't saved" {
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = null)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.nullBar()
 
@@ -90,7 +89,7 @@ class BlockingCacheableTest : FreeSpec() {
             "and nullPlaceholder setting is set, the cache value is the placeholder" {
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.nullBar()
 
@@ -99,7 +98,7 @@ class BlockingCacheableTest : FreeSpec() {
             "and nullPlaceholder setting is set, null is returned when retrieving the value" {
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.nullBar()
                 val result = testClass.nullBar()
@@ -111,7 +110,7 @@ class BlockingCacheableTest : FreeSpec() {
         "Invalidates a cache entry" - {
             "without parameters" {
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.bar()
                 testClass.invBar()
@@ -121,7 +120,7 @@ class BlockingCacheableTest : FreeSpec() {
 
             "with same parameters" {
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.baz(32, "something")
                 testClass.invBaz(32, "something")
@@ -132,7 +131,7 @@ class BlockingCacheableTest : FreeSpec() {
 
         "Save when condition is fullfilled" {
             val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
             testClass.dontSaveBar()
             val result = testClass.dontSaveBar()
@@ -156,7 +155,7 @@ class BlockingCacheableTest : FreeSpec() {
         "Cache results that are not serializable" - {
             "int" {
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveInt()
 
@@ -167,7 +166,7 @@ class BlockingCacheableTest : FreeSpec() {
 
             "null int" {
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = "null")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveNullInt()
 
@@ -178,7 +177,7 @@ class BlockingCacheableTest : FreeSpec() {
 
             "boolean" {
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheableImpl(RedisBlockingKacheableStore(conn), config))
+                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveBoolean()
 

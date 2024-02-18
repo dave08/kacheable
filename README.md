@@ -4,7 +4,7 @@
 > This library is still experimental and actively being developed, it may change until it is released. For now, it's just released as snapshots on Jitpack.io.
 
 > [!NOTE]
-> For now, this library depends on KotlinX Serialization to serialize computation results to Json for storage in the cache.
+> For now, this library depends on KotlinX Serialization to serialize computation results to Json for storage in the cache. So all classes being stored in the caches should be annotated with `@Serializable`, and the plugin should be enabled in the module using the cache.
 
 # Kacheable
 
@@ -24,7 +24,7 @@ class Foo() {
     val conn = client.connect()
 
     // Use the redis store with Kacheable
-    val cache = KacheableImpl(RedisKacheableStore(conn))
+    val cache = Kacheable(RedisKacheableStore(conn))
     
     suspend fun getUser(userId: Int) = cache("user-cache", userId) {
         // some db query to retrieve user... this will be cached the first
@@ -42,7 +42,7 @@ Any cache without a configuration uses defaults, but can be configured per cache
 val configs = listOf(CacheConfig("foo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
 
 // Then initialize the cache with them:
-val cache = KacheableImpl(RedisKacheableStore(conn), configs)
+val cache = Kacheable(RedisKacheableStore(conn), configs)
 ```
 
 The options are:
@@ -73,4 +73,24 @@ You can provide a condition lambda to determine whether the cache will save the 
 suspend fun dontSaveBar(shouldSave: Boolean = false): Bar = cache("foo", saveResultIf = { shouldSave }) {
         Bar(32, "something")
     }
+```
+
+You can also provide your own implementation for naming the cache's key:
+
+```kotlin
+// This interface needs to be implemented:
+fun interface GetNameStrategy {
+    fun getName(name: String, params: Array<out Any>): String
+}
+
+// Instantiate Kacheable with it.
+val MyGetNameStrategy = GetNameStrategy { name, params ->
+    // This is the default implementation in `DefaultGetNameStrategy`
+    if (params.isEmpty())
+        name
+    else
+        "$name:${params.joinToString(",")}"
+}
+
+val cache = Kacheable(RedisKacheableStore(conn), getNameStrategy = MyGetNameStrategy)
 ```

@@ -3,16 +3,11 @@ package com.github.dave08.kacheable
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
-class KacheableImpl(
-    val store: KacheableStore,
-    val configs: Map<String, CacheConfig> = emptyMap(),
-    val getNameStrategy: GetNameStrategy = GetNameStrategy { name, params ->
-        if (params.isEmpty())
-            name
-        else
-            "$name:${params.joinToString(",")}"
-    },
-    private val jsonParser: Json = Json
+internal class KacheableImpl(
+    private val store: KacheableStore,
+    private val configs: Map<String, CacheConfig>,
+    private val getNameStrategy: GetNameStrategy,
+    private val jsonParser: Json,
 ) : Kacheable {
     /**
      * Don't use * in this list yet... I don't think del supports it properly.
@@ -66,3 +61,10 @@ class KacheableImpl(
         }
     }
 }
+
+fun Kacheable(
+    store: KacheableStore,
+    configs: Map<String, CacheConfig> = emptyMap(),
+    getNameStrategy: GetNameStrategy = DefaultGetNameStrategy,
+    jsonParser: Json = Json
+): Kacheable = KacheableImpl(store, configs, getNameStrategy, jsonParser)

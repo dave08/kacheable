@@ -1,21 +1,17 @@
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.GetNameStrategy
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
-class BlockingKacheableImpl(
-    val store: BlockingKacheableStore,
-    val configs: Map<String, CacheConfig> = emptyMap(),
-    val getNameStrategy: GetNameStrategy = GetNameStrategy { name, params ->
-        if (params.isEmpty())
-            name
-        else
-            "$name:${params.joinToString(",")}"
-    },
-    private val jsonParser: Json = Json
+internal class BlockingKacheableImpl(
+    private val store: BlockingKacheableStore,
+    private val configs: Map<String, CacheConfig>,
+    private val getNameStrategy: GetNameStrategy,
+    private val jsonParser: Json
 ) : BlockingKacheable {
     /**
      * Don't use * in this list yet... I don't think del supports it properly.
@@ -69,3 +65,10 @@ class BlockingKacheableImpl(
         }
     }
 }
+
+fun BlockingKacheable(
+    store: BlockingKacheableStore,
+    configs: Map<String, CacheConfig> = emptyMap(),
+    getNameStrategy: GetNameStrategy = DefaultGetNameStrategy,
+    jsonParser: Json = Json
+) : BlockingKacheable = BlockingKacheableImpl(store, configs, getNameStrategy, jsonParser)

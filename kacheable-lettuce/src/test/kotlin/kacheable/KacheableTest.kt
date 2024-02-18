@@ -13,7 +13,7 @@ import strikt.api.expectThat
 import strikt.assertions.*
 import kotlin.time.Duration.Companion.minutes
 
-class CacheableTest : FreeSpec() {
+class KacheableTest : FreeSpec() {
     init {
         lateinit var client: RedisClient
         lateinit var conn: StatefulRedisConnection<String, String>
@@ -24,7 +24,7 @@ class CacheableTest : FreeSpec() {
         extensions(container.perTest())
 
         "Saves the result of a function with no parameters" {
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn)))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn)))
             val results = mutableListOf<Bar>()
 
             results += (1..5).map { testClass.bar() }
@@ -39,7 +39,7 @@ class CacheableTest : FreeSpec() {
         }
 
         "Saves the result of a function with multiple parameters" {
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn)))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn)))
 
             testClass.baz(32, "something")
 
@@ -48,7 +48,7 @@ class CacheableTest : FreeSpec() {
 
         "Sets expiry from last write" {
             val config = listOf(CacheConfig("foo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
             testClass.bar()
 
@@ -56,7 +56,7 @@ class CacheableTest : FreeSpec() {
         }
 
         "Saves cache with default configs when not specified" {
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), emptyMap()))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn), emptyMap()))
 
             testClass.bar()
 
@@ -65,7 +65,7 @@ class CacheableTest : FreeSpec() {
 
         "Sets expiry from last access" {
             val config = listOf(CacheConfig("foo", ExpiryType.after_access, 30.minutes)).associateBy { it.name }
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
             testClass.bar()
             delay(100)
@@ -77,7 +77,7 @@ class CacheableTest : FreeSpec() {
         "When function result is null" - {
             "and nullPlaceholder setting is not set, the cache entry isn't saved" {
                 val config = listOf(CacheConfig("foo", nullPlaceholder = null)).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.nullBar()
 
@@ -86,7 +86,7 @@ class CacheableTest : FreeSpec() {
             "and nullPlaceholder setting is set, the cache value is the placeholder" {
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("foo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.nullBar()
 
@@ -95,7 +95,7 @@ class CacheableTest : FreeSpec() {
             "and nullPlaceholder setting is set, null is returned when retrieving the value" {
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("foo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.nullBar()
                 val result = testClass.nullBar()
@@ -107,7 +107,7 @@ class CacheableTest : FreeSpec() {
         "Invalidates a cache entry" - {
             "without parameters" {
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.bar()
                 testClass.invBar()
@@ -117,7 +117,7 @@ class CacheableTest : FreeSpec() {
 
             "with same parameters" {
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.baz(32, "something")
                 testClass.invBaz(32, "something")
@@ -128,7 +128,7 @@ class CacheableTest : FreeSpec() {
 
         "Save when condition is fullfilled" {
             val config = listOf(CacheConfig("foo")).associateBy { it.name }
-            val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+            val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
             testClass.dontSaveBar()
             val result = testClass.dontSaveBar()
@@ -152,7 +152,7 @@ class CacheableTest : FreeSpec() {
         "Cache results that are not serializable" - {
             "int" {
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveInt()
 
@@ -163,7 +163,7 @@ class CacheableTest : FreeSpec() {
 
             "null int" {
                 val config = listOf(CacheConfig("foo", nullPlaceholder = "null")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveNullInt()
 
@@ -174,7 +174,7 @@ class CacheableTest : FreeSpec() {
 
             "boolean" {
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveBoolean()
 
@@ -185,7 +185,7 @@ class CacheableTest : FreeSpec() {
 
             "set" {
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
-                val testClass = Foo(KacheableImpl(RedisKacheableStore(conn), config))
+                val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.setOfInts()
 
