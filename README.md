@@ -3,6 +3,9 @@
 > [!CAUTION]
 > This library is still experimental and actively being developed, it may change until it is released. For now, it's just released as snapshots on Jitpack.io.
 
+> [!NOTE]
+> For now, this library depends on KotlinX Serialization to serialize computation results to Json for storage in the cache.
+
 # Kacheable
 
 Kacheable is a Kotlin library simplifies working with caching/retrieving results of the computation inside it's lambda function. It mimics the Micronaut caching feature, expanding a bit on it. There are separate implementations for both blocking and suspending. For now the only storage implementation available is using the Lettuce library with Redis caching, a very simple in memory implementation, and a NoOp implementation for testing or disabling caching.
