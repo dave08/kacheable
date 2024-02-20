@@ -14,6 +14,7 @@ dependencies {
 
     implementation(platform(libs.kotlinx.coroutines.bom))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.reactor)
 
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.extensions.testContainers)

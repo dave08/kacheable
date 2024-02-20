@@ -3,7 +3,6 @@ package com.github.dave08.kacheable
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.coroutines
-import kotlinx.coroutines.future.await
 import kotlin.time.Duration
 
 @OptIn(ExperimentalLettuceCoroutinesApi::class)
