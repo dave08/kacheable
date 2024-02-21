@@ -9,9 +9,6 @@ internal class KacheableImpl(
     private val getNameStrategy: GetNameStrategy,
     private val jsonParser: Json,
 ) : Kacheable {
-    /**
-     * Don't use * in this list yet... I don't think del supports it properly.
-     */
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R {
         keys.forEach { (name, params) ->
             store.delete(getNameStrategy.getName(name, params.toTypedArray()))

@@ -13,9 +13,6 @@ internal class BlockingKacheableImpl(
     private val getNameStrategy: GetNameStrategy,
     private val jsonParser: Json
 ) : BlockingKacheable {
-    /**
-     * Don't use * in this list yet... I don't think del supports it properly.
-     */
     override fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R {
         keys.forEach { (name, params) ->
             store.delete(getNameStrategy.getName(name, params.toTypedArray()))
