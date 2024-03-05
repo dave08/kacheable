@@ -2,7 +2,7 @@ package com.github.dave08.kacheable
 
 import kotlin.time.Duration
 
-internal class InMemoryKacheableStore(
+class InMemoryKacheableStore(
     val map: MutableMap<String, String> = mutableMapOf()
 ) : KacheableStore {
     override suspend fun delete(key: String) {
