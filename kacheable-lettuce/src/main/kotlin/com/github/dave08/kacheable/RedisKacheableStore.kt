@@ -13,7 +13,7 @@ import kotlin.time.Duration
 class RedisKacheableStore(
     private val conn: StatefulRedisConnection<String, String>,
     private val deleteFromPatternInChunksOf: Int = 20,
-    private val deleteScanCount: Long = 1000, 
+    private val deleteScanCount: Long = 1000,
 ) : KacheableStore {
 
     override suspend fun delete(key: String) {

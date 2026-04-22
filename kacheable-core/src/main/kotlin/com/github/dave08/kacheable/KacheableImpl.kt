@@ -31,11 +31,7 @@ internal class KacheableImpl(
         return if (result == null) {
             val blockResult = block()
 
-            val resultToSave = when {
-                blockResult == null && config?.nullPlaceholder != null -> config.nullPlaceholder
-                blockResult == null || !saveResultIf(blockResult) -> null
-                else -> jsonParser.encodeToString(type, blockResult)
-            }
+            val resultToSave = computeResultToSave(blockResult, config, saveResultIf, type)
 
             resultToSave?.let {
                 store.set(keyName, it)
@@ -56,6 +52,17 @@ internal class KacheableImpl(
             else
                 jsonParser.decodeFromString(type, result)
         }
+    }
+
+    private fun <R> computeResultToSave(
+        blockResult: R,
+        config: CacheConfig?,
+        saveResultIf: (R) -> Boolean,
+        type: KSerializer<R>
+    ) = when {
+        blockResult == null && config?.nullPlaceholder != null -> config.nullPlaceholder
+        blockResult == null || !saveResultIf(blockResult) -> null
+        else -> jsonParser.encodeToString(type, blockResult)
     }
 }
 
