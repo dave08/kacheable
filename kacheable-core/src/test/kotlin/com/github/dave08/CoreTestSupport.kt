@@ -18,7 +18,13 @@ class InMemoryBlockingKacheableStore(
     val map: MutableMap<String, String> = mutableMapOf(),
 ) : BlockingKacheableStore {
     override fun delete(key: String) {
-        map.remove(key)
+        if (!key.contains("*")) {
+            map.remove(key)
+            return
+        }
+
+        val regex = Regex("^${key.split("*").joinToString(".*") { Regex.escape(it) }}$")
+        map.keys.filter(regex::matches).toList().forEach(map::remove)
     }
 
     override fun set(key: String, value: String) {

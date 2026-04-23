@@ -1,11 +1,17 @@
+@file:OptIn(ExperimentalKacheableApi::class)
+
 package com.github.dave08
 
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.cache1
 import com.github.dave08.kacheable.cache3
+import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.CacheWildcard
+import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.patternArgs
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.serialization.Serializable
 import kotlin.test.assertEquals
@@ -87,17 +93,39 @@ val TypedExactApiSpec by testSuite {
         SuspendCacheFixture(getNameStrategy = structuredKeyStrategy)
     } asContextForEach {
         test("typed calls respect a custom name strategy for structured keys") {
-            val pageCache = cache3<Int, Int, Int, Song>("song-page-cache")
+            val pageCache = cache3<Int, Int, Int, Song>(
+                name = "song-page-cache",
+                storageLayout = CacheStorageLayout.HashValue,
+            )
 
             val result = cache(pageCache(7, 2, 25)) {
                 Song(7, "Page A")
             }
 
             assertEquals(Song(7, "Page A"), result)
+            assertEquals(CacheStorageLayout.HashValue, pageCache.storageLayout)
             assertEquals(
                 """{"id":7,"title":"Page A"}""",
                 store.get("song-page-cache|song=7|page=2|limit=25"),
             )
+        }
+
+        test("group invalidation can remove all matching structured pages") {
+            val pageCache = cache3<Int, Int, Int, Song, Int>(
+                name = "song-page-cache",
+                storageLayout = CacheStorageLayout.HashValue,
+                groupArgs = { songId -> patternArgs(songId, CacheWildcard, CacheWildcard) },
+            )
+
+            cache(pageCache(7, 1, 25)) { Song(7, "Page 1") }
+            cache(pageCache(7, 2, 25)) { Song(7, "Page 2") }
+            cache(pageCache(8, 1, 25)) { Song(8, "Other Song") }
+
+            cache.invalidate(pageCache.group(7))
+
+            assertNull(store.get("song-page-cache|song=7|page=1|limit=25"))
+            assertNull(store.get("song-page-cache|song=7|page=2|limit=25"))
+            assertEquals("""{"id":8,"title":"Other Song"}""", store.get("song-page-cache|song=8|page=1|limit=25"))
         }
     }
 
@@ -128,17 +156,39 @@ val TypedExactApiSpec by testSuite {
         BlockingCacheFixture(getNameStrategy = structuredKeyStrategy)
     } asContextForEach {
         test("blocking typed calls respect a custom name strategy for structured keys") {
-            val pageCache = cache3<Int, Int, Int, Song>("song-page-cache")
+            val pageCache = cache3<Int, Int, Int, Song>(
+                name = "song-page-cache",
+                storageLayout = CacheStorageLayout.HashValue,
+            )
 
             val result = cache(pageCache(11, 3, 50)) {
                 Song(11, "Blocking Page")
             }
 
             assertEquals(Song(11, "Blocking Page"), result)
+            assertEquals(CacheStorageLayout.HashValue, pageCache.storageLayout)
             assertEquals(
                 """{"id":11,"title":"Blocking Page"}""",
                 store.get("song-page-cache|song=11|page=3|limit=50"),
             )
+        }
+
+        test("blocking group invalidation can remove all matching structured pages") {
+            val pageCache = cache3<Int, Int, Int, Song, Int>(
+                name = "song-page-cache",
+                storageLayout = CacheStorageLayout.HashValue,
+                groupArgs = { songId -> patternArgs(songId, CacheWildcard, CacheWildcard) },
+            )
+
+            cache(pageCache(11, 1, 50)) { Song(11, "Blocking Page 1") }
+            cache(pageCache(11, 2, 50)) { Song(11, "Blocking Page 2") }
+            cache(pageCache(12, 1, 50)) { Song(12, "Blocking Other") }
+
+            cache.invalidate(pageCache.group(11))
+
+            assertNull(store.get("song-page-cache|song=11|page=1|limit=50"))
+            assertNull(store.get("song-page-cache|song=11|page=2|limit=50"))
+            assertEquals("""{"id":12,"title":"Blocking Other"}""", store.get("song-page-cache|song=12|page=1|limit=50"))
         }
     }
 }
