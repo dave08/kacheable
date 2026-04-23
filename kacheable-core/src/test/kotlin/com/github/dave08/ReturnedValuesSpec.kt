@@ -3,23 +3,21 @@ package com.github.dave08
 import com.github.dave08.kacheable.InMemoryKacheableStore
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.invoke
-import io.kotest.core.spec.style.FreeSpec
-import strikt.api.expectThat
-import strikt.assertions.isEqualTo
-import strikt.assertions.isNull
-import strikt.assertions.isNullOrEmpty
-import strikt.assertions.isTrue
+import de.infix.testBalloon.framework.core.testSuite
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-class ReturnedValuesSpec : FreeSpec({
-    val store = InMemoryKacheableStore()
-    val kacheable = Kacheable(store)
+val ReturnedValuesSpec by testSuite {
+    test("returns the cached value when a new result should not be saved") {
+        val store = InMemoryKacheableStore()
+        val kacheable = Kacheable(store)
 
-    "only return if value exists in the cache" {
         var result: Boolean? = kacheable.invoke("some-cache", 1, saveResultIf = { false }) {
             null
         }
 
-        expectThat(result).isNull()
+        assertNull(result)
+
         kacheable.invoke("some-cache", 1) {
             true
         }
@@ -28,6 +26,6 @@ class ReturnedValuesSpec : FreeSpec({
             null
         }
 
-        expectThat(result).isTrue()
+        assertTrue(result == true)
     }
-})
+}

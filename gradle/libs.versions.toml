@@ -8,8 +8,10 @@ kotest = "6.1.11"
 kotest-testContainers = "6.1.11"
 testContainers = "2.0.5"
 strikt = "0.35.1"
+testBalloon = "0.8.4-K2.3.20"
 
 [libraries]
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuceVersion" }
 kotlinx-coroutines-bom = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-bom", version.ref = "kotlinxCoroutines" }
@@ -17,9 +19,8 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-coroutines-debug = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-debug" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test" }
 kotlinx-coroutines-reactor = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor" }
+testballoon-framework-core = { group = "de.infix.testBalloon", name = "testBalloon-framework-core", version.ref = "testBalloon" }
 
-kotest-runner-junit5 = { group = "io.kotest", name = "kotest-runner-junit5", version.ref = "kotest" }
-kotest-extensions-testContainers = { group = "io.kotest", name = "kotest-extensions-testcontainers", version.ref = "kotest-testContainers" }
 testContainers-core = { group = "org.testcontainers", name = "testcontainers", version.ref = "testContainers" }
 strikt-core = { group = "io.strikt", name = "strikt-core", version.ref = "strikt" }
 
@@ -27,3 +28,4 @@ strikt-core = { group = "io.strikt", name = "strikt-core", version.ref = "strikt
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+testballoon = { id = "de.infix.testBalloon", version.ref = "testBalloon" }

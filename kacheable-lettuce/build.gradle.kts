@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinxSerialization)
+    alias(libs.plugins.testballoon)
     `java-library`
     `maven-publish`
 }
@@ -16,8 +17,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.reactor)
 
-    testImplementation(libs.kotest.runner.junit5)
-    testImplementation(libs.kotest.extensions.testContainers)
+    testImplementation(libs.testballoon.framework.core)
+    testImplementation(libs.kotlin.test)
     testImplementation(libs.testContainers.core)
     testImplementation(libs.strikt.core)
 }

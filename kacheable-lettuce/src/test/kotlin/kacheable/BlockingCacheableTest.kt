@@ -1,55 +1,48 @@
-package  kacheable
+package kacheable
 
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.RedisBlockingKacheableStore
-import io.kotest.core.spec.style.FreeSpec
-import io.kotest.extensions.testcontainers.perTest
-import io.lettuce.core.RedisClient
-import io.lettuce.core.api.StatefulRedisConnection
-import kotlinx.coroutines.delay
-import org.testcontainers.containers.GenericContainer
+import com.github.dave08.kacheable.blocking.cache
+import com.github.dave08.kacheable.blocking.invoke
+import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.*
+import strikt.assertions.all
+import strikt.assertions.containsExactly
+import strikt.assertions.isEmpty
+import strikt.assertions.isEqualTo
+import strikt.assertions.isGreaterThan
+import strikt.assertions.isNull
 import kotlin.time.Duration.Companion.minutes
-import com.github.dave08.kacheable.blocking.invoke
 
-class BlockingCacheableTest : FreeSpec() {
-    init {
-        lateinit var client: RedisClient
-        lateinit var conn: StatefulRedisConnection<String, String>
-        val container = GenericContainer<Nothing>("redis:5.0.3-alpine").apply {
-            withExposedPorts(6379)
-        }
-
-        extensions(container.perTest())
-
-        "Saves the result of a function with no parameters" {
+val BlockingCacheableTest by testSuite {
+    test("saves the result of a function with no parameters") {
+        withRedisConnectionBlocking { conn ->
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
-            val results = mutableListOf<Bar>()
-
-            results += (1..5).map { testClass.bar() }
+            val results = (1..5).map { testClass.bar() }
 
             expect {
                 that(testClass.timesCalled).isEqualTo(1)
-
                 that(conn.sync().get("BlockingFoo")).isEqualTo("""{"id":32,"name":"something"}""")
                 that(results).all { isEqualTo(Bar(32, "something")) }
             }
-
         }
+    }
 
-        "Saves the result of a function with multiple parameters" {
+    test("saves the result of a function with multiple parameters") {
+        withRedisConnectionBlocking { conn ->
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
 
             testClass.baz(32, "something")
 
             expectThat(conn.sync().keys("*")).containsExactly("BlockingFoo:32,something")
         }
+    }
 
-        "Sets expiry from last write" {
+    test("sets expiry from last write") {
+        withRedisConnectionBlocking { conn ->
             val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
@@ -57,28 +50,34 @@ class BlockingCacheableTest : FreeSpec() {
 
             expectThat(conn.sync().ttl("BlockingFoo")).isEqualTo((30.minutes).inWholeSeconds)
         }
+    }
 
-        "Saves cache with default configs when not specified" {
+    test("saves cache with default configs when not specified") {
+        withRedisConnectionBlocking { conn ->
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), emptyMap()))
 
             testClass.bar()
 
             expectThat(conn.sync().exists("BlockingFoo")).isEqualTo(1)
         }
+    }
 
-        "Sets expiry from last access" {
+    test("sets expiry from last access") {
+        withRedisConnectionBlocking { conn ->
             val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_access, 30.minutes)).associateBy { it.name }
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
             testClass.bar()
-            delay(100)
+            Thread.sleep(100)
             testClass.bar()
 
             expectThat(conn.sync().pttl("BlockingFoo")).isGreaterThan((30.minutes).inWholeMilliseconds - 10)
         }
+    }
 
-        "When function result is null" - {
-            "and nullPlaceholder setting is not set, the cache entry isn't saved" {
+    testSuite("when function result is null") {
+        test("it does not save an entry when the null placeholder is not configured") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = null)).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
@@ -86,7 +85,10 @@ class BlockingCacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().keys("*")).isEmpty()
             }
-            "and nullPlaceholder setting is set, the cache value is the placeholder" {
+        }
+
+        test("it stores the placeholder when the null placeholder is configured") {
+            withRedisConnectionBlocking { conn ->
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
@@ -95,7 +97,10 @@ class BlockingCacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().get("BlockingFoo")).isEqualTo(placeholder)
             }
-            "and nullPlaceholder setting is set, null is returned when retrieving the value" {
+        }
+
+        test("it returns null when the cached value is the placeholder") {
+            withRedisConnectionBlocking { conn ->
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
@@ -106,9 +111,11 @@ class BlockingCacheableTest : FreeSpec() {
                 expectThat(result).isNull()
             }
         }
+    }
 
-        "Invalidates a cache entry" - {
-            "without parameters" {
+    testSuite("invalidation") {
+        test("invalidates a cache entry without parameters") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
@@ -117,8 +124,10 @@ class BlockingCacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().exists("BlockingFoo")).isEqualTo(0)
             }
+        }
 
-            "with same parameters" {
+        test("invalidates a cache entry with matching parameters") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
@@ -128,8 +137,10 @@ class BlockingCacheableTest : FreeSpec() {
                 expectThat(conn.sync().exists("BlockingFoo:32,something")).isEqualTo(0)
             }
         }
+    }
 
-        "Save when condition is fullfilled" {
+    test("saveResultIf controls whether the result is cached") {
+        withRedisConnectionBlocking { conn ->
             val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
             val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
@@ -138,7 +149,6 @@ class BlockingCacheableTest : FreeSpec() {
 
             expect {
                 that(result).isEqualTo(Bar(32, "something"))
-
                 that(conn.sync().keys("*")).isEmpty()
             }
 
@@ -147,67 +157,52 @@ class BlockingCacheableTest : FreeSpec() {
 
             expect {
                 that(result2).isEqualTo(Bar(32, "something"))
-
                 that(conn.sync().keys("*")).containsExactly("BlockingFoo")
             }
         }
+    }
 
-        "Cache results that are not serializable" - {
-            "int" {
+    testSuite("cache results that are not serializable objects") {
+        test("int") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveInt()
 
-                expect {
-                    that(conn.sync().get("BlockingFoo")).isEqualTo("32")
-                }
+                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("32")
             }
+        }
 
-            "null int" {
+        test("null int") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = "null")).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveNullInt()
 
-                expect {
-                    that(conn.sync().get("BlockingFoo")).isEqualTo("null")
-                }
+                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("null")
             }
+        }
 
-            "boolean" {
+        test("boolean") {
+            withRedisConnectionBlocking { conn ->
                 val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
                 val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
 
                 testClass.primitiveBoolean()
 
-                expect {
-                    that(conn.sync().get("BlockingFoo")).isEqualTo("true")
-                }
+                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("true")
             }
-        }
-
-        beforeTest {
-            val host = container.host
-            val port = container.getMappedPort(6379)
-
-            client = RedisClient.create("redis://$host:$port/0")
-            conn = client.connect()
-        }
-
-        afterTest {
-            conn.close()
-            client.shutdown()
         }
     }
 }
 
-class BlockingFoo(val cache: BlockingKacheable) {
+class BlockingFoo(private val cache: BlockingKacheable) {
     var timesCalled: Int = 0
 
     fun bar() = cache("BlockingFoo") {
         timesCalled++
-
         Bar(32, "something")
     }
 
@@ -219,7 +214,6 @@ class BlockingFoo(val cache: BlockingKacheable) {
         32
     }
 
-
     fun primitiveNullInt(): Int? = cache("BlockingFoo") {
         null
     }
@@ -228,9 +222,10 @@ class BlockingFoo(val cache: BlockingKacheable) {
         true
     }
 
-    fun dontSaveBar(shouldSave: Boolean = false): Bar = cache("BlockingFoo", saveResultIf = { shouldSave }) {
-        Bar(32, "something")
-    }
+    fun dontSaveBar(shouldSave: Boolean = false): Bar =
+        cache("BlockingFoo", saveResultIf = { shouldSave }) {
+            Bar(32, "something")
+        }
 
     fun baz(id: Int, name: String) = cache("BlockingFoo", id, name) {
         Bar(32, "something")
@@ -238,13 +233,9 @@ class BlockingFoo(val cache: BlockingKacheable) {
 
     fun invBar() = cache.invalidate(
         "BlockingFoo" to emptyList()
-    ) {
-
-    }
+    ) {}
 
     fun invBaz(id: Int, name: String) = cache.invalidate(
         "BlockingFoo" to listOf(id, name)
-    ) {
-
-    }
+    ) {}
 }

@@ -1,52 +1,48 @@
 package kacheable
 
-import com.github.dave08.kacheable.*
-import io.kotest.core.spec.style.FreeSpec
-import io.kotest.extensions.testcontainers.perTest
-import io.lettuce.core.RedisClient
-import io.lettuce.core.api.StatefulRedisConnection
+import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.ExpiryType
+import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.RedisKacheableStore
+import com.github.dave08.kacheable.invoke
+import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.coroutines.delay
-import kotlinx.serialization.Serializable
-import org.testcontainers.containers.GenericContainer
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.*
+import strikt.assertions.all
+import strikt.assertions.containsExactly
+import strikt.assertions.isEmpty
+import strikt.assertions.isEqualTo
+import strikt.assertions.isGreaterThan
+import strikt.assertions.isNull
 import kotlin.time.Duration.Companion.minutes
 
-class KacheableTest : FreeSpec() {
-    init {
-        lateinit var client: RedisClient
-        lateinit var conn: StatefulRedisConnection<String, String>
-        val container = GenericContainer<Nothing>("redis:5.0.3-alpine").apply {
-            withExposedPorts(6379)
-        }
-
-        extensions(container.perTest())
-
-        "Saves the result of a function with no parameters" {
+val KacheableTest by testSuite {
+    test("saves the result of a function with no parameters") {
+        withRedisConnection { conn ->
             val testClass = Foo(Kacheable(RedisKacheableStore(conn)))
-            val results = mutableListOf<Bar>()
-
-            results += (1..5).map { testClass.bar() }
+            val results = (1..5).map { testClass.bar() }
 
             expect {
                 that(testClass.timesCalled).isEqualTo(1)
-
                 that(conn.sync().get("foo")).isEqualTo("""{"id":32,"name":"something"}""")
                 that(results).all { isEqualTo(Bar(32, "something")) }
             }
-
         }
+    }
 
-        "Saves the result of a function with multiple parameters" {
+    test("saves the result of a function with multiple parameters") {
+        withRedisConnection { conn ->
             val testClass = Foo(Kacheable(RedisKacheableStore(conn)))
 
             testClass.baz(32, "something")
 
             expectThat(conn.sync().keys("*")).containsExactly("foo:32,something")
         }
+    }
 
-        "Sets expiry from last write" {
+    test("sets expiry from last write") {
+        withRedisConnection { conn ->
             val config = listOf(CacheConfig("foo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
             val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -54,16 +50,20 @@ class KacheableTest : FreeSpec() {
 
             expectThat(conn.sync().ttl("foo")).isEqualTo((30.minutes).inWholeSeconds)
         }
+    }
 
-        "Saves cache with default configs when not specified" {
+    test("saves cache with default configs when not specified") {
+        withRedisConnection { conn ->
             val testClass = Foo(Kacheable(RedisKacheableStore(conn), emptyMap()))
 
             testClass.bar()
 
             expectThat(conn.sync().exists("foo")).isEqualTo(1)
         }
+    }
 
-        "Sets expiry from last access" {
+    test("sets expiry from last access") {
+        withRedisConnection { conn ->
             val config = listOf(CacheConfig("foo", ExpiryType.after_access, 30.minutes)).associateBy { it.name }
             val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -73,9 +73,11 @@ class KacheableTest : FreeSpec() {
 
             expectThat(conn.sync().pttl("foo")).isGreaterThan((30.minutes).inWholeMilliseconds - 10)
         }
+    }
 
-        "When function result is null" - {
-            "and nullPlaceholder setting is not set, the cache entry isn't saved" {
+    testSuite("when function result is null") {
+        test("it does not save an entry when the null placeholder is not configured") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo", nullPlaceholder = null)).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -83,7 +85,10 @@ class KacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().keys("*")).isEmpty()
             }
-            "and nullPlaceholder setting is set, the cache value is the placeholder" {
+        }
+
+        test("it stores the placeholder when the null placeholder is configured") {
+            withRedisConnection { conn ->
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("foo", nullPlaceholder = placeholder)).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
@@ -92,7 +97,10 @@ class KacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().get("foo")).isEqualTo(placeholder)
             }
-            "and nullPlaceholder setting is set, null is returned when retrieving the value" {
+        }
+
+        test("it returns null when the cached value is the placeholder") {
+            withRedisConnection { conn ->
                 val placeholder = "--placeholder--"
                 val config = listOf(CacheConfig("foo", nullPlaceholder = placeholder)).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
@@ -103,9 +111,11 @@ class KacheableTest : FreeSpec() {
                 expectThat(result).isNull()
             }
         }
+    }
 
-        "Invalidates a cache entry" - {
-            "without parameters" {
+    testSuite("invalidation") {
+        test("invalidates a cache entry without parameters") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -114,8 +124,10 @@ class KacheableTest : FreeSpec() {
 
                 expectThat(conn.sync().exists("foo")).isEqualTo(0)
             }
+        }
 
-            "with same parameters" {
+        test("invalidates a cache entry with matching parameters") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -125,8 +137,10 @@ class KacheableTest : FreeSpec() {
                 expectThat(conn.sync().exists("foo:32,something")).isEqualTo(0)
             }
         }
+    }
 
-        "Save when condition is fullfilled" {
+    test("saveResultIf controls whether the result is cached") {
+        withRedisConnection { conn ->
             val config = listOf(CacheConfig("foo")).associateBy { it.name }
             val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
@@ -135,7 +149,6 @@ class KacheableTest : FreeSpec() {
 
             expect {
                 that(result).isEqualTo(Bar(32, "something"))
-
                 that(conn.sync().keys("*")).isEmpty()
             }
 
@@ -144,81 +157,63 @@ class KacheableTest : FreeSpec() {
 
             expect {
                 that(result2).isEqualTo(Bar(32, "something"))
-
                 that(conn.sync().keys("*")).containsExactly("foo")
             }
         }
+    }
 
-        "Cache results that are not serializable" - {
-            "int" {
+    testSuite("cache results that are not serializable objects") {
+        test("int") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveInt()
 
-                expect {
-                    that(conn.sync().get("foo")).isEqualTo("32")
-                }
+                expectThat(conn.sync().get("foo")).isEqualTo("32")
             }
+        }
 
-            "null int" {
+        test("null int") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo", nullPlaceholder = "null")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveNullInt()
 
-                expect {
-                    that(conn.sync().get("foo")).isEqualTo("null")
-                }
+                expectThat(conn.sync().get("foo")).isEqualTo("null")
             }
+        }
 
-            "boolean" {
+        test("boolean") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.primitiveBoolean()
 
-                expect {
-                    that(conn.sync().get("foo")).isEqualTo("true")
-                }
+                expectThat(conn.sync().get("foo")).isEqualTo("true")
             }
+        }
 
-            "set" {
+        test("set") {
+            withRedisConnection { conn ->
                 val config = listOf(CacheConfig("foo")).associateBy { it.name }
                 val testClass = Foo(Kacheable(RedisKacheableStore(conn), config))
 
                 testClass.setOfInts()
 
-                expect {
-                    that(conn.sync().get("foo")).isEqualTo("[1,2,3]")
-                }
+                expectThat(conn.sync().get("foo")).isEqualTo("[1,2,3]")
             }
-        }
-
-        beforeTest {
-            val host = container.host
-            val port = container.getMappedPort(6379)
-
-            client = RedisClient.create("redis://$host:$port/0")
-            conn = client.connect()
-        }
-
-        afterTest {
-            conn.close()
-            client.shutdown()
         }
     }
 }
 
-@Serializable
-data class Bar(val id: Int, val name: String)
-
-class Foo(val cache: Kacheable) {
+class Foo(private val cache: Kacheable) {
     var timesCalled: Int = 0
 
     suspend fun bar() = cache("foo") {
         timesCalled++
-
         Bar(32, "something")
     }
 
@@ -230,7 +225,6 @@ class Foo(val cache: Kacheable) {
         32
     }
 
-
     suspend fun primitiveNullInt(): Int? = cache("foo") {
         null
     }
@@ -240,12 +234,13 @@ class Foo(val cache: Kacheable) {
     }
 
     suspend fun setOfInts(): Set<Int> = cache("foo") {
-        setOf(1,2,3)
+        setOf(1, 2, 3)
     }
 
-    suspend fun dontSaveBar(shouldSave: Boolean = false): Bar = cache("foo", saveResultIf = { shouldSave }) {
-        Bar(32, "something")
-    }
+    suspend fun dontSaveBar(shouldSave: Boolean = false): Bar =
+        cache("foo", saveResultIf = { shouldSave }) {
+            Bar(32, "something")
+        }
 
     suspend fun baz(id: Int, name: String) = cache("foo", id, name) {
         Bar(32, "something")
@@ -253,13 +248,9 @@ class Foo(val cache: Kacheable) {
 
     suspend fun invBar() = cache.invalidate(
         "foo" to emptyList()
-    ) {
-
-    }
+    ) {}
 
     suspend fun invBaz(id: Int, name: String) = cache.invalidate(
         "foo" to listOf(id, name)
-    ) {
-
-    }
+    ) {}
 }
