@@ -3,7 +3,6 @@ package kacheable
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.blocking.BlockingKacheable
-import com.github.dave08.kacheable.blocking.RedisBlockingKacheableStore
 import com.github.dave08.kacheable.blocking.cache
 import com.github.dave08.kacheable.blocking.invoke
 import de.infix.testBalloon.framework.core.testSuite
@@ -18,181 +17,150 @@ import strikt.assertions.isNull
 import kotlin.time.Duration.Companion.minutes
 
 val BlockingCacheableTest by testSuite {
-    test("saves the result of a function with no parameters") {
-        withRedisConnectionBlocking { conn ->
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
-            val results = (1..5).map { testClass.bar() }
+    testFixture {
+        RedisFixture.start()
+    } asContextForEach {
+        test("saves the result of a function with no parameters") {
+            val fixture = blockingSubject()
+            val results = (1..5).map { fixture.subject.bar() }
 
             expect {
-                that(testClass.timesCalled).isEqualTo(1)
-                that(conn.sync().get("BlockingFoo")).isEqualTo("""{"id":32,"name":"something"}""")
+                that(fixture.subject.timesCalled).isEqualTo(1)
+                that(fixture.commands.get("BlockingFoo")).isEqualTo("""{"id":32,"name":"something"}""")
                 that(results).all { isEqualTo(Bar(32, "something")) }
             }
         }
-    }
 
-    test("saves the result of a function with multiple parameters") {
-        withRedisConnectionBlocking { conn ->
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn)))
+        test("saves the result of a function with multiple parameters") {
+            val fixture = blockingSubject()
 
-            testClass.baz(32, "something")
+            fixture.subject.baz(32, "something")
 
-            expectThat(conn.sync().keys("*")).containsExactly("BlockingFoo:32,something")
+            expectThat(fixture.commands.keys("*")).containsExactly("BlockingFoo:32,something")
         }
-    }
 
-    test("sets expiry from last write") {
-        withRedisConnectionBlocking { conn ->
-            val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_write, 30.minutes)).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        test("sets expiry from last write") {
+            val fixture = blockingSubject(
+                CacheConfig("BlockingFoo", ExpiryType.after_write, 30.minutes),
+            )
 
-            testClass.bar()
+            fixture.subject.bar()
 
-            expectThat(conn.sync().ttl("BlockingFoo")).isEqualTo((30.minutes).inWholeSeconds)
+            expectThat(fixture.commands.ttl("BlockingFoo")).isEqualTo((30.minutes).inWholeSeconds)
         }
-    }
 
-    test("saves cache with default configs when not specified") {
-        withRedisConnectionBlocking { conn ->
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), emptyMap()))
+        test("saves cache with default configs when not specified") {
+            val fixture = blockingSubject()
 
-            testClass.bar()
+            fixture.subject.bar()
 
-            expectThat(conn.sync().exists("BlockingFoo")).isEqualTo(1)
+            expectThat(fixture.commands.exists("BlockingFoo")).isEqualTo(1)
         }
-    }
 
-    test("sets expiry from last access") {
-        withRedisConnectionBlocking { conn ->
-            val config = listOf(CacheConfig("BlockingFoo", ExpiryType.after_access, 30.minutes)).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        test("sets expiry from last access") {
+            val fixture = blockingSubject(
+                CacheConfig("BlockingFoo", ExpiryType.after_access, 30.minutes),
+            )
 
-            testClass.bar()
+            fixture.subject.bar()
             Thread.sleep(100)
-            testClass.bar()
+            fixture.subject.bar()
 
-            expectThat(conn.sync().pttl("BlockingFoo")).isGreaterThan((30.minutes).inWholeMilliseconds - 10)
+            expectThat(fixture.commands.pttl("BlockingFoo")).isGreaterThan((30.minutes).inWholeMilliseconds - 10)
         }
-    }
 
-    testSuite("when function result is null") {
-        test("it does not save an entry when the null placeholder is not configured") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = null)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        testSuite("when function result is null") {
+            test("it does not save an entry when the null placeholder is not configured") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo", nullPlaceholder = null))
 
-                testClass.nullBar()
+                fixture.subject.nullBar()
 
-                expectThat(conn.sync().keys("*")).isEmpty()
+                expectThat(fixture.commands.keys("*")).isEmpty()
             }
-        }
 
-        test("it stores the placeholder when the null placeholder is configured") {
-            withRedisConnectionBlocking { conn ->
+            test("it stores the placeholder when the null placeholder is configured") {
                 val placeholder = "--placeholder--"
-                val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+                val fixture = blockingSubject(CacheConfig("BlockingFoo", nullPlaceholder = placeholder))
 
-                testClass.nullBar()
+                fixture.subject.nullBar()
 
-                expectThat(conn.sync().get("BlockingFoo")).isEqualTo(placeholder)
+                expectThat(fixture.commands.get("BlockingFoo")).isEqualTo(placeholder)
             }
-        }
 
-        test("it returns null when the cached value is the placeholder") {
-            withRedisConnectionBlocking { conn ->
+            test("it returns null when the cached value is the placeholder") {
                 val placeholder = "--placeholder--"
-                val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = placeholder)).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+                val fixture = blockingSubject(CacheConfig("BlockingFoo", nullPlaceholder = placeholder))
 
-                testClass.nullBar()
-                val result = testClass.nullBar()
+                fixture.subject.nullBar()
+                val result = fixture.subject.nullBar()
 
                 expectThat(result).isNull()
             }
         }
-    }
 
-    testSuite("invalidation") {
-        test("invalidates a cache entry without parameters") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        testSuite("invalidation") {
+            test("invalidates a cache entry without parameters") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo"))
 
-                testClass.bar()
-                testClass.invBar()
+                fixture.subject.bar()
+                fixture.subject.invBar()
 
-                expectThat(conn.sync().exists("BlockingFoo")).isEqualTo(0)
+                expectThat(fixture.commands.exists("BlockingFoo")).isEqualTo(0)
+            }
+
+            test("invalidates a cache entry with matching parameters") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo"))
+
+                fixture.subject.baz(32, "something")
+                fixture.subject.invBaz(32, "something")
+
+                expectThat(fixture.commands.exists("BlockingFoo:32,something")).isEqualTo(0)
             }
         }
 
-        test("invalidates a cache entry with matching parameters") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        test("saveResultIf controls whether the result is cached") {
+            val fixture = blockingSubject(CacheConfig("BlockingFoo"))
 
-                testClass.baz(32, "something")
-                testClass.invBaz(32, "something")
-
-                expectThat(conn.sync().exists("BlockingFoo:32,something")).isEqualTo(0)
-            }
-        }
-    }
-
-    test("saveResultIf controls whether the result is cached") {
-        withRedisConnectionBlocking { conn ->
-            val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-            val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
-
-            testClass.dontSaveBar()
-            val result = testClass.dontSaveBar()
+            fixture.subject.dontSaveBar()
+            val result = fixture.subject.dontSaveBar()
 
             expect {
                 that(result).isEqualTo(Bar(32, "something"))
-                that(conn.sync().keys("*")).isEmpty()
+                that(fixture.commands.keys("*")).isEmpty()
             }
 
-            testClass.dontSaveBar(true)
-            val result2 = testClass.dontSaveBar(true)
+            fixture.subject.dontSaveBar(true)
+            val result2 = fixture.subject.dontSaveBar(true)
 
             expect {
                 that(result2).isEqualTo(Bar(32, "something"))
-                that(conn.sync().keys("*")).containsExactly("BlockingFoo")
-            }
-        }
-    }
-
-    testSuite("cache results that are not serializable objects") {
-        test("int") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
-
-                testClass.primitiveInt()
-
-                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("32")
+                that(fixture.commands.keys("*")).containsExactly("BlockingFoo")
             }
         }
 
-        test("null int") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo", nullPlaceholder = "null")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+        testSuite("cache results that are not serializable objects") {
+            test("int") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo"))
 
-                testClass.primitiveNullInt()
+                fixture.subject.primitiveInt()
 
-                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("null")
+                expectThat(fixture.commands.get("BlockingFoo")).isEqualTo("32")
             }
-        }
 
-        test("boolean") {
-            withRedisConnectionBlocking { conn ->
-                val config = listOf(CacheConfig("BlockingFoo")).associateBy { it.name }
-                val testClass = BlockingFoo(BlockingKacheable(RedisBlockingKacheableStore(conn), config))
+            test("null int") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo", nullPlaceholder = "null"))
 
-                testClass.primitiveBoolean()
+                fixture.subject.primitiveNullInt()
 
-                expectThat(conn.sync().get("BlockingFoo")).isEqualTo("true")
+                expectThat(fixture.commands.get("BlockingFoo")).isEqualTo("null")
+            }
+
+            test("boolean") {
+                val fixture = blockingSubject(CacheConfig("BlockingFoo"))
+
+                fixture.subject.primitiveBoolean()
+
+                expectThat(fixture.commands.get("BlockingFoo")).isEqualTo("true")
             }
         }
     }
