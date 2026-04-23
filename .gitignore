@@ -42,3 +42,6 @@ bin/
 .DS_Store
 
 .idea/
+
+# Local design/work prompts
+*_PROMPT.md
