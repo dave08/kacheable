@@ -1,0 +1,21 @@
+package com.github.dave08.kacheable.blocking
+
+import com.github.dave08.kacheable.CacheStorageAddress
+import com.github.dave08.kacheable.ExperimentalKacheableApi
+
+@OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingKacheableStore.get(address: CacheStorageAddress): String? =
+    address.field?.let { getHashValue(address.key, it) } ?: get(address.key)
+
+@OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingKacheableStore.set(address: CacheStorageAddress, value: String) {
+    address.field?.let { setHashValue(address.key, it, value) } ?: set(address.key, value)
+}
+
+@OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingKacheableStore.delete(address: CacheStorageAddress) {
+    if (address.field == null)
+        delete(address.key)
+    else
+        deleteHashValue(address.key, address.field)
+}

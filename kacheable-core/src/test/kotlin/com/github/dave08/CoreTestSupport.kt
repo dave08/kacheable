@@ -16,22 +16,35 @@ class SuspendCacheFixture(
 
 class InMemoryBlockingKacheableStore(
     val map: MutableMap<String, String> = mutableMapOf(),
+    val hashMap: MutableMap<String, MutableMap<String, String>> = mutableMapOf(),
 ) : BlockingKacheableStore {
     override fun delete(key: String) {
         if (!key.contains("*")) {
             map.remove(key)
+            hashMap.remove(key)
             return
         }
 
         val regex = Regex("^${key.split("*").joinToString(".*") { Regex.escape(it) }}$")
         map.keys.filter(regex::matches).toList().forEach(map::remove)
+        hashMap.keys.filter(regex::matches).toList().forEach(hashMap::remove)
+    }
+
+    override fun deleteHashValue(key: String, field: String) {
+        hashMap[key]?.remove(field)
     }
 
     override fun set(key: String, value: String) {
         map[key] = value
     }
 
+    override fun setHashValue(key: String, field: String, value: String) {
+        hashMap.getOrPut(key, ::mutableMapOf)[field] = value
+    }
+
     override fun get(key: String): String? = map[key]
+
+    override fun getHashValue(key: String, field: String): String? = hashMap[key]?.get(field)
 
     override fun setExpire(key: String, expiry: kotlin.time.Duration) = Unit
 }

@@ -28,8 +28,19 @@ class RedisBlockingKacheableStore(
         conn.sync().set(key, value)
     }
 
+    override fun setHashValue(key: String, field: String, value: String) {
+        conn.sync().hset(key, field, value)
+    }
+
     override fun get(key: String): String? =
         conn.sync().get(key)
+
+    override fun getHashValue(key: String, field: String): String? =
+        conn.sync().hget(key, field)
+
+    override fun deleteHashValue(key: String, field: String) {
+        conn.sync().hdel(key, field)
+    }
 
     override fun setExpire(key: String, expiry: Duration) {
         conn.sync().pexpire(key, expiry.inWholeMilliseconds)

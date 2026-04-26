@@ -34,7 +34,17 @@ class RedisKacheableStore(
         conn.coroutines().set(key, value)
     }
 
+    override suspend fun setHashValue(key: String, field: String, value: String) {
+        conn.coroutines().hset(key, field, value)
+    }
+
     override suspend fun get(key: String): String? = conn.coroutines().get(key)
+
+    override suspend fun getHashValue(key: String, field: String): String? = conn.coroutines().hget(key, field)
+
+    override suspend fun deleteHashValue(key: String, field: String) {
+        conn.coroutines().hdel(key, field)
+    }
 
     override suspend fun setExpire(key: String, expiry: Duration) {
         conn.coroutines().pexpire(key, expiry.inWholeMilliseconds)

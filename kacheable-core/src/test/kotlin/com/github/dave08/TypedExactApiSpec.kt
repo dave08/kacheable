@@ -283,9 +283,15 @@ val TypedExactApiSpec by testSuite {
             val songMapCache = songs.withReturnMap<Int, Song>(
                 storageLayout = CacheStorageLayout.HashValue,
             )
+            var fieldCalls = 0
 
             cache(songFieldCache.key(3, 7)) {
+                fieldCalls++
                 Song(7, "Field Song")
+            }
+            cache(songFieldCache.key(3, 7)) {
+                fieldCalls++
+                Song(7, "Other Field Song")
             }
             cache(songMapCache.key(3)) {
                 mapOf(7 to Song(7, "Mapped Song"))
@@ -293,11 +299,17 @@ val TypedExactApiSpec by testSuite {
 
             val songsPart = songs.keyPart(artistKey(3))
 
-            assertEquals("""{"id":7,"title":"Field Song"}""", store.get("songs-cache:3,7"))
+            assertNull(store.get("songs-cache:3,7"))
+            assertEquals("""{"id":7,"title":"Field Song"}""", store.hashMap["songs-cache:3"]?.get("7"))
             assertEquals("""{"7":{"id":7,"title":"Mapped Song"}}""", store.get("songs-cache:3"))
+            assertEquals(1, fieldCalls)
             assertEquals(listOf("3", "*"), songsPart.args.toList().map(Any::toString))
             assertEquals(listOf(3), songsPart.keyGroups.main.toList())
             assertEquals(listOf("*"), songsPart.keyGroups.secondary?.toList()?.map(Any::toString))
+
+            cache.invalidate(songFieldCache.keyPart(artistKey(3)))
+
+            assertNull(store.hashMap["songs-cache:3"])
         }
     }
 

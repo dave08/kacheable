@@ -116,15 +116,10 @@ interface CacheEntryRef<R> {
 interface CacheEntryPartRef {
     val name: String
     val args: CacheArgs
+    val storageLayout: CacheStorageLayout?
     val keyGroups: CacheKeyGroups
         get() = CacheKeyGroups(args)
 }
-
-@ExperimentalKacheableApi
-typealias CacheCall<R> = CacheEntryRef<R>
-
-@ExperimentalKacheableApi
-typealias CacheGroup = CacheEntryPartRef
 
 @ExperimentalKacheableApi
 data class CacheKeyGroups(
@@ -398,6 +393,7 @@ internal data class SimpleCacheEntryRef<R>(
 internal data class SimpleCacheEntryPartRef(
     override val name: String,
     override val args: CacheArgs,
+    override val storageLayout: CacheStorageLayout? = null,
     override val keyGroups: CacheKeyGroups = CacheKeyGroups(args),
 ) : CacheEntryPartRef
 
@@ -442,9 +438,11 @@ internal fun groupedEntryPartRef(
     name: String,
     mainArgs: CacheArgs,
     secondaryArgs: CacheArgs,
+    storageLayout: CacheStorageLayout? = null,
 ): CacheEntryPartRef = SimpleCacheEntryPartRef(
     name = name,
     args = joinArgs(mainArgs, secondaryArgs),
+    storageLayout = storageLayout,
     keyGroups = CacheKeyGroups(main = mainArgs, secondary = secondaryArgs),
 )
 
@@ -586,7 +584,8 @@ inline fun <reified R, G : Any> cache0(
     val definition = SimpleCacheDefinition(name, serializer<R>(), storageLayout)
     return object : GroupedCache0<R, G>, CacheDefinition<R> by definition {
         override fun invoke(): CacheEntryRef<R> = SimpleCacheEntryRef(this, CacheArgs0)
-        override fun keyPart(part: CacheKeyPartRef<G>): CacheEntryPartRef = SimpleCacheEntryPartRef(name, groupArgs(part.value))
+        override fun keyPart(part: CacheKeyPartRef<G>): CacheEntryPartRef =
+            SimpleCacheEntryPartRef(name, groupArgs(part.value), storageLayout)
     }
 }
 
@@ -620,7 +619,8 @@ fun <P1 : Any, R> cache1(
     val cacheKey = key
     return object : GroupedCache1<P1, R, P1>, CacheDefinition<R> by definition {
         override fun invoke(p1: P1): CacheEntryRef<R> = SimpleCacheEntryRef(this, cacheKey.encode(p1))
-        override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef = SimpleCacheEntryPartRef(name, cacheKey.encode(part.value))
+        override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef =
+            SimpleCacheEntryPartRef(name, cacheKey.encode(part.value), storageLayout)
     }
 }
 
@@ -662,7 +662,7 @@ fun <P1 : Any, P2 : Any, R> cache2(
         override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
             val mainArgs = cacheKey.main.encode(part.value)
             val secondaryArgs = cacheKey.secondary.wildcardArgs
-            return groupedEntryPartRef(name, mainArgs, secondaryArgs)
+            return groupedEntryPartRef(name, mainArgs, secondaryArgs, storageLayout)
         }
     }
 }
@@ -705,7 +705,7 @@ fun <P1 : Any, P2 : Any, P3 : Any, R> cache3(
         override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
             val mainArgs = cacheKey.main.encode(part.value)
             val secondaryArgs = cacheKey.secondary.wildcardArgs
-            return groupedEntryPartRef(name, mainArgs, secondaryArgs)
+            return groupedEntryPartRef(name, mainArgs, secondaryArgs, storageLayout)
         }
     }
 }
@@ -748,7 +748,7 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, R> cache4(
         override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
             val mainArgs = cacheKey.main.encode(part.value)
             val secondaryArgs = cacheKey.secondary.wildcardArgs
-            return groupedEntryPartRef(name, mainArgs, secondaryArgs)
+            return groupedEntryPartRef(name, mainArgs, secondaryArgs, storageLayout)
         }
     }
 }
@@ -792,7 +792,7 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, R> cache5(
         override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
             val mainArgs = cacheKey.main.encode(part.value)
             val secondaryArgs = cacheKey.secondary.wildcardArgs
-            return groupedEntryPartRef(name, mainArgs, secondaryArgs)
+            return groupedEntryPartRef(name, mainArgs, secondaryArgs, storageLayout)
         }
     }
 }
@@ -836,7 +836,7 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, R> cache6(
         override fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
             val mainArgs = cacheKey.main.encode(part.value)
             val secondaryArgs = cacheKey.secondary.wildcardArgs
-            return groupedEntryPartRef(name, mainArgs, secondaryArgs)
+            return groupedEntryPartRef(name, mainArgs, secondaryArgs, storageLayout)
         }
     }
 }
@@ -936,32 +936,51 @@ suspend operator fun <R> Kacheable.invoke(
     cacheIf: (R) -> Boolean = { true },
     block: suspend () -> R,
 ): R = invoke(
-    entryRef.definition.name,
-    entryRef.definition.codec,
-    *entryRef.args.toParamsArray(),
+    name = entryRef.definition.name,
+    codec = entryRef.definition.codec,
+    keyGroups = entryRef.keyGroups,
+    storageLayout = entryRef.definition.storageLayout,
     saveResultIf = cacheIf,
     block = block,
 )
 
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
-    invalidate(*entryRefs.map { it.definition.name to it.args.toParamsArray().toList() }.toTypedArray()) {}
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
 }
 
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
-    invalidate(*partRefs.map { it.name to it.args.toParamsArray().toList() }.toTypedArray()) {}
+    partRefs.forEach { partRef ->
+        val storageLayout = partRef.storageLayout
+        if (storageLayout == null)
+            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
+        else
+            invalidate(partRef.name, partRef.keyGroups, storageLayout) {}
+    }
 }
 
 @ExperimentalKacheableApi
 suspend fun <T> Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>, block: suspend () -> T): T {
-    return invalidate(*entryRefs.map { it.definition.name to it.args.toParamsArray().toList() }.toTypedArray(), block = block)
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
+    return block()
 }
 
 @ExperimentalKacheableApi
 @Suppress("unused")
 suspend fun <T> Kacheable.invalidate(vararg partRefs: CacheEntryPartRef, block: suspend () -> T): T {
-    return invalidate(*partRefs.map { it.name to it.args.toParamsArray().toList() }.toTypedArray(), block = block)
+    partRefs.forEach { partRef ->
+        val storageLayout = partRef.storageLayout
+        if (storageLayout == null)
+            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
+        else
+            invalidate(partRef.name, partRef.keyGroups, storageLayout) {}
+    }
+    return block()
 }
 
 @ExperimentalKacheableApi
@@ -970,30 +989,49 @@ operator fun <R> BlockingKacheable.invoke(
     cacheIf: (R) -> Boolean = { true },
     block: () -> R,
 ): R = invoke(
-    entryRef.definition.name,
-    entryRef.definition.codec,
-    *entryRef.args.toParamsArray(),
+    name = entryRef.definition.name,
+    codec = entryRef.definition.codec,
+    keyGroups = entryRef.keyGroups,
+    storageLayout = entryRef.definition.storageLayout,
     saveResultIf = cacheIf,
     block = block,
 )
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
-    invalidate(*entryRefs.map { it.definition.name to it.args.toParamsArray().toList() }.toTypedArray()) {}
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
 }
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
-    invalidate(*partRefs.map { it.name to it.args.toParamsArray().toList() }.toTypedArray()) {}
+    partRefs.forEach { partRef ->
+        val storageLayout = partRef.storageLayout
+        if (storageLayout == null)
+            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
+        else
+            invalidate(partRef.name, partRef.keyGroups, storageLayout) {}
+    }
 }
 
 @ExperimentalKacheableApi
 fun <T> BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>, block: () -> T): T {
-    return invalidate(*entryRefs.map { it.definition.name to it.args.toParamsArray().toList() }.toTypedArray(), block = block)
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
+    return block()
 }
 
 @ExperimentalKacheableApi
 @Suppress("unused")
 fun <T> BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef, block: () -> T): T {
-    return invalidate(*partRefs.map { it.name to it.args.toParamsArray().toList() }.toTypedArray(), block = block)
+    partRefs.forEach { partRef ->
+        val storageLayout = partRef.storageLayout
+        if (storageLayout == null)
+            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
+        else
+            invalidate(partRef.name, partRef.keyGroups, storageLayout) {}
+    }
+    return block()
 }
