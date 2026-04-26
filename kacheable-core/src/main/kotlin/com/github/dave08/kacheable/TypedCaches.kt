@@ -35,6 +35,17 @@ class CachePatternArgs(
 }
 
 @ExperimentalKacheableApi
+fun interface CacheArgsEncoder<T> {
+    fun encode(value: T): CacheArgs
+}
+
+@ExperimentalKacheableApi
+fun <T> cacheArgsEncoder(block: (T) -> CacheArgs): CacheArgsEncoder<T> = CacheArgsEncoder(block)
+
+@ExperimentalKacheableApi
+fun argsOf(vararg params: Any): CacheArgs = CachePatternArgs(*params)
+
+@ExperimentalKacheableApi
 fun patternArgs(vararg params: Any): CacheArgs = CachePatternArgs(*params)
 
 @ExperimentalKacheableApi
@@ -378,6 +389,18 @@ inline fun <K : Any, reified R> cache(
     val definition = SimpleCacheDefinition(name, serializer<R>(), storageLayout)
     return object : KeyedCache<K, R>, CacheDefinition<R> by definition {
         override fun invoke(key: K): CacheCall<R> = SimpleCacheCall(this, CacheArgs1(key))
+    }
+}
+
+@ExperimentalKacheableApi
+inline fun <K : Any, reified R> cache(
+    name: String,
+    storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+    argsEncoder: CacheArgsEncoder<K>,
+): KeyedCache<K, R> {
+    val definition = SimpleCacheDefinition(name, serializer<R>(), storageLayout)
+    return object : KeyedCache<K, R>, CacheDefinition<R> by definition {
+        override fun invoke(key: K): CacheCall<R> = SimpleCacheCall(this, argsEncoder.encode(key))
     }
 }
 

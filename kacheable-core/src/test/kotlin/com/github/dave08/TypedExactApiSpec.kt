@@ -3,6 +3,7 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.cache
+import com.github.dave08.kacheable.cacheArgsEncoder
 import com.github.dave08.kacheable.cache1
 import com.github.dave08.kacheable.cache3
 import com.github.dave08.kacheable.CacheStorageLayout
@@ -11,6 +12,7 @@ import com.github.dave08.kacheable.CacheWildcard
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.argsOf
 import com.github.dave08.kacheable.patternArgs
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.serialization.Serializable
@@ -27,11 +29,38 @@ private data class SearchSongsKey(
     val limit: Int,
 )
 
+private data class PageWindow(
+    val offset: Int,
+    val limit: Int,
+)
+
+private data class SongPageKey(
+    val songId: Int,
+    val pageWindow: PageWindow,
+)
+
+private data class AlbumPageKey(
+    val albumId: Int,
+    val pageWindow: PageWindow,
+)
+
 private val structuredKeyStrategy = GetNameStrategy { name, params ->
     when (name) {
         "song-page-cache" -> "$name|song=${params[0]}|page=${params[1]}|limit=${params[2]}"
         else -> if (params.isEmpty()) name else "$name:${params.joinToString(",")}"
     }
+}
+
+private val pageWindowArgs = cacheArgsEncoder<PageWindow> { window ->
+    argsOf(window.offset, window.limit)
+}
+
+private val songPageKeyArgs = cacheArgsEncoder<SongPageKey> { key ->
+    argsOf(key.songId, *pageWindowArgs.encode(key.pageWindow).toParamsArray())
+}
+
+private val albumPageKeyArgs = cacheArgsEncoder<AlbumPageKey> { key ->
+    argsOf(key.albumId, *pageWindowArgs.encode(key.pageWindow).toParamsArray())
 }
 
 val TypedExactApiSpec by testSuite {
@@ -75,6 +104,27 @@ val TypedExactApiSpec by testSuite {
 
             assertEquals(listOf(1, 2, 3), result)
             assertEquals("""[1,2,3]""", store.get("search-songs-cache:SearchSongsKey(query=query, page=2, limit=20)"))
+        }
+
+        test("reusable args encoders can be shared across keyed cache definitions") {
+            val songPageCache = cache<SongPageKey, Song>(
+                name = "song-page-cache",
+                argsEncoder = songPageKeyArgs,
+            )
+            val albumPageCache = cache<AlbumPageKey, Song>(
+                name = "album-page-cache",
+                argsEncoder = albumPageKeyArgs,
+            )
+
+            cache(songPageCache(SongPageKey(7, PageWindow(0, 10)))) {
+                Song(7, "Song Page")
+            }
+            cache(albumPageCache(AlbumPageKey(9, PageWindow(0, 10)))) {
+                Song(9, "Album Page")
+            }
+
+            assertEquals("""{"id":7,"title":"Song Page"}""", store.get("song-page-cache:7,0,10"))
+            assertEquals("""{"id":9,"title":"Album Page"}""", store.get("album-page-cache:9,0,10"))
         }
 
         test("cacheIf can skip saving a typed cache result") {
