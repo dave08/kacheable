@@ -226,6 +226,62 @@ interface GroupedCache6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : A
 }
 
 @ExperimentalKacheableApi
+data class CacheSpace1<P1 : Any>(
+    val name: String,
+    val key: MainKeyPart<P1>,
+) {
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef =
+        SimpleCacheEntryPartRef(name, key.encode(part.value))
+
+    fun <R> withReturnValue(
+        serializer: KSerializer<R>,
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<R> = cacheValueCodec(serializer),
+    ): GroupedCache1<P1, R, P1> = cache(name, key, serializer, codec, storageLayout)
+
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun <reified R> withReturnValue(
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<R> = cacheValueCodec(serializer<R>()),
+    ): GroupedCache1<P1, R, P1> = withReturnValue(serializer<R>(), storageLayout, codec)
+}
+
+@ExperimentalKacheableApi
+data class CacheSpace2<P1 : Any, P2 : Any>(
+    val name: String,
+    val key: MainSecondaryKey2<P1, P2>,
+) {
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
+        val mainArgs = key.main.encode(part.value)
+        return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs)
+    }
+
+    fun <R> withReturnValue(
+        serializer: KSerializer<R>,
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<R> = cacheValueCodec(serializer),
+    ): GroupedCache2<P1, P2, R, P1> = cache(name, key, serializer, codec, storageLayout)
+
+    fun <K : Any, R> withReturnMap(
+        serializer: KSerializer<Map<K, R>>,
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer),
+    ): GroupedCache1<P1, Map<K, R>, P1> = cache(name, key.main, serializer, codec, storageLayout)
+
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun <reified R> withReturnValue(
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<R> = cacheValueCodec(serializer<R>()),
+    ): GroupedCache2<P1, P2, R, P1> = withReturnValue(serializer<R>(), storageLayout, codec)
+
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun <reified K : Any, reified R> withReturnMap(
+        storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue,
+        codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer<Map<K, R>>()),
+    ): GroupedCache1<P1, Map<K, R>, P1> = withReturnMap(serializer<Map<K, R>>(), storageLayout, codec)
+}
+
+@ExperimentalKacheableApi
 interface MainKeyPart<P1 : Any> : CacheArgsEncoder<P1> {
     val label: String
     operator fun invoke(value: P1): CacheKeyPartRef<P1> = CacheKeyPartRef(this, value)
@@ -795,6 +851,18 @@ inline fun <K : Any, reified R> cache(
         override fun invoke(key: K): CacheEntryRef<R> = SimpleCacheEntryRef(this, CacheArgs1(key))
     }
 }
+
+@ExperimentalKacheableApi
+fun <P1 : Any> cache(
+    name: String,
+    key: MainKeyPart<P1>,
+): CacheSpace1<P1> = CacheSpace1(name, key)
+
+@ExperimentalKacheableApi
+fun <P1 : Any, P2 : Any> cache(
+    name: String,
+    key: MainSecondaryKey2<P1, P2>,
+): CacheSpace2<P1, P2> = CacheSpace2(name, key)
 
 @ExperimentalKacheableApi
 inline fun <K : Any, reified R> cache(
