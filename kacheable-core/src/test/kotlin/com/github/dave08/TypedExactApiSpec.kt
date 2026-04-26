@@ -80,28 +80,28 @@ val TypedExactApiSpec by testSuite {
     } asContextForEach {
         test("cache1 caches exact values with the suspending engine") {
             val songByIdCache = cache1<Int, Song>("song-cache")
-            var calls = 0
+            var entryRefs = 0
 
-            val first = cache(songByIdCache(7)) {
-                calls++
+            val first = cache(songByIdCache.key(7)) {
+                entryRefs++
                 Song(7, "Track")
             }
-            val second = cache(songByIdCache(7)) {
-                calls++
+            val second = cache(songByIdCache.key(7)) {
+                entryRefs++
                 Song(7, "Other")
             }
 
             assertEquals(Song(7, "Track"), first)
             assertEquals(Song(7, "Track"), second)
-            assertEquals(1, calls)
+            assertEquals(1, entryRefs)
             assertEquals("""{"id":7,"title":"Track"}""", store.get("song-cache:7"))
         }
 
         test("typed exact invalidation removes one cached value") {
             val songByIdCache = cache1<Int, Song>("song-cache")
 
-            cache(songByIdCache(3)) { Song(3, "Melody") }
-            cache.invalidate(songByIdCache(3))
+            cache(songByIdCache.key(3)) { Song(3, "Melody") }
+            cache.invalidate(songByIdCache.key(3))
 
             assertNull(store.get("song-cache:3"))
         }
@@ -109,7 +109,7 @@ val TypedExactApiSpec by testSuite {
         test("key-object fallback supports more complex exact keys") {
             val searchCache = cache<SearchSongsKey, List<Int>>("search-songs-cache")
 
-            val result = cache(searchCache(SearchSongsKey("query", 2, 20))) {
+            val result = cache(searchCache.key(SearchSongsKey("query", 2, 20))) {
                 listOf(1, 2, 3)
             }
 
@@ -120,7 +120,7 @@ val TypedExactApiSpec by testSuite {
         test("structured cache definitions can return lists") {
             val songsByPageCache = cache("songs-by-page-cache", songPageKey, serializer<List<Song>>())
 
-            val result = cache(songsByPageCache(7, PageWindow(0, 10), "en")) {
+            val result = cache(songsByPageCache.key(7, PageWindow(0, 10), "en")) {
                 listOf(Song(1, "One"), Song(2, "Two"))
             }
 
@@ -134,7 +134,7 @@ val TypedExactApiSpec by testSuite {
         test("structured cache definitions can return sets") {
             val songIdsByPageCache = cache("song-ids-by-page-cache", songPageKey, serializer<Set<Int>>())
 
-            val result = cache(songIdsByPageCache(7, PageWindow(0, 10), "en")) {
+            val result = cache(songIdsByPageCache.key(7, PageWindow(0, 10), "en")) {
                 setOf(1, 2, 3)
             }
 
@@ -145,7 +145,7 @@ val TypedExactApiSpec by testSuite {
         test("structured cache definitions can return maps") {
             val songsBySlugCache = cache("songs-by-slug-cache", songPageKey, serializer<Map<String, Song>>())
 
-            val result = cache(songsBySlugCache(7, PageWindow(0, 10), "en")) {
+            val result = cache(songsBySlugCache.key(7, PageWindow(0, 10), "en")) {
                 mapOf("one" to Song(1, "One"), "two" to Song(2, "Two"))
             }
 
@@ -162,7 +162,7 @@ val TypedExactApiSpec by testSuite {
                 argsEncoder = pageWindowArgs,
             )
 
-            cache(songWindowCache(PageWindow(0, 10))) {
+            cache(songWindowCache.key(PageWindow(0, 10))) {
                 Song(7, "Windowed")
             }
 
@@ -172,24 +172,24 @@ val TypedExactApiSpec by testSuite {
         test("main and secondary key parts support grouped invalidation") {
             val songPageCache = cache("song-page-cache", songPageKey, serializer<Song>())
 
-            cache(songPageCache(7, PageWindow(0, 10), "en")) {
+            cache(songPageCache.key(7, PageWindow(0, 10), "en")) {
                 Song(7, "Page 1")
             }
-            cache(songPageCache(7, PageWindow(10, 10), "en")) {
+            cache(songPageCache.key(7, PageWindow(10, 10), "en")) {
                 Song(7, "Page 2")
             }
-            cache(songPageCache(8, PageWindow(0, 10), "en")) {
+            cache(songPageCache.key(8, PageWindow(0, 10), "en")) {
                 Song(8, "Other Song")
             }
 
-            cache.invalidate(songPageCache(songKey(7)))
+            cache.invalidate(songPageCache.keyPart(songKey(7)))
 
             assertNull(store.get("song-page-cache:7,0,10,en"))
             assertNull(store.get("song-page-cache:7,10,10,en"))
             assertEquals("""{"id":8,"title":"Other Song"}""", store.get("song-page-cache:8,0,10,en"))
         }
 
-        test("grouped cache calls expose logical key groups") {
+        test("entry refs expose logical key parts") {
             val songPageCache = cache(
                 name = "song-page-cache",
                 key = songPageKey,
@@ -197,28 +197,28 @@ val TypedExactApiSpec by testSuite {
                 storageLayout = CacheStorageLayout.HashValue,
             )
 
-            val call = songPageCache(7, PageWindow(0, 10), "en")
-            val group = songPageCache(songKey(7))
+            val entryRef = songPageCache.key(7, PageWindow(0, 10), "en")
+            val partRef = songPageCache.keyPart(songKey(7))
 
-            assertEquals(CacheStorageLayout.HashValue, call.definition.storageLayout)
-            assertEquals(listOf(7, 0, 10, "en"), call.args.toList())
-            assertEquals(listOf(7), call.keyGroups.main.toList())
-            assertEquals(listOf(0, 10, "en"), call.keyGroups.secondary?.toList())
-            assertEquals(listOf(7, 0, 10, "en"), call.keyGroups.flattened.toList())
-            assertEquals(listOf("7", "*", "*", "*"), group.args.toList().map(Any::toString))
-            assertEquals(listOf(7), group.keyGroups.main.toList())
-            assertEquals(listOf("*", "*", "*"), group.keyGroups.secondary?.toList()?.map(Any::toString))
-            assertEquals(listOf("7", "*", "*", "*"), group.keyGroups.flattened.toList().map(Any::toString))
+            assertEquals(CacheStorageLayout.HashValue, entryRef.definition.storageLayout)
+            assertEquals(listOf(7, 0, 10, "en"), entryRef.args.toList())
+            assertEquals(listOf(7), entryRef.keyGroups.main.toList())
+            assertEquals(listOf(0, 10, "en"), entryRef.keyGroups.secondary?.toList())
+            assertEquals(listOf(7, 0, 10, "en"), entryRef.keyGroups.flattened.toList())
+            assertEquals(listOf("7", "*", "*", "*"), partRef.args.toList().map(Any::toString))
+            assertEquals(listOf(7), partRef.keyGroups.main.toList())
+            assertEquals(listOf("*", "*", "*"), partRef.keyGroups.secondary?.toList()?.map(Any::toString))
+            assertEquals(listOf("7", "*", "*", "*"), partRef.keyGroups.flattened.toList().map(Any::toString))
         }
 
         test("main keys can use explicit mappers for value classes") {
             val songByIdCache = cache("song-cache", songIdKey, serializer<Song>())
 
-            cache(songByIdCache(SongId(13))) {
+            cache(songByIdCache.key(SongId(13))) {
                 Song(13, "Mapped Id")
             }
 
-            cache.invalidate(songByIdCache.group(SongId(13)))
+            cache.invalidate(songByIdCache.keyPart(songIdKey(SongId(13))))
 
             assertNull(store.get("song-cache:13"))
         }
@@ -226,17 +226,17 @@ val TypedExactApiSpec by testSuite {
         test("secondary mappers can encode multiple fields from one parameter") {
             val sectionCache = cache("song-section-cache", songSectionKey, serializer<Song>())
 
-            cache(sectionCache(SongId(4), SongSection(SongId(4), "lyrics"))) {
+            cache(sectionCache.key(SongId(4), SongSection(SongId(4), "lyrics"))) {
                 Song(4, "Section A")
             }
-            cache(sectionCache(SongId(4), SongSection(SongId(4), "credits"))) {
+            cache(sectionCache.key(SongId(4), SongSection(SongId(4), "credits"))) {
                 Song(4, "Section B")
             }
-            cache(sectionCache(SongId(5), SongSection(SongId(5), "lyrics"))) {
+            cache(sectionCache.key(SongId(5), SongSection(SongId(5), "lyrics"))) {
                 Song(5, "Other Section")
             }
 
-            cache.invalidate(sectionCache.group(SongId(4)))
+            cache.invalidate(sectionCache.keyPart(songIdKey(SongId(4))))
 
             assertNull(store.get("song-section-cache:4,4,lyrics"))
             assertNull(store.get("song-section-cache:4,4,credits"))
@@ -246,7 +246,7 @@ val TypedExactApiSpec by testSuite {
         test("cacheIf can skip saving a typed cache result") {
             val songByIdCache = cache1<Int, Song>("song-cache")
 
-            val result = cache(songByIdCache(9), cacheIf = { false }) {
+            val result = cache(songByIdCache.key(9), cacheIf = { false }) {
                 Song(9, "Live")
             }
 
@@ -261,7 +261,7 @@ val TypedExactApiSpec by testSuite {
         test("structured key parts respect a custom name strategy") {
             val songPageCache = cache("song-page-cache", songPageKey, serializer<Song>())
 
-            val result = cache(songPageCache(7, PageWindow(2, 25), "en")) {
+            val result = cache(songPageCache.key(7, PageWindow(2, 25), "en")) {
                 Song(7, "Page A")
             }
 
@@ -275,17 +275,17 @@ val TypedExactApiSpec by testSuite {
         test("secondary composition can cover five function parameters under one main key") {
             val wideCache = cache("wide-cache", wideSongKey, serializer<Song>())
 
-            cache(wideCache(7, "favorites", "recent", 25, "us", "en")) {
+            cache(wideCache.key(7, "favorites", "recent", 25, "us", "en")) {
                 Song(7, "Wide 1")
             }
-            cache(wideCache(7, "favorites", "popular", 25, "us", "en")) {
+            cache(wideCache.key(7, "favorites", "popular", 25, "us", "en")) {
                 Song(7, "Wide 2")
             }
-            cache(wideCache(9, "favorites", "recent", 25, "us", "en")) {
+            cache(wideCache.key(9, "favorites", "recent", 25, "us", "en")) {
                 Song(9, "Wide Other")
             }
 
-            cache.invalidate(wideCache.group(7))
+            cache.invalidate(wideCache.keyPart(songKey(7)))
 
             assertNull(store.get("wide-cache:7|favorites|recent|25|us|en"))
             assertNull(store.get("wide-cache:7|favorites|popular|25|us|en"))
@@ -298,20 +298,20 @@ val TypedExactApiSpec by testSuite {
     } asContextForEach {
         test("the same typed definition works with the blocking engine") {
             val songByIdCache = cache1<Int, Song>("song-cache")
-            var calls = 0
+            var entryRefs = 0
 
-            val first = cache(songByIdCache(11)) {
-                calls++
+            val first = cache(songByIdCache.key(11)) {
+                entryRefs++
                 Song(11, "Blocking")
             }
-            val second = cache(songByIdCache(11)) {
-                calls++
+            val second = cache(songByIdCache.key(11)) {
+                entryRefs++
                 Song(11, "Other")
             }
 
             assertEquals(Song(11, "Blocking"), first)
             assertEquals(Song(11, "Blocking"), second)
-            assertEquals(1, calls)
+            assertEquals(1, entryRefs)
             assertEquals("""{"id":11,"title":"Blocking"}""", store.get("song-cache:11"))
         }
     }
@@ -322,17 +322,17 @@ val TypedExactApiSpec by testSuite {
         test("blocking typed grouped invalidation uses the same definition") {
             val songPageCache = cache("song-page-cache", songPageKey, serializer<Song>())
 
-            cache(songPageCache(11, PageWindow(3, 50), "en")) {
+            cache(songPageCache.key(11, PageWindow(3, 50), "en")) {
                 Song(11, "Blocking Page")
             }
-            cache(songPageCache(11, PageWindow(4, 50), "en")) {
+            cache(songPageCache.key(11, PageWindow(4, 50), "en")) {
                 Song(11, "Blocking Page 2")
             }
-            cache(songPageCache(12, PageWindow(3, 50), "en")) {
+            cache(songPageCache.key(12, PageWindow(3, 50), "en")) {
                 Song(12, "Blocking Other")
             }
 
-            cache.invalidate(songPageCache(songKey(11)))
+            cache.invalidate(songPageCache.keyPart(songKey(11)))
 
             assertNull(store.get("song-page-cache|song=11|page=3|limit=50|locale=en"))
             assertNull(store.get("song-page-cache|song=11|page=4|limit=50|locale=en"))
