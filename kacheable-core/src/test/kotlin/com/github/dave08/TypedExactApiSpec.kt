@@ -61,10 +61,8 @@ private val pageWindowArgs = cacheArgsEncoder<PageWindow> { window ->
 private val songIdMapper = key<SongId>(SongId::value)
 private val songSectionMapper = key<SongSection>({ it.id.value }, SongSection::category)
 private val songKey = mainKey<Int>("song")
-private val artistKey = mainKey<Int>("artist")
 private val songIdKey = mainKey("song", songIdMapper)
 private val pagingKey = key<PageWindow>(PageWindow::offset, PageWindow::limit)
-private val songPart = key<Int>()
 private val localeKey = key<String>()
 private val filterKey = key<String>()
 private val sortKey = key<String>()
@@ -72,7 +70,6 @@ private val pageSizeKey = key<Int>()
 private val marketKey = key<String>()
 
 private val songPageKey = songKey + (pagingKey + localeKey)
-private val songsByArtistKey = artistKey + songPart
 private val songSectionKey = songIdKey + songSectionMapper
 private val wideSongKey = songKey + (filterKey + sortKey + pageSizeKey + marketKey + localeKey)
 
@@ -275,42 +272,6 @@ val TypedExactApiSpec by testSuite {
             assertEquals("Plain Title", store.get("raw-title-cache:title"))
         }
 
-        test("cache spaces can expose field and map return views") {
-            val songs = cache("songs-cache", songsByArtistKey)
-            val songFieldCache = songs.withReturnValue<Song>(
-                storageLayout = CacheStorageLayout.HashValue,
-            )
-            val songMapCache = songs.withReturnMap<Int, Song>(
-                storageLayout = CacheStorageLayout.HashValue,
-            )
-            var fieldCalls = 0
-
-            cache(songFieldCache.key(3, 7)) {
-                fieldCalls++
-                Song(7, "Field Song")
-            }
-            cache(songFieldCache.key(3, 7)) {
-                fieldCalls++
-                Song(7, "Other Field Song")
-            }
-            cache(songMapCache.key(3)) {
-                mapOf(7 to Song(7, "Mapped Song"))
-            }
-
-            val songsPart = songs.keyPart(artistKey(3))
-
-            assertNull(store.get("songs-cache:3,7"))
-            assertEquals("""{"id":7,"title":"Field Song"}""", store.hashMap["songs-cache:3"]?.get("7"))
-            assertEquals("""{"7":{"id":7,"title":"Mapped Song"}}""", store.get("songs-cache:3"))
-            assertEquals(1, fieldCalls)
-            assertEquals(listOf("3", "*"), songsPart.args.toList().map(Any::toString))
-            assertEquals(listOf(3), songsPart.keyGroups.main.toList())
-            assertEquals(listOf("*"), songsPart.keyGroups.secondary?.toList()?.map(Any::toString))
-
-            cache.invalidate(songFieldCache.keyPart(artistKey(3)))
-
-            assertNull(store.hashMap["songs-cache:3"])
-        }
     }
 
     testFixture {
