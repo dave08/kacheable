@@ -14,19 +14,32 @@ class RedisKacheableStore(
     private val conn: StatefulRedisConnection<String, String>,
     private val deleteFromPatternInChunksOf: Int = 20,
     private val deleteScanCount: Long = 1000,
+    private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
 ) : KacheableStore {
 
     override suspend fun delete(key: String) {
         if (!key.contains("*"))
-            conn.coroutines().del(key)
+            deleteKeys(key)
         else withContext(Dispatchers.IO) {
             val commands = conn.sync()
 
             ScanIterator.scan(commands, ScanArgs().match(key).limit(deleteScanCount)).asSequence()
                 .chunked(deleteFromPatternInChunksOf)
                 .forEach { keys ->
-                    if (keys.isNotEmpty()) commands.del(*(keys.toTypedArray()))
+                    if (keys.isNotEmpty()) {
+                        when (deleteMode) {
+                            RedisDeleteMode.Del -> commands.del(*(keys.toTypedArray()))
+                            RedisDeleteMode.Unlink -> commands.unlink(*(keys.toTypedArray()))
+                        }
+                    }
                 }
+        }
+    }
+
+    private suspend fun deleteKeys(vararg keys: String) {
+        when (deleteMode) {
+            RedisDeleteMode.Del -> conn.coroutines().del(*keys)
+            RedisDeleteMode.Unlink -> conn.coroutines().unlink(*keys)
         }
     }
 

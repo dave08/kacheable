@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.KacheableStore
+import com.github.dave08.kacheable.RedisDeleteMode
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.api.StatefulRedisConnection
@@ -9,18 +10,32 @@ import kotlin.time.Duration
 class RedisBlockingKacheableStore(
     private val conn: StatefulRedisConnection<String, String>,
     private val deleteFromPatternInChunksOf: Int = 20,
+    private val deleteScanCount: Long = 1000,
+    private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
 ) : BlockingKacheableStore {
     override fun delete(key: String) {
         if (!key.contains("*"))
-            conn.sync().del(key)
+            deleteKeys(key)
         else {
             val commands = conn.sync()
 
-            ScanIterator.scan(commands, ScanArgs().match(key)).asSequence()
+            ScanIterator.scan(commands, ScanArgs().match(key).limit(deleteScanCount)).asSequence()
                 .chunked(deleteFromPatternInChunksOf)
                 .forEach { keys ->
-                    if (keys.isNotEmpty()) commands.del(*(keys.toTypedArray()))
+                    if (keys.isNotEmpty()) {
+                        when (deleteMode) {
+                            RedisDeleteMode.Del -> commands.del(*(keys.toTypedArray()))
+                            RedisDeleteMode.Unlink -> commands.unlink(*(keys.toTypedArray()))
+                        }
+                    }
                 }
+        }
+    }
+
+    private fun deleteKeys(vararg keys: String) {
+        when (deleteMode) {
+            RedisDeleteMode.Del -> conn.sync().del(*keys)
+            RedisDeleteMode.Unlink -> conn.sync().unlink(*keys)
         }
     }
 
