@@ -5,7 +5,10 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 
 @OptIn(ExperimentalKacheableApi::class)
 internal fun BlockingKacheableStore.get(address: CacheStorageAddress): String? =
-    address.field?.let { getHashValue(address.key, it) } ?: get(address.key)
+    if (address.field == null)
+        get(address.key)
+    else
+        getHashValue(address.key, address.field)
 
 @OptIn(ExperimentalKacheableApi::class)
 internal fun BlockingKacheableStore.set(address: CacheStorageAddress, value: String) {

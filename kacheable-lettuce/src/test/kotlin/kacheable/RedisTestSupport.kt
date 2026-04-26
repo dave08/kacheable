@@ -56,14 +56,14 @@ class RedisFixture private constructor(
 }
 
 class SuspendFooFixture(
-    cache: Kacheable,
+    val cache: Kacheable,
     val commands: RedisCommands<String, String>,
 ) {
     val subject = Foo(cache)
 }
 
 class BlockingFooFixture(
-    cache: BlockingKacheable,
+    val cache: BlockingKacheable,
     val commands: RedisCommands<String, String>,
 ) {
     val subject = BlockingFoo(cache)

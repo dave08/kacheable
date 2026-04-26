@@ -48,7 +48,10 @@ internal class CacheStorageAddressResolver(
 
 @OptIn(ExperimentalKacheableApi::class)
 internal suspend fun KacheableStore.get(address: CacheStorageAddress): String? =
-    address.field?.let { getHashValue(address.key, it) } ?: get(address.key)
+    if (address.field == null)
+        get(address.key)
+    else
+        getHashValue(address.key, address.field)
 
 @OptIn(ExperimentalKacheableApi::class)
 internal suspend fun KacheableStore.set(address: CacheStorageAddress, value: String) {

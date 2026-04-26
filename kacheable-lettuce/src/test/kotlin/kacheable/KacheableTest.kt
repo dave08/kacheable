@@ -1,9 +1,18 @@
+@file:OptIn(ExperimentalKacheableApi::class)
+
 package kacheable
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExpiryType
+import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.key
+import com.github.dave08.kacheable.mainKey
+import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.coroutines.delay
 import strikt.api.expect
@@ -15,6 +24,12 @@ import strikt.assertions.isEqualTo
 import strikt.assertions.isGreaterThan
 import strikt.assertions.isNull
 import kotlin.time.Duration.Companion.minutes
+
+private val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
+private val songKey = key<Int>()
+private val artistSongsCache = artistCache + songKey
+
+private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
 
 val KacheableTest by testSuite {
     testFixture {
@@ -40,6 +55,55 @@ val KacheableTest by testSuite {
             fixture.subject.baz(32, "something")
 
             expectThat(fixture.commands.keys("*")).containsExactly("foo:32,something")
+        }
+
+        test("stores typed hash-map cache entries as Redis hash fields") {
+            val fixture = suspendSubject()
+            val artistId = 3
+            val songId = 7
+            var calls = 0
+
+            val first = fixture.cache(
+                artistSongsCache.key(artistId, songId),
+                returnsAs = value<Bar>(),
+            ) {
+                calls++
+                Bar(songId, "Seven")
+            }
+            val second = fixture.cache(
+                artistSongsCache.key(artistId, songId),
+                returnsAs = value<Bar>(),
+            ) {
+                calls++
+                Bar(songId, "Changed")
+            }
+
+            expect {
+                that(first).isEqualTo(Bar(songId, "Seven"))
+                that(second).isEqualTo(Bar(songId, "Seven"))
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(artistCacheKey(artistId))).isEqualTo("hash")
+                that(fixture.commands.hget(artistCacheKey(artistId), songId.toString()))
+                    .isEqualTo("""{"id":7,"name":"Seven"}""")
+            }
+        }
+
+        test("invalidates typed hash-map cache entries by main key") {
+            val fixture = suspendSubject()
+            val artistId = 13
+            val firstSongId = 7
+            val secondSongId = 8
+
+            fixture.cache(artistSongsCache.key(artistId, firstSongId), returnsAs = value<Bar>()) {
+                Bar(firstSongId, "Seven")
+            }
+            fixture.cache(artistSongsCache.key(artistId, secondSongId), returnsAs = value<Bar>()) {
+                Bar(secondSongId, "Eight")
+            }
+
+            fixture.cache.invalidate(artistSongsCache.keyPart(artistCache.keyPart(artistId)))
+
+            expectThat(fixture.commands.exists(artistCacheKey(artistId))).isEqualTo(0)
         }
 
         test("sets expiry from last write") {
