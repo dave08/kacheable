@@ -15,6 +15,7 @@ import com.github.dave08.kacheable.invoke
 import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.rawStringCacheValueCodec
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -252,6 +253,23 @@ val TypedExactApiSpec by testSuite {
 
             assertEquals(Song(9, "Live"), result)
             assertNull(store.get("song-cache:9"))
+        }
+
+        test("value codecs can store raw strings without json quoting") {
+            val rawTitleKey = mainKey<String>("title")
+            val rawTitleCache = cache(
+                name = "raw-title-cache",
+                key = rawTitleKey,
+                serializer = serializer<String>(),
+                codec = rawStringCacheValueCodec(),
+            )
+
+            val result = cache(rawTitleCache.key("title")) {
+                "Plain Title"
+            }
+
+            assertEquals("Plain Title", result)
+            assertEquals("Plain Title", store.get("raw-title-cache:title"))
         }
     }
 

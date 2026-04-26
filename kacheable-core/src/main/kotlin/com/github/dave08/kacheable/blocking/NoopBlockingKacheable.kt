@@ -1,11 +1,19 @@
 package com.github.dave08.kacheable.blocking
 
-import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.CacheValueCodec
 import kotlinx.serialization.KSerializer
 
 internal object NoopBlockingKacheable : BlockingKacheable {
     override fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R =
         block()
+
+    override fun <R> invoke(
+        name: String,
+        codec: CacheValueCodec<R>,
+        vararg params: Any,
+        saveResultIf: (R) -> Boolean,
+        block: () -> R
+    ): R = block()
 
     override fun <R> invoke(
         name: String,

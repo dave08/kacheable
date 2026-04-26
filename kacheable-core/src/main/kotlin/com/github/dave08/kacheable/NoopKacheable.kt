@@ -8,6 +8,14 @@ internal object NoopKacheable : Kacheable {
 
     override suspend fun <R> invoke(
         name: String,
+        codec: CacheValueCodec<R>,
+        vararg params: Any,
+        saveResultIf: (R) -> Boolean,
+        block: suspend () -> R
+    ): R = block()
+
+    override suspend fun <R> invoke(
+        name: String,
         type: KSerializer<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean,

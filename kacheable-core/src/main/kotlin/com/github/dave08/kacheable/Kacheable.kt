@@ -9,6 +9,14 @@ interface Kacheable {
 
     suspend fun <R> invoke(
         name: String,
+        codec: CacheValueCodec<R>,
+        vararg params: Any,
+        saveResultIf: (R) -> Boolean = { true },
+        block: suspend () -> R
+    ): R
+
+    suspend fun <R> invoke(
+        name: String,
         type: KSerializer<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean = { true },

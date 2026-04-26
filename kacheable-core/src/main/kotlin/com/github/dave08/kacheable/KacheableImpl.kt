@@ -19,7 +19,7 @@ internal class KacheableImpl(
 
     override suspend fun <R> invoke(
         name: String,
-        type: KSerializer<R>,
+        codec: CacheValueCodec<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R
@@ -31,7 +31,7 @@ internal class KacheableImpl(
         return if (result == null) {
             val blockResult = block()
 
-            val resultToSave = computeResultToSave(blockResult, config, saveResultIf, type)
+            val resultToSave = computeResultToSave(blockResult, config, saveResultIf, codec)
 
             resultToSave?.let {
                 store.set(keyName, it)
@@ -50,19 +50,33 @@ internal class KacheableImpl(
             if (config?.nullPlaceholder != null && result == config.nullPlaceholder)
                 null as R
             else
-                jsonParser.decodeFromString(type, result)
+                codec.decode(result)
         }
     }
+
+    override suspend fun <R> invoke(
+        name: String,
+        type: KSerializer<R>,
+        vararg params: Any,
+        saveResultIf: (R) -> Boolean,
+        block: suspend () -> R
+    ): R = invoke(
+        name = name,
+        codec = cacheValueCodec(type, jsonParser),
+        params = params,
+        saveResultIf = saveResultIf,
+        block = block,
+    )
 
     private fun <R> computeResultToSave(
         blockResult: R,
         config: CacheConfig?,
         saveResultIf: (R) -> Boolean,
-        type: KSerializer<R>
+        codec: CacheValueCodec<R>
     ) = when {
         blockResult == null && config?.nullPlaceholder != null -> config.nullPlaceholder
         blockResult == null || !saveResultIf(blockResult) -> null
-        else -> jsonParser.encodeToString(type, blockResult)
+        else -> codec.encode(blockResult)
     }
 }
 
