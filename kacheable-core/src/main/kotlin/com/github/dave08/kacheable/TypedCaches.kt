@@ -15,8 +15,10 @@ sealed interface CacheStorageLayout {
 @ExperimentalKacheableApi
 sealed interface CacheStorage {
     data object String : CacheStorage, SupportsValueReturn
-    data object Json : CacheStorage, SupportsValueReturn
     data object HashMap : CacheStorage, SupportsValueReturn, SupportsMapReturn
+    data object Set : CacheStorage
+    data object List : CacheStorage
+    data object Int : CacheStorage
 }
 
 @ExperimentalKacheableApi
@@ -305,6 +307,7 @@ data class HashMapMainKey<P1 : Any>(
         SimpleCacheEntryPartRef(name, key.encode(part.value), CacheStorageLayout.HashValue)
 }
 
+@ExperimentalKacheableApi
 data class HashMapStoredCache1<P1 : Any>(
     val name: String,
     val key: MainKeyPart<P1>,
@@ -338,6 +341,98 @@ data class HashMapStoredCache2<P1 : Any, P2 : Any>(
         return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
     }
 
+}
+
+@ExperimentalKacheableApi
+data class HashMapStoredCache3<P1 : Any, P2 : Any, P3 : Any>(
+    val name: String,
+    val key: MainSecondaryKey3<P1, P2, P3>,
+) {
+    fun key(p1: P1): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(name, CacheKeyGroups(main = key.main.encode(p1)))
+
+    fun key(p1: P1, p2: P2, p3: P3): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(
+            name = name,
+            keyGroups = CacheKeyGroups(
+                main = key.main.encode(p1),
+                secondary = key.secondary.encode(p2, p3),
+            ),
+        )
+
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
+        val mainArgs = key.main.encode(part.value)
+        return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
+    }
+}
+
+@ExperimentalKacheableApi
+data class HashMapStoredCache4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
+    val name: String,
+    val key: MainSecondaryKey4<P1, P2, P3, P4>,
+) {
+    fun key(p1: P1): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(name, CacheKeyGroups(main = key.main.encode(p1)))
+
+    fun key(p1: P1, p2: P2, p3: P3, p4: P4): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(
+            name = name,
+            keyGroups = CacheKeyGroups(
+                main = key.main.encode(p1),
+                secondary = key.secondary.encode(p2, p3, p4),
+            ),
+        )
+
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
+        val mainArgs = key.main.encode(part.value)
+        return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
+    }
+}
+
+@ExperimentalKacheableApi
+data class HashMapStoredCache5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
+    val name: String,
+    val key: MainSecondaryKey5<P1, P2, P3, P4, P5>,
+) {
+    fun key(p1: P1): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(name, CacheKeyGroups(main = key.main.encode(p1)))
+
+    fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(
+            name = name,
+            keyGroups = CacheKeyGroups(
+                main = key.main.encode(p1),
+                secondary = key.secondary.encode(p2, p3, p4, p5),
+            ),
+        )
+
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
+        val mainArgs = key.main.encode(part.value)
+        return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
+    }
+}
+
+@ExperimentalKacheableApi
+data class HashMapStoredCache6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
+    val name: String,
+    val key: MainSecondaryKey6<P1, P2, P3, P4, P5, P6>,
+) {
+    fun key(p1: P1): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(name, CacheKeyGroups(main = key.main.encode(p1)))
+
+    fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): HashMapCacheEntryRef =
+        HashMapCacheEntryRef(
+            name = name,
+            keyGroups = CacheKeyGroups(
+                main = key.main.encode(p1),
+                secondary = key.secondary.encode(p2, p3, p4, p5, p6),
+            ),
+        )
+
+    fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef {
+        val mainArgs = key.main.encode(part.value)
+        return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
+    }
 }
 
 @ExperimentalKacheableApi
@@ -584,6 +679,26 @@ operator fun <P1 : Any, P2 : Any> MainKeyPart<P1>.plus(
 operator fun <P1 : Any, P2 : Any> HashMapMainKey<P1>.plus(
     secondary: KeyPart<P2>,
 ): HashMapStoredCache2<P1, P2> = HashMapStoredCache2(name, key + secondary)
+
+@ExperimentalKacheableApi
+operator fun <P1 : Any, P2 : Any, P3 : Any> HashMapMainKey<P1>.plus(
+    secondary: SecondaryKeyComposition2<P2, P3>,
+): HashMapStoredCache3<P1, P2, P3> = HashMapStoredCache3(name, key + secondary)
+
+@ExperimentalKacheableApi
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> HashMapMainKey<P1>.plus(
+    secondary: SecondaryKeyComposition3<P2, P3, P4>,
+): HashMapStoredCache4<P1, P2, P3, P4> = HashMapStoredCache4(name, key + secondary)
+
+@ExperimentalKacheableApi
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> HashMapMainKey<P1>.plus(
+    secondary: SecondaryKeyComposition4<P2, P3, P4, P5>,
+): HashMapStoredCache5<P1, P2, P3, P4, P5> = HashMapStoredCache5(name, key + secondary)
+
+@ExperimentalKacheableApi
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> HashMapMainKey<P1>.plus(
+    secondary: SecondaryKeyComposition5<P2, P3, P4, P5, P6>,
+): HashMapStoredCache6<P1, P2, P3, P4, P5, P6> = HashMapStoredCache6(name, key + secondary)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any> KeyPart<P1>.plus(
@@ -934,20 +1049,6 @@ inline fun <K : Any, reified R> cache(
         override fun invoke(key: K): CacheEntryRef<R> = SimpleCacheEntryRef(this, CacheArgs1(key))
     }
 }
-
-@ExperimentalKacheableApi
-fun <P1 : Any> cache(
-    name: String,
-    key: MainKeyPart<P1>,
-    storedAs: CacheStorage.HashMap,
-): HashMapStoredCache1<P1> = HashMapStoredCache1(name, key)
-
-@ExperimentalKacheableApi
-fun <P1 : Any, P2 : Any> cache(
-    name: String,
-    key: MainSecondaryKey2<P1, P2>,
-    storedAs: CacheStorage.HashMap,
-): HashMapStoredCache2<P1, P2> = HashMapStoredCache2(name, key)
 
 @ExperimentalKacheableApi
 inline fun <K : Any, reified R> cache(

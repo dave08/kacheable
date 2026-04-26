@@ -21,9 +21,14 @@ import kotlin.test.assertNull
 @Serializable
 private data class CachedSong(val id: Int, val title: String)
 
+private data class ResultPage(val offset: Int, val limit: Int)
+
 private val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
 private val songKey = key<Int>()
+private val pageKey = key<ResultPage>(ResultPage::offset, ResultPage::limit)
+private val localeKey = key<String>()
 private val artistSongsCache = artistCache + songKey
+private val artistPageCache = artistCache + (pageKey + localeKey)
 
 private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
 
@@ -94,6 +99,46 @@ val StoredCacheReturnViewSpec by testSuite {
 
             store.assertHashMissing(artistCacheKey(artistId))
         }
+
+        test("hash map stored caches support composed secondary key parts") {
+            val artistId = 3
+            val page = ResultPage(offset = 20, limit = 10)
+            val locale = "en"
+
+            val result = cache(artistPageCache.key(artistId, page, locale), returnsAs = value<List<CachedSong>>()) {
+                listOf(CachedSong(7, "Seven"))
+            }
+
+            assertEquals(listOf(CachedSong(7, "Seven")), result)
+            store.assertHashField(
+                artistCacheKey(artistId),
+                "20,10,en",
+                """[{"id":7,"title":"Seven"}]""",
+            )
+        }
+    }
+
+    testFixture {
+        BlockingCacheFixture()
+    } asContextForEach {
+        test("blocking cache can use storage-compatible return descriptors") {
+            val artistId = 3
+            val songId = 7
+            var calls = 0
+
+            val first = cache(artistSongsCache.key(artistId, songId), returnsAs = value<CachedSong>()) {
+                calls++
+                CachedSong(songId, "Seven")
+            }
+            val second = cache(artistSongsCache.key(artistId, songId), returnsAs = value<CachedSong>()) {
+                calls++
+                CachedSong(songId, "Changed")
+            }
+
+            assertEquals(first, second)
+            assertEquals(1, calls)
+            store.assertHashField(artistCacheKey(artistId), songId, """{"id":7,"title":"Seven"}""")
+        }
     }
 }
 
@@ -118,4 +163,12 @@ private suspend fun InMemoryKacheableStore.assertStringValue(
 
 private suspend fun InMemoryKacheableStore.assertStringValueMissing(key: String) {
     assertNull(get(key))
+}
+
+private fun InMemoryBlockingKacheableStore.assertHashField(
+    key: String,
+    field: Any,
+    expectedValue: String,
+) {
+    assertEquals(expectedValue, hashMap[key]?.get(field.toString()))
 }
