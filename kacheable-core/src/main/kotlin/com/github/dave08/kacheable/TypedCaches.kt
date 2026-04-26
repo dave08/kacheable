@@ -196,7 +196,7 @@ interface MainKeyPart<P1 : Any> : CacheArgsEncoder<P1> {
 }
 
 @ExperimentalKacheableApi
-interface SecondaryKeyPart<P1 : Any> : CacheArgsEncoder<P1> {
+interface KeyPart<P1 : Any> : CacheArgsEncoder<P1> {
     val wildcardArgs: CacheArgs
 }
 
@@ -204,12 +204,15 @@ interface SecondaryKeyPart<P1 : Any> : CacheArgsEncoder<P1> {
 typealias MainKey<P1> = MainKeyPart<P1>
 
 @ExperimentalKacheableApi
-typealias KeyMapper<P1> = SecondaryKeyPart<P1>
+typealias SecondaryKeyPart<P1> = KeyPart<P1>
+
+@ExperimentalKacheableApi
+typealias KeyMapper<P1> = KeyPart<P1>
 
 @ExperimentalKacheableApi
 data class SecondaryKeyComposition2<P1 : Any, P2 : Any>(
-    val first: SecondaryKeyPart<P1>,
-    val second: SecondaryKeyPart<P2>,
+    val first: KeyPart<P1>,
+    val second: KeyPart<P2>,
 ) {
     fun encode(p1: P1, p2: P2): CacheArgs = joinArgs(first.encode(p1), second.encode(p2))
     val wildcardArgs: CacheArgs = joinArgs(first.wildcardArgs, second.wildcardArgs)
@@ -217,9 +220,9 @@ data class SecondaryKeyComposition2<P1 : Any, P2 : Any>(
 
 @ExperimentalKacheableApi
 data class SecondaryKeyComposition3<P1 : Any, P2 : Any, P3 : Any>(
-    val first: SecondaryKeyPart<P1>,
-    val second: SecondaryKeyPart<P2>,
-    val third: SecondaryKeyPart<P3>,
+    val first: KeyPart<P1>,
+    val second: KeyPart<P2>,
+    val third: KeyPart<P3>,
 ) {
     fun encode(p1: P1, p2: P2, p3: P3): CacheArgs = joinArgs(first.encode(p1), second.encode(p2), third.encode(p3))
     val wildcardArgs: CacheArgs = joinArgs(first.wildcardArgs, second.wildcardArgs, third.wildcardArgs)
@@ -227,10 +230,10 @@ data class SecondaryKeyComposition3<P1 : Any, P2 : Any, P3 : Any>(
 
 @ExperimentalKacheableApi
 data class SecondaryKeyComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
-    val first: SecondaryKeyPart<P1>,
-    val second: SecondaryKeyPart<P2>,
-    val third: SecondaryKeyPart<P3>,
-    val fourth: SecondaryKeyPart<P4>,
+    val first: KeyPart<P1>,
+    val second: KeyPart<P2>,
+    val third: KeyPart<P3>,
+    val fourth: KeyPart<P4>,
 ) {
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4))
@@ -241,11 +244,11 @@ data class SecondaryKeyComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
 
 @ExperimentalKacheableApi
 data class SecondaryKeyComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
-    val first: SecondaryKeyPart<P1>,
-    val second: SecondaryKeyPart<P2>,
-    val third: SecondaryKeyPart<P3>,
-    val fourth: SecondaryKeyPart<P4>,
-    val fifth: SecondaryKeyPart<P5>,
+    val first: KeyPart<P1>,
+    val second: KeyPart<P2>,
+    val third: KeyPart<P3>,
+    val fourth: KeyPart<P4>,
+    val fifth: KeyPart<P5>,
 ) {
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4), fifth.encode(p5))
@@ -257,7 +260,7 @@ data class SecondaryKeyComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 :
 @ExperimentalKacheableApi
 data class MainSecondaryKey2<P1 : Any, P2 : Any>(
     val main: MainKeyPart<P1>,
-    val secondary: SecondaryKeyPart<P2>,
+    val secondary: KeyPart<P2>,
 )
 
 @ExperimentalKacheableApi
@@ -315,7 +318,7 @@ internal data class SimpleMainKeyPart<P1 : Any>(
 internal data class SimpleSecondaryKeyPart<P1 : Any>(
     private val encoder: CacheArgsEncoder<P1>,
     override val wildcardArgs: CacheArgs,
-) : SecondaryKeyPart<P1> {
+) : KeyPart<P1> {
     override fun encode(value: P1): CacheArgs = encoder.encode(value)
 }
 
@@ -343,7 +346,7 @@ fun <P1 : Any> mainKeyPart(
 @ExperimentalKacheableApi
 fun <P1 : Any> secondaryKeyPart(
     vararg values: (P1) -> Any,
-): SecondaryKeyPart<P1> {
+): KeyPart<P1> {
     require(values.isNotEmpty()) { "secondaryKeyPart requires at least one value extractor" }
     return SimpleSecondaryKeyPart(
         encoder = cacheArgsEncoder { value -> argsOf(*values.map { extractor -> extractor(value) }.toTypedArray()) },
@@ -352,25 +355,25 @@ fun <P1 : Any> secondaryKeyPart(
 }
 
 @ExperimentalKacheableApi
-fun <P1 : Any> keyMapper(): KeyMapper<P1> = secondaryKeyPart({ it })
+fun <P1 : Any> keyMapper(): KeyPart<P1> = secondaryKeyPart({ it })
 
 @ExperimentalKacheableApi
 fun <P1 : Any> keyMapper(
     vararg values: (P1) -> Any,
-): KeyMapper<P1> = secondaryKeyPart(*values)
+): KeyPart<P1> = secondaryKeyPart(*values)
 
 @ExperimentalKacheableApi
-fun <P1 : Any> key(): KeyMapper<P1> = keyMapper()
+fun <P1 : Any> key(): KeyPart<P1> = keyMapper()
 
 @ExperimentalKacheableApi
 fun <P1 : Any> key(
     vararg values: (P1) -> Any,
-): KeyMapper<P1> = keyMapper(*values)
+): KeyPart<P1> = keyMapper(*values)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> mainKey(
     label: String,
-    mapper: KeyMapper<P1> = keyMapper(),
+    mapper: KeyPart<P1> = keyMapper(),
 ): MainKey<P1> = SimpleMainKeyPart(label, mapper)
 
 @ExperimentalKacheableApi
@@ -381,17 +384,17 @@ fun <P1 : Any> mainKey(
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any> MainKeyPart<P1>.plus(
-    secondary: SecondaryKeyPart<P2>,
+    secondary: KeyPart<P2>,
 ): MainSecondaryKey2<P1, P2> = MainSecondaryKey2(this, secondary)
 
 @ExperimentalKacheableApi
-operator fun <P1 : Any, P2 : Any> SecondaryKeyPart<P1>.plus(
-    other: SecondaryKeyPart<P2>,
+operator fun <P1 : Any, P2 : Any> KeyPart<P1>.plus(
+    other: KeyPart<P2>,
 ): SecondaryKeyComposition2<P1, P2> = SecondaryKeyComposition2(this, other)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any> SecondaryKeyComposition2<P1, P2>.plus(
-    other: SecondaryKeyPart<P3>,
+    other: KeyPart<P3>,
 ): SecondaryKeyComposition3<P1, P2, P3> = SecondaryKeyComposition3(first, second, other)
 
 @ExperimentalKacheableApi
@@ -417,7 +420,7 @@ operator fun <P1 : Any, P2 : Any, P3 : Any> MainKeyPart<P1>.plus(
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> SecondaryKeyComposition3<P1, P2, P3>.plus(
-    other: SecondaryKeyPart<P4>,
+    other: KeyPart<P4>,
 ): SecondaryKeyComposition4<P1, P2, P3, P4> = SecondaryKeyComposition4(first, second, third, other)
 
 @ExperimentalKacheableApi
@@ -427,7 +430,7 @@ operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> MainKeyPart<P1>.plus(
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> SecondaryKeyComposition4<P1, P2, P3, P4>.plus(
-    other: SecondaryKeyPart<P5>,
+    other: KeyPart<P5>,
 ): SecondaryKeyComposition5<P1, P2, P3, P4, P5> = SecondaryKeyComposition5(first, second, third, fourth, other)
 
 @ExperimentalKacheableApi
@@ -437,7 +440,7 @@ operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> MainKeyPart<P1>.
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> SecondaryKeyComposition5<P1, P2, P3, P4, P5>.plus(
-    other: SecondaryKeyPart<P6>,
+    other: KeyPart<P6>,
 ): Nothing = throw UnsupportedOperationException("Secondary key composition already supports up to 5 parameters")
 
 @ExperimentalKacheableApi

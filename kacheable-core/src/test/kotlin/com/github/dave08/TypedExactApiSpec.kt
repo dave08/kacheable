@@ -113,6 +113,45 @@ val TypedExactApiSpec by testSuite {
             assertEquals("""[1,2,3]""", store.get("search-songs-cache:SearchSongsKey(query=query, page=2, limit=20)"))
         }
 
+        test("structured cache definitions can return lists") {
+            val songsByPageCache = cache("songs-by-page-cache", songPageKey, serializer<List<Song>>())
+
+            val result = cache(songsByPageCache(7, PageWindow(0, 10), "en")) {
+                listOf(Song(1, "One"), Song(2, "Two"))
+            }
+
+            assertEquals(listOf(Song(1, "One"), Song(2, "Two")), result)
+            assertEquals(
+                """[{"id":1,"title":"One"},{"id":2,"title":"Two"}]""",
+                store.get("songs-by-page-cache:7,0,10,en"),
+            )
+        }
+
+        test("structured cache definitions can return sets") {
+            val songIdsByPageCache = cache("song-ids-by-page-cache", songPageKey, serializer<Set<Int>>())
+
+            val result = cache(songIdsByPageCache(7, PageWindow(0, 10), "en")) {
+                setOf(1, 2, 3)
+            }
+
+            assertEquals(setOf(1, 2, 3), result)
+            assertEquals("""[1,2,3]""", store.get("song-ids-by-page-cache:7,0,10,en"))
+        }
+
+        test("structured cache definitions can return maps") {
+            val songsBySlugCache = cache("songs-by-slug-cache", songPageKey, serializer<Map<String, Song>>())
+
+            val result = cache(songsBySlugCache(7, PageWindow(0, 10), "en")) {
+                mapOf("one" to Song(1, "One"), "two" to Song(2, "Two"))
+            }
+
+            assertEquals(mapOf("one" to Song(1, "One"), "two" to Song(2, "Two")), result)
+            assertEquals(
+                """{"one":{"id":1,"title":"One"},"two":{"id":2,"title":"Two"}}""",
+                store.get("songs-by-slug-cache:7,0,10,en"),
+            )
+        }
+
         test("reusable args encoders can still be shared across keyed cache definitions") {
             val songWindowCache = cache<PageWindow, Song>(
                 name = "song-window-cache",
