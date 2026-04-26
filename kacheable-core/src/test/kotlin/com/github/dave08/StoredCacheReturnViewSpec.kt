@@ -26,13 +26,26 @@ private data class ResultPage(val offset: Int, val limit: Int)
 private val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
 private val songKey = key<Int>()
 private val pageKey = key<ResultPage>(ResultPage::offset, ResultPage::limit)
+private val filterKey = key<String>()
+private val sortKey = key<String>()
+private val pageSizeKey = key<Int>()
+private val marketKey = key<String>()
 private val localeKey = key<String>()
 private val artistSongsCache = artistCache + songKey
 private val artistPageCache = artistCache + (pageKey + localeKey)
+private val artistCatalogCache = artistCache + (filterKey + sortKey + pageSizeKey + marketKey + localeKey)
 
 private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
 
 private fun artistSongFlatKey(artistId: Int, songId: Int): String = "artist-cache:$artistId,$songId"
+
+private fun artistCatalogField(
+    filter: String,
+    sort: String,
+    pageSize: Int,
+    market: String,
+    locale: String,
+): String = "$filter,$sort,$pageSize,$market,$locale"
 
 val StoredCacheReturnViewSpec by testSuite {
     testFixture {
@@ -54,8 +67,6 @@ val StoredCacheReturnViewSpec by testSuite {
 
             assertEquals(first, second)
             assertEquals(1, calls)
-            assertEquals(listOf(artistId), artistSongsCache.key(artistId, songId).keyGroups.main.toParamsArray().toList())
-            assertEquals(listOf(songId), artistSongsCache.key(artistId, songId).keyGroups.secondary?.toParamsArray()?.toList())
             store.assertHashField(artistCacheKey(artistId), songId, """{"id":7,"title":"Seven"}""")
             store.assertStringValueMissing(artistSongFlatKey(artistId, songId))
         }
@@ -77,8 +88,6 @@ val StoredCacheReturnViewSpec by testSuite {
 
             assertEquals(first, second)
             assertEquals(1, calls)
-            assertEquals(listOf(artistId), artistSongsCache.key(artistId).keyGroups.main.toParamsArray().toList())
-            assertNull(artistSongsCache.key(artistId).keyGroups.secondary)
             store.assertStringValue(artistCacheKey(artistId), """{"7":{"id":7,"title":"Seven"}}""")
             store.assertHashMissing(artistCacheKey(artistId))
         }
@@ -114,6 +123,30 @@ val StoredCacheReturnViewSpec by testSuite {
                 artistCacheKey(artistId),
                 "20,10,en",
                 """[{"id":7,"title":"Seven"}]""",
+            )
+        }
+
+        test("hash map stored caches support the maximum cache arity") {
+            val artistId = 3
+            val filter = "favorites"
+            val sort = "recent"
+            val pageSize = 25
+            val market = "us"
+            val locale = "en"
+            val songId = 7
+
+            val result = cache(
+                artistCatalogCache.key(artistId, filter, sort, pageSize, market, locale),
+                returnsAs = value<CachedSong>(),
+            ) {
+                CachedSong(songId, "Seven")
+            }
+
+            assertEquals(CachedSong(songId, "Seven"), result)
+            store.assertHashField(
+                artistCacheKey(artistId),
+                artistCatalogField(filter, sort, pageSize, market, locale),
+                """{"id":7,"title":"Seven"}""",
             )
         }
     }

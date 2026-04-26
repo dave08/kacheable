@@ -340,7 +340,6 @@ data class HashMapStoredCache2<P1 : Any, P2 : Any>(
         val mainArgs = key.main.encode(part.value)
         return groupedEntryPartRef(name, mainArgs, key.secondary.wildcardArgs, CacheStorageLayout.HashValue)
     }
-
 }
 
 @ExperimentalKacheableApi
