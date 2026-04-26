@@ -8,6 +8,7 @@ import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke as typedInvoke
+import com.github.dave08.kacheable.isMember
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.cache
 import com.github.dave08.kacheable.blocking.invoke
@@ -29,8 +30,14 @@ import kotlin.time.Duration.Companion.minutes
 private val blockingArtistCache = mainKey<Int>("blocking-artist-cache", storedAs = CacheStorage.HashMap)
 private val blockingSongKey = key<Int>()
 private val blockingArtistSongsCache = blockingArtistCache + blockingSongKey
+private val blockingArtistFollowersCache =
+    mainKey<Int>("blocking-artist-followers-cache", storedAs = CacheStorage.Set)
+private val blockingFollowerAccountKey = key<Int>()
+private val blockingArtistFollowerCache = blockingArtistFollowersCache + blockingFollowerAccountKey
 
 private fun blockingArtistCacheKey(artistId: Int): String = "blocking-artist-cache:$artistId"
+
+private fun blockingArtistFollowersKey(artistId: Int): String = "blocking-artist-followers-cache:$artistId"
 
 val BlockingCacheableTest by testSuite {
     testFixture {
@@ -108,6 +115,37 @@ val BlockingCacheableTest by testSuite {
             fixture.cache.invalidate(blockingArtistSongsCache.keyPart(blockingArtistCache.keyPart(artistId)))
 
             expectThat(fixture.commands.exists(blockingArtistCacheKey(artistId))).isEqualTo(0)
+        }
+
+        test("stores typed set membership entries as Redis set members") {
+            val fixture = blockingSubject()
+            val artistId = 3
+            val accountId = 7
+            var calls = 0
+
+            val first = fixture.cache.typedInvoke(
+                blockingArtistFollowerCache.key(artistId, accountId),
+                returnsAs = isMember(),
+            ) {
+                calls++
+                true
+            }
+            val second = fixture.cache.typedInvoke(
+                blockingArtistFollowerCache.key(artistId, accountId),
+                returnsAs = isMember(),
+            ) {
+                calls++
+                false
+            }
+
+            expect {
+                that(first).isEqualTo(true)
+                that(second).isEqualTo(true)
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(blockingArtistFollowersKey(artistId))).isEqualTo("set")
+                that(fixture.commands.sismember(blockingArtistFollowersKey(artistId), accountId.toString()))
+                    .isEqualTo(true)
+            }
         }
 
         test("sets expiry from last write") {

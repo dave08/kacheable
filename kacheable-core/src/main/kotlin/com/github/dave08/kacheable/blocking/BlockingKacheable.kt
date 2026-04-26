@@ -18,6 +18,13 @@ interface BlockingKacheable {
         block: () -> R,
     ): R
 
+    @ExperimentalKacheableApi
+    fun <R> invalidateSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        block: () -> R,
+    ): R
+
     fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -35,6 +42,15 @@ interface BlockingKacheable {
         saveResultIf: (R) -> Boolean = { true },
         block: () -> R
     ): R
+
+    @ExperimentalKacheableApi
+    fun invokeSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        cacheFalse: Boolean = true,
+        saveResultIf: (Boolean) -> Boolean = { true },
+        block: () -> Boolean,
+    ): Boolean
 
     fun <R> invoke(
         name: String,

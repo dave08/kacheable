@@ -9,6 +9,7 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.isMember
 import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
@@ -28,8 +29,16 @@ import kotlin.time.Duration.Companion.minutes
 private val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
 private val songKey = key<Int>()
 private val artistSongsCache = artistCache + songKey
+private val artistFollowersCache = mainKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
+private val followerAccountKey = key<Int>()
+private val artistFollowerCache = artistFollowersCache + followerAccountKey
 
 private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
+
+private fun artistFollowersKey(artistId: Int): String = "artist-followers-cache:$artistId"
+
+private fun artistFollowerNonMembersKey(artistId: Int): String =
+    "${artistFollowersKey(artistId)}:__kacheable_non_members"
 
 val KacheableTest by testSuite {
     testFixture {
@@ -104,6 +113,55 @@ val KacheableTest by testSuite {
             fixture.cache.invalidate(artistSongsCache.keyPart(artistCache.keyPart(artistId)))
 
             expectThat(fixture.commands.exists(artistCacheKey(artistId))).isEqualTo(0)
+        }
+
+        test("stores typed set membership entries as Redis set members") {
+            val fixture = suspendSubject()
+            val artistId = 3
+            val accountId = 7
+            var calls = 0
+
+            val first = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+                calls++
+                true
+            }
+            val second = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+                calls++
+                false
+            }
+
+            expect {
+                that(first).isEqualTo(true)
+                that(second).isEqualTo(true)
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(artistFollowersKey(artistId))).isEqualTo("set")
+                that(fixture.commands.sismember(artistFollowersKey(artistId), accountId.toString())).isEqualTo(true)
+            }
+        }
+
+        test("stores false typed set membership entries in the non-member set") {
+            val fixture = suspendSubject()
+            val artistId = 13
+            val accountId = 7
+            var calls = 0
+
+            val first = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+                calls++
+                false
+            }
+            val second = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+                calls++
+                true
+            }
+
+            expect {
+                that(first).isEqualTo(false)
+                that(second).isEqualTo(false)
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(artistFollowerNonMembersKey(artistId))).isEqualTo("set")
+                that(fixture.commands.sismember(artistFollowerNonMembersKey(artistId), accountId.toString()))
+                    .isEqualTo(true)
+            }
         }
 
         test("sets expiry from last write") {

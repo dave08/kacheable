@@ -37,6 +37,9 @@ interface CacheReturn<R> {
 interface HashMapCacheReturn<R> : CacheReturn<R>
 
 @ExperimentalKacheableApi
+interface SetCacheReturn<R>
+
+@ExperimentalKacheableApi
 data class ValueCacheReturn<R>(
     override val serializer: KSerializer<R>,
     override val codec: CacheValueCodec<R> = cacheValueCodec(serializer),
@@ -47,6 +50,11 @@ data class MapCacheReturn<K : Any, R>(
     override val serializer: KSerializer<Map<K, R>>,
     override val codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer),
 ) : HashMapCacheReturn<Map<K, R>>
+
+@ExperimentalKacheableApi
+data class IsMemberCacheReturn(
+    val cacheFalse: Boolean = true,
+) : SetCacheReturn<Boolean>
 
 @ExperimentalKacheableApi
 inline fun <reified R> value(
@@ -69,6 +77,9 @@ fun <K : Any, R> map(
     serializer: KSerializer<Map<K, R>>,
     codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer),
 ): MapCacheReturn<K, R> = MapCacheReturn(serializer, codec)
+
+@ExperimentalKacheableApi
+fun isMember(cacheFalse: Boolean = true): IsMemberCacheReturn = IsMemberCacheReturn(cacheFalse)
 
 @ExperimentalKacheableApi
 sealed interface CacheArgs {
@@ -195,6 +206,18 @@ data class HashMapCacheEntryRef(
 }
 
 @ExperimentalKacheableApi
+data class SetMembershipCacheEntryRef(
+    val name: String,
+    val keyGroups: CacheKeyGroups,
+)
+
+@ExperimentalKacheableApi
+data class SetMembershipCachePartRef(
+    val name: String,
+    val keyGroups: CacheKeyGroups,
+)
+
+@ExperimentalKacheableApi
 data class CacheKeyGroups(
     val main: CacheArgs,
     val secondary: CacheArgs? = null,
@@ -305,6 +328,35 @@ data class HashMapMainKey<P1 : Any>(
 
     fun keyPart(part: CacheKeyPartRef<P1>): CacheEntryPartRef =
         SimpleCacheEntryPartRef(name, key.encode(part.value), CacheStorageLayout.HashValue)
+}
+
+@ExperimentalKacheableApi
+data class SetMainKey<P1 : Any>(
+    val name: String,
+    val key: MainKeyPart<P1>,
+) {
+    fun keyPart(value: P1): CacheKeyPartRef<P1> = key.invoke(value)
+
+    fun keyPart(part: CacheKeyPartRef<P1>): SetMembershipCachePartRef =
+        SetMembershipCachePartRef(name, CacheKeyGroups(main = key.encode(part.value)))
+}
+
+@ExperimentalKacheableApi
+data class SetStoredCache2<P1 : Any, P2 : Any>(
+    val name: String,
+    val key: MainSecondaryKey2<P1, P2>,
+) {
+    fun key(p1: P1, p2: P2): SetMembershipCacheEntryRef =
+        SetMembershipCacheEntryRef(
+            name = name,
+            keyGroups = CacheKeyGroups(
+                main = key.main.encode(p1),
+                secondary = key.secondary.encode(p2),
+            ),
+        )
+
+    fun keyPart(part: CacheKeyPartRef<P1>): SetMembershipCachePartRef =
+        SetMembershipCachePartRef(name, CacheKeyGroups(main = key.main.encode(part.value)))
 }
 
 @ExperimentalKacheableApi
@@ -659,6 +711,13 @@ fun <P1 : Any> mainKey(
 @ExperimentalKacheableApi
 fun <P1 : Any> mainKey(
     label: String,
+    storedAs: CacheStorage.Set,
+    mapper: KeyPart<P1> = keyMapper(),
+): SetMainKey<P1> = SetMainKey(label, mainKey(label, mapper))
+
+@ExperimentalKacheableApi
+fun <P1 : Any> mainKey(
+    label: String,
     vararg values: (P1) -> Any,
 ): MainKey<P1> = mainKey(label, keyMapper(*values))
 
@@ -670,6 +729,13 @@ fun <P1 : Any> mainKey(
 ): HashMapMainKey<P1> = HashMapMainKey(label, mainKey(label, *values))
 
 @ExperimentalKacheableApi
+fun <P1 : Any> mainKey(
+    label: String,
+    storedAs: CacheStorage.Set,
+    vararg values: (P1) -> Any,
+): SetMainKey<P1> = SetMainKey(label, mainKey(label, *values))
+
+@ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any> MainKeyPart<P1>.plus(
     secondary: KeyPart<P2>,
 ): MainSecondaryKey2<P1, P2> = MainSecondaryKey2(this, secondary)
@@ -678,6 +744,11 @@ operator fun <P1 : Any, P2 : Any> MainKeyPart<P1>.plus(
 operator fun <P1 : Any, P2 : Any> HashMapMainKey<P1>.plus(
     secondary: KeyPart<P2>,
 ): HashMapStoredCache2<P1, P2> = HashMapStoredCache2(name, key + secondary)
+
+@ExperimentalKacheableApi
+operator fun <P1 : Any, P2 : Any> SetMainKey<P1>.plus(
+    member: KeyPart<P2>,
+): SetStoredCache2<P1, P2> = SetStoredCache2(name, key + member)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any> HashMapMainKey<P1>.plus(
@@ -1145,9 +1216,37 @@ suspend operator fun <R> Kacheable.invoke(
 )
 
 @ExperimentalKacheableApi
+suspend operator fun Kacheable.invoke(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: IsMemberCacheReturn,
+    cacheIf: (Boolean) -> Boolean = { true },
+    block: suspend () -> Boolean,
+): Boolean = invokeSetMembership(
+    name = entryRef.name,
+    keyGroups = entryRef.keyGroups,
+    cacheFalse = returnsAs.cacheFalse,
+    saveResultIf = cacheIf,
+    block = block,
+)
+
+@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
+}
+
+@ExperimentalKacheableApi
+suspend fun Kacheable.invalidate(vararg entryRefs: SetMembershipCacheEntryRef) {
+    entryRefs.forEach { entryRef ->
+        invalidateSetMembership(entryRef.name, entryRef.keyGroups) {}
+    }
+}
+
+@ExperimentalKacheableApi
+suspend fun Kacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
+    partRefs.forEach { partRef ->
+        invalidateSetMembership(partRef.name, partRef.keyGroups) {}
     }
 }
 
@@ -1213,9 +1312,37 @@ operator fun <R> BlockingKacheable.invoke(
 )
 
 @ExperimentalKacheableApi
+operator fun BlockingKacheable.invoke(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: IsMemberCacheReturn,
+    cacheIf: (Boolean) -> Boolean = { true },
+    block: () -> Boolean,
+): Boolean = invokeSetMembership(
+    name = entryRef.name,
+    keyGroups = entryRef.keyGroups,
+    cacheFalse = returnsAs.cacheFalse,
+    saveResultIf = cacheIf,
+    block = block,
+)
+
+@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
+    }
+}
+
+@ExperimentalKacheableApi
+fun BlockingKacheable.invalidate(vararg entryRefs: SetMembershipCacheEntryRef) {
+    entryRefs.forEach { entryRef ->
+        invalidateSetMembership(entryRef.name, entryRef.keyGroups) {}
+    }
+}
+
+@ExperimentalKacheableApi
+fun BlockingKacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
+    partRefs.forEach { partRef ->
+        invalidateSetMembership(partRef.name, partRef.keyGroups) {}
     }
 }
 

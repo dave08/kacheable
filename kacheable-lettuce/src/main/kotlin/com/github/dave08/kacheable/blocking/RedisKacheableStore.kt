@@ -57,6 +57,17 @@ class RedisBlockingKacheableStore(
         conn.sync().hdel(key, field)
     }
 
+    override fun deleteSetMember(key: String, member: String) {
+        conn.sync().srem(key, member)
+    }
+
+    override fun addSetMember(key: String, member: String) {
+        conn.sync().sadd(key, member)
+    }
+
+    override fun isSetMember(key: String, member: String): Boolean =
+        conn.sync().sismember(key, member)
+
     override fun setExpire(key: String, expiry: Duration) {
         conn.sync().pexpire(key, expiry.inWholeMilliseconds)
     }

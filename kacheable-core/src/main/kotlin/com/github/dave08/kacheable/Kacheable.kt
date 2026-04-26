@@ -15,6 +15,13 @@ interface Kacheable {
         block: suspend () -> R,
     ): R
 
+    @ExperimentalKacheableApi
+    suspend fun <R> invalidateSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        block: suspend () -> R,
+    ): R
+
     suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -32,6 +39,15 @@ interface Kacheable {
         saveResultIf: (R) -> Boolean = { true },
         block: suspend () -> R
     ): R
+
+    @ExperimentalKacheableApi
+    suspend fun invokeSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        cacheFalse: Boolean = true,
+        saveResultIf: (Boolean) -> Boolean = { true },
+        block: suspend () -> Boolean,
+    ): Boolean
 
     suspend fun <R> invoke(
         name: String,

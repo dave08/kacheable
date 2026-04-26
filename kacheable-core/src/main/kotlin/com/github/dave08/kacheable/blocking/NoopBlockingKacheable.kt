@@ -18,6 +18,13 @@ internal object NoopBlockingKacheable : BlockingKacheable {
         block: () -> R,
     ): R = block()
 
+    @ExperimentalKacheableApi
+    override fun <R> invalidateSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        block: () -> R,
+    ): R = block()
+
     override fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -35,6 +42,15 @@ internal object NoopBlockingKacheable : BlockingKacheable {
         saveResultIf: (R) -> Boolean,
         block: () -> R
     ): R = block()
+
+    @ExperimentalKacheableApi
+    override fun invokeSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        cacheFalse: Boolean,
+        saveResultIf: (Boolean) -> Boolean,
+        block: () -> Boolean,
+    ): Boolean = block()
 
     override fun <R> invoke(
         name: String,

@@ -31,6 +31,22 @@ internal class KacheableImpl(
         return block()
     }
 
+    override suspend fun <R> invalidateSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        block: suspend () -> R,
+    ): R {
+        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
+        if (address.member == null) {
+            store.delete(address.membersKey)
+            store.delete(address.nonMembersKey)
+        } else {
+            store.deleteSetMember(address.membersKey, address.member)
+            store.deleteSetMember(address.nonMembersKey, address.member)
+        }
+        return block()
+    }
+
     override suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -62,6 +78,42 @@ internal class KacheableImpl(
             saveResultIf = saveResultIf,
             block = block,
         )
+    }
+
+    override suspend fun invokeSetMembership(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        cacheFalse: Boolean,
+        saveResultIf: (Boolean) -> Boolean,
+        block: suspend () -> Boolean,
+    ): Boolean {
+        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
+        val member = requireNotNull(address.member) { "Set membership cache entries require a secondary key member." }
+        val config = configs[name]
+
+        if (store.isSetMember(address.membersKey, member)) {
+            if (config?.expiryType == ExpiryType.after_access)
+                store.setExpire(address.membersKey, config.expiry)
+            return true
+        }
+
+        if (cacheFalse && store.isSetMember(address.nonMembersKey, member)) {
+            if (config?.expiryType == ExpiryType.after_access)
+                store.setExpire(address.nonMembersKey, config.expiry)
+            return false
+        }
+
+        val blockResult = block()
+        if (saveResultIf(blockResult)) {
+            val keyToWrite = if (blockResult) address.membersKey else address.nonMembersKey
+            if (blockResult || cacheFalse) {
+                store.addSetMember(keyToWrite, member)
+                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                    store.setExpire(keyToWrite, config!!.expiry)
+            }
+        }
+
+        return blockResult
     }
 
     private suspend fun <R> invokeAtAddress(
@@ -108,6 +160,27 @@ internal class KacheableImpl(
         params = params,
         saveResultIf = saveResultIf,
         block = block,
+    )
+}
+
+@OptIn(ExperimentalKacheableApi::class)
+private data class SetMembershipAddress(
+    val membersKey: String,
+    val nonMembersKey: String,
+    val member: String?,
+)
+
+@OptIn(ExperimentalKacheableApi::class)
+private fun setMembershipAddress(
+    name: String,
+    keyGroups: CacheKeyGroups,
+    getNameStrategy: GetNameStrategy,
+): SetMembershipAddress {
+    val membersKey = getNameStrategy.getName(name, keyGroups.main.toParamsArray())
+    return SetMembershipAddress(
+        membersKey = membersKey,
+        nonMembersKey = "$membersKey:__kacheable_non_members",
+        member = keyGroups.secondary?.toParamsArray()?.joinToString(","),
     )
 }
 

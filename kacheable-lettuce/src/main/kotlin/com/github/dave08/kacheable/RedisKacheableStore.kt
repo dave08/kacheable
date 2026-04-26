@@ -59,6 +59,17 @@ class RedisKacheableStore(
         conn.coroutines().hdel(key, field)
     }
 
+    override suspend fun deleteSetMember(key: String, member: String) {
+        conn.coroutines().srem(key, member)
+    }
+
+    override suspend fun addSetMember(key: String, member: String) {
+        conn.coroutines().sadd(key, member)
+    }
+
+    override suspend fun isSetMember(key: String, member: String): Boolean =
+        conn.coroutines().sismember(key, member) == true
+
     override suspend fun setExpire(key: String, expiry: Duration) {
         conn.coroutines().pexpire(key, expiry.inWholeMilliseconds)
     }
