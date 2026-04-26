@@ -2,6 +2,8 @@
 
 package com.github.dave08
 
+import com.github.dave08.kacheable.CacheArgs
+import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.argsOf
@@ -69,6 +71,8 @@ private val marketKey = key<String>()
 private val songPageKey = songKey + (pagingKey + localeKey)
 private val songSectionKey = songIdKey + songSectionMapper
 private val wideSongKey = songKey + (filterKey + sortKey + pageSizeKey + marketKey + localeKey)
+
+private fun CacheArgs.toList(): List<Any> = toParamsArray().toList()
 
 val TypedExactApiSpec by testSuite {
     testFixture {
@@ -178,11 +182,33 @@ val TypedExactApiSpec by testSuite {
                 Song(8, "Other Song")
             }
 
-            cache.invalidate(songPageCache.group(7))
+            cache.invalidate(songPageCache(songKey(7)))
 
             assertNull(store.get("song-page-cache:7,0,10,en"))
             assertNull(store.get("song-page-cache:7,10,10,en"))
             assertEquals("""{"id":8,"title":"Other Song"}""", store.get("song-page-cache:8,0,10,en"))
+        }
+
+        test("grouped cache calls expose logical key groups") {
+            val songPageCache = cache(
+                name = "song-page-cache",
+                key = songPageKey,
+                serializer = serializer<Song>(),
+                storageLayout = CacheStorageLayout.HashValue,
+            )
+
+            val call = songPageCache(7, PageWindow(0, 10), "en")
+            val group = songPageCache(songKey(7))
+
+            assertEquals(CacheStorageLayout.HashValue, call.definition.storageLayout)
+            assertEquals(listOf(7, 0, 10, "en"), call.args.toList())
+            assertEquals(listOf(7), call.keyGroups.main.toList())
+            assertEquals(listOf(0, 10, "en"), call.keyGroups.secondary?.toList())
+            assertEquals(listOf(7, 0, 10, "en"), call.keyGroups.flattened.toList())
+            assertEquals(listOf("7", "*", "*", "*"), group.args.toList().map(Any::toString))
+            assertEquals(listOf(7), group.keyGroups.main.toList())
+            assertEquals(listOf("*", "*", "*"), group.keyGroups.secondary?.toList()?.map(Any::toString))
+            assertEquals(listOf("7", "*", "*", "*"), group.keyGroups.flattened.toList().map(Any::toString))
         }
 
         test("main keys can use explicit mappers for value classes") {
@@ -306,7 +332,7 @@ val TypedExactApiSpec by testSuite {
                 Song(12, "Blocking Other")
             }
 
-            cache.invalidate(songPageCache.group(11))
+            cache.invalidate(songPageCache(songKey(11)))
 
             assertNull(store.get("song-page-cache|song=11|page=3|limit=50|locale=en"))
             assertNull(store.get("song-page-cache|song=11|page=4|limit=50|locale=en"))

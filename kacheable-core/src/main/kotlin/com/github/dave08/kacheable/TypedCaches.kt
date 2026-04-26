@@ -107,12 +107,32 @@ interface CacheDefinition<R> {
 interface CacheCall<R> {
     val definition: CacheDefinition<R>
     val args: CacheArgs
+    val keyGroups: CacheKeyGroups
+        get() = CacheKeyGroups(args)
 }
 
 @ExperimentalKacheableApi
 interface CacheGroup {
     val name: String
     val args: CacheArgs
+    val keyGroups: CacheKeyGroups
+        get() = CacheKeyGroups(args)
+}
+
+@ExperimentalKacheableApi
+data class CacheKeyGroups(
+    val main: CacheArgs,
+    val secondary: CacheArgs? = null,
+) {
+    val flattened: CacheArgs = secondary?.let { joinArgs(main, it) } ?: main
+}
+
+@ExperimentalKacheableApi
+data class CacheKeyGroup<G : Any>(
+    val key: MainKeyPart<G>,
+    val value: G,
+) {
+    val args: CacheArgs = key.encode(value)
 }
 
 @ExperimentalKacheableApi
@@ -158,41 +178,49 @@ interface KeyedCache<K : Any, R> : CacheDefinition<R> {
 @ExperimentalKacheableApi
 interface GroupedCache0<R, G : Any> : Cache0<R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache1<P1 : Any, R, G : Any> : Cache1<P1, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache2<P1 : Any, P2 : Any, R, G : Any> : Cache2<P1, P2, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache3<P1 : Any, P2 : Any, P3 : Any, R, G : Any> : Cache3<P1, P2, P3, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache4<P1 : Any, P2 : Any, P3 : Any, P4 : Any, R, G : Any> : Cache4<P1, P2, P3, P4, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, R, G : Any> : Cache5<P1, P2, P3, P4, P5, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface GroupedCache6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, R, G : Any> : Cache6<P1, P2, P3, P4, P5, P6, R> {
     fun group(key: G): CacheGroup
+    operator fun invoke(group: CacheKeyGroup<G>): CacheGroup = group(group.value)
 }
 
 @ExperimentalKacheableApi
 interface MainKeyPart<P1 : Any> : CacheArgsEncoder<P1> {
     val label: String
+    operator fun invoke(value: P1): CacheKeyGroup<P1> = CacheKeyGroup(this, value)
 }
 
 @ExperimentalKacheableApi
@@ -298,12 +326,14 @@ internal data class SimpleCacheDefinition<R>(
 internal data class SimpleCacheCall<R>(
     override val definition: CacheDefinition<R>,
     override val args: CacheArgs,
+    override val keyGroups: CacheKeyGroups = CacheKeyGroups(args),
 ) : CacheCall<R>
 
 @PublishedApi
 internal data class SimpleCacheGroup(
     override val name: String,
     override val args: CacheArgs,
+    override val keyGroups: CacheKeyGroups = CacheKeyGroups(args),
 ) : CacheGroup
 
 @PublishedApi
@@ -330,6 +360,28 @@ internal fun joinArgs(vararg segments: CacheArgs): CacheArgs {
 
 @PublishedApi
 internal fun wildcardArgs(size: Int): CacheArgs = CachePatternArgs(*Array(size) { CacheWildcard as Any })
+
+@PublishedApi
+internal fun <R> groupedCall(
+    definition: CacheDefinition<R>,
+    mainArgs: CacheArgs,
+    secondaryArgs: CacheArgs,
+): CacheCall<R> = SimpleCacheCall(
+    definition = definition,
+    args = joinArgs(mainArgs, secondaryArgs),
+    keyGroups = CacheKeyGroups(main = mainArgs, secondary = secondaryArgs),
+)
+
+@PublishedApi
+internal fun groupedCacheGroup(
+    name: String,
+    mainArgs: CacheArgs,
+    secondaryArgs: CacheArgs,
+): CacheGroup = SimpleCacheGroup(
+    name = name,
+    args = joinArgs(mainArgs, secondaryArgs),
+    keyGroups = CacheKeyGroups(main = mainArgs, secondary = secondaryArgs),
+)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> mainKeyPart(
@@ -534,11 +586,17 @@ fun <P1 : Any, P2 : Any, R> cache2(
     val definition = SimpleCacheDefinition(name, serializer, storageLayout)
     val cacheKey = key
     return object : GroupedCache2<P1, P2, R, P1>, CacheDefinition<R> by definition {
-        override fun invoke(p1: P1, p2: P2): CacheCall<R> =
-            SimpleCacheCall(this, joinArgs(cacheKey.main.encode(p1), cacheKey.secondary.encode(p2)))
+        override fun invoke(p1: P1, p2: P2): CacheCall<R> {
+            val mainArgs = cacheKey.main.encode(p1)
+            val secondaryArgs = cacheKey.secondary.encode(p2)
+            return groupedCall(this, mainArgs, secondaryArgs)
+        }
 
-        override fun group(key: P1): CacheGroup =
-            SimpleCacheGroup(name, joinArgs(cacheKey.main.encode(key), cacheKey.secondary.wildcardArgs))
+        override fun group(key: P1): CacheGroup {
+            val mainArgs = cacheKey.main.encode(key)
+            val secondaryArgs = cacheKey.secondary.wildcardArgs
+            return groupedCacheGroup(name, mainArgs, secondaryArgs)
+        }
     }
 }
 
@@ -570,11 +628,17 @@ fun <P1 : Any, P2 : Any, P3 : Any, R> cache3(
     val definition = SimpleCacheDefinition(name, serializer, storageLayout)
     val cacheKey = key
     return object : GroupedCache3<P1, P2, P3, R, P1>, CacheDefinition<R> by definition {
-        override fun invoke(p1: P1, p2: P2, p3: P3): CacheCall<R> =
-            SimpleCacheCall(this, joinArgs(cacheKey.main.encode(p1), cacheKey.secondary.encode(p2, p3)))
+        override fun invoke(p1: P1, p2: P2, p3: P3): CacheCall<R> {
+            val mainArgs = cacheKey.main.encode(p1)
+            val secondaryArgs = cacheKey.secondary.encode(p2, p3)
+            return groupedCall(this, mainArgs, secondaryArgs)
+        }
 
-        override fun group(key: P1): CacheGroup =
-            SimpleCacheGroup(name, joinArgs(cacheKey.main.encode(key), cacheKey.secondary.wildcardArgs))
+        override fun group(key: P1): CacheGroup {
+            val mainArgs = cacheKey.main.encode(key)
+            val secondaryArgs = cacheKey.secondary.wildcardArgs
+            return groupedCacheGroup(name, mainArgs, secondaryArgs)
+        }
     }
 }
 
@@ -606,11 +670,17 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, R> cache4(
     val definition = SimpleCacheDefinition(name, serializer, storageLayout)
     val cacheKey = key
     return object : GroupedCache4<P1, P2, P3, P4, R, P1>, CacheDefinition<R> by definition {
-        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4): CacheCall<R> =
-            SimpleCacheCall(this, joinArgs(cacheKey.main.encode(p1), cacheKey.secondary.encode(p2, p3, p4)))
+        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4): CacheCall<R> {
+            val mainArgs = cacheKey.main.encode(p1)
+            val secondaryArgs = cacheKey.secondary.encode(p2, p3, p4)
+            return groupedCall(this, mainArgs, secondaryArgs)
+        }
 
-        override fun group(key: P1): CacheGroup =
-            SimpleCacheGroup(name, joinArgs(cacheKey.main.encode(key), cacheKey.secondary.wildcardArgs))
+        override fun group(key: P1): CacheGroup {
+            val mainArgs = cacheKey.main.encode(key)
+            val secondaryArgs = cacheKey.secondary.wildcardArgs
+            return groupedCacheGroup(name, mainArgs, secondaryArgs)
+        }
     }
 }
 
@@ -643,11 +713,17 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, R> cache5(
     val definition = SimpleCacheDefinition(name, serializer, storageLayout)
     val cacheKey = key
     return object : GroupedCache5<P1, P2, P3, P4, P5, R, P1>, CacheDefinition<R> by definition {
-        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheCall<R> =
-            SimpleCacheCall(this, joinArgs(cacheKey.main.encode(p1), cacheKey.secondary.encode(p2, p3, p4, p5)))
+        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheCall<R> {
+            val mainArgs = cacheKey.main.encode(p1)
+            val secondaryArgs = cacheKey.secondary.encode(p2, p3, p4, p5)
+            return groupedCall(this, mainArgs, secondaryArgs)
+        }
 
-        override fun group(key: P1): CacheGroup =
-            SimpleCacheGroup(name, joinArgs(cacheKey.main.encode(key), cacheKey.secondary.wildcardArgs))
+        override fun group(key: P1): CacheGroup {
+            val mainArgs = cacheKey.main.encode(key)
+            val secondaryArgs = cacheKey.secondary.wildcardArgs
+            return groupedCacheGroup(name, mainArgs, secondaryArgs)
+        }
     }
 }
 
@@ -680,11 +756,17 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, R> cache6(
     val definition = SimpleCacheDefinition(name, serializer, storageLayout)
     val cacheKey = key
     return object : GroupedCache6<P1, P2, P3, P4, P5, P6, R, P1>, CacheDefinition<R> by definition {
-        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): CacheCall<R> =
-            SimpleCacheCall(this, joinArgs(cacheKey.main.encode(p1), cacheKey.secondary.encode(p2, p3, p4, p5, p6)))
+        override fun invoke(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): CacheCall<R> {
+            val mainArgs = cacheKey.main.encode(p1)
+            val secondaryArgs = cacheKey.secondary.encode(p2, p3, p4, p5, p6)
+            return groupedCall(this, mainArgs, secondaryArgs)
+        }
 
-        override fun group(key: P1): CacheGroup =
-            SimpleCacheGroup(name, joinArgs(cacheKey.main.encode(key), cacheKey.secondary.wildcardArgs))
+        override fun group(key: P1): CacheGroup {
+            val mainArgs = cacheKey.main.encode(key)
+            val secondaryArgs = cacheKey.secondary.wildcardArgs
+            return groupedCacheGroup(name, mainArgs, secondaryArgs)
+        }
     }
 }
 
