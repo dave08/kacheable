@@ -7,6 +7,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.enumMember
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
 import com.github.dave08.kacheable.isMember
@@ -32,6 +33,15 @@ private val artistSongsCache = artistCache + songKey
 private val artistFollowersCache = mainKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
 private val followerAccountKey = key<Int>()
 private val artistFollowerCache = artistFollowersCache + followerAccountKey
+private val songReactionsCache = mainKey<Int>("song-reaction-cache", storedAs = CacheStorage.Set)
+private val reactingAccountKey = key<Int>()
+private val songReactionCache = songReactionsCache + reactingAccountKey
+
+private enum class SongReaction {
+    LIKE,
+    DISLIKE,
+    NONE,
+}
 
 private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
 
@@ -39,6 +49,9 @@ private fun artistFollowersKey(artistId: Int): String = "artist-followers-cache:
 
 private fun artistFollowerNonMembersKey(artistId: Int): String =
     "${artistFollowersKey(artistId)}:__kacheable_non_members"
+
+private fun songReactionKey(songId: Int, reaction: SongReaction): String =
+    "song-reaction-cache:$songId:${reaction.name}"
 
 val KacheableTest by testSuite {
     testFixture {
@@ -160,6 +173,56 @@ val KacheableTest by testSuite {
                 that(calls).isEqualTo(1)
                 that(fixture.commands.type(artistFollowerNonMembersKey(artistId))).isEqualTo("set")
                 that(fixture.commands.sismember(artistFollowerNonMembersKey(artistId), accountId.toString()))
+                    .isEqualTo(true)
+            }
+        }
+
+        test("stores classified typed set membership entries as Redis set members") {
+            val fixture = suspendSubject()
+            val songId = 3
+            val accountId = 7
+            var calls = 0
+
+            val first = fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
+                calls++
+                SongReaction.LIKE
+            }
+            val second = fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
+                calls++
+                SongReaction.DISLIKE
+            }
+
+            expect {
+                that(first).isEqualTo(SongReaction.LIKE)
+                that(second).isEqualTo(SongReaction.LIKE)
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(songReactionKey(songId, SongReaction.LIKE))).isEqualTo("set")
+                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.LIKE), accountId.toString()))
+                    .isEqualTo(true)
+                that(fixture.commands.exists(songReactionKey(songId, SongReaction.DISLIKE))).isEqualTo(0)
+                that(fixture.commands.exists(songReactionKey(songId, SongReaction.NONE))).isEqualTo(0)
+            }
+        }
+
+        test("invalidates classified typed set membership entries across all values") {
+            val fixture = suspendSubject()
+            val songId = 13
+            val accountId = 7
+            val otherAccountId = 8
+
+            fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
+                SongReaction.DISLIKE
+            }
+            fixture.cache(songReactionCache.key(songId, otherAccountId), returnsAs = enumMember<SongReaction>()) {
+                SongReaction.LIKE
+            }
+
+            fixture.cache.invalidate(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>())
+
+            expect {
+                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.DISLIKE), accountId.toString()))
+                    .isEqualTo(false)
+                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.LIKE), otherAccountId.toString()))
                     .isEqualTo(true)
             }
         }

@@ -57,6 +57,14 @@ data class IsMemberCacheReturn(
 ) : SetCacheReturn<Boolean>
 
 @ExperimentalKacheableApi
+data class EnumMemberCacheReturn<E : Enum<E>>(
+    val values: List<E>,
+    val valueName: (E) -> String = { it.name },
+) : SetCacheReturn<E> {
+    val valueNames: List<String> = values.map(valueName)
+}
+
+@ExperimentalKacheableApi
 inline fun <reified R> value(
     codec: CacheValueCodec<R> = cacheValueCodec(serializer<R>()),
 ): ValueCacheReturn<R> = ValueCacheReturn(serializer<R>(), codec)
@@ -80,6 +88,12 @@ fun <K : Any, R> map(
 
 @ExperimentalKacheableApi
 fun isMember(cacheFalse: Boolean = true): IsMemberCacheReturn = IsMemberCacheReturn(cacheFalse)
+
+@ExperimentalKacheableApi
+inline fun <reified E : Enum<E>> enumMember(
+    values: List<E> = enumValues<E>().toList(),
+    noinline valueName: (E) -> String = { it.name },
+): EnumMemberCacheReturn<E> = EnumMemberCacheReturn(values, valueName)
 
 @ExperimentalKacheableApi
 sealed interface CacheArgs {
@@ -1230,6 +1244,21 @@ suspend operator fun Kacheable.invoke(
 )
 
 @ExperimentalKacheableApi
+suspend operator fun <E : Enum<E>> Kacheable.invoke(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+    cacheIf: (E) -> Boolean = { true },
+    block: suspend () -> E,
+): E = invokeSetClassification(
+    name = entryRef.name,
+    keyGroups = entryRef.keyGroups,
+    values = returnsAs.values,
+    valueName = returnsAs.valueName,
+    saveResultIf = cacheIf,
+    block = block,
+)
+
+@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
@@ -1248,6 +1277,22 @@ suspend fun Kacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
     partRefs.forEach { partRef ->
         invalidateSetMembership(partRef.name, partRef.keyGroups) {}
     }
+}
+
+@ExperimentalKacheableApi
+suspend fun <E : Enum<E>> Kacheable.invalidate(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+) {
+    invalidateSetClassification(entryRef.name, entryRef.keyGroups, returnsAs.valueNames) {}
+}
+
+@ExperimentalKacheableApi
+suspend fun <E : Enum<E>> Kacheable.invalidate(
+    partRef: SetMembershipCachePartRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+) {
+    invalidateSetClassification(partRef.name, partRef.keyGroups, returnsAs.valueNames) {}
 }
 
 @ExperimentalKacheableApi
@@ -1326,6 +1371,21 @@ operator fun BlockingKacheable.invoke(
 )
 
 @ExperimentalKacheableApi
+operator fun <E : Enum<E>> BlockingKacheable.invoke(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+    cacheIf: (E) -> Boolean = { true },
+    block: () -> E,
+): E = invokeSetClassification(
+    name = entryRef.name,
+    keyGroups = entryRef.keyGroups,
+    values = returnsAs.values,
+    valueName = returnsAs.valueName,
+    saveResultIf = cacheIf,
+    block = block,
+)
+
+@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.definition.name, entryRef.keyGroups, entryRef.definition.storageLayout) {}
@@ -1344,6 +1404,22 @@ fun BlockingKacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
     partRefs.forEach { partRef ->
         invalidateSetMembership(partRef.name, partRef.keyGroups) {}
     }
+}
+
+@ExperimentalKacheableApi
+fun <E : Enum<E>> BlockingKacheable.invalidate(
+    entryRef: SetMembershipCacheEntryRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+) {
+    invalidateSetClassification(entryRef.name, entryRef.keyGroups, returnsAs.valueNames) {}
+}
+
+@ExperimentalKacheableApi
+fun <E : Enum<E>> BlockingKacheable.invalidate(
+    partRef: SetMembershipCachePartRef,
+    returnsAs: EnumMemberCacheReturn<E>,
+) {
+    invalidateSetClassification(partRef.name, partRef.keyGroups, returnsAs.valueNames) {}
 }
 
 @ExperimentalKacheableApi

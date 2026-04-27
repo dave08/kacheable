@@ -6,6 +6,7 @@ import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.enumMember
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke as typedInvoke
 import com.github.dave08.kacheable.isMember
@@ -34,10 +35,23 @@ private val blockingArtistFollowersCache =
     mainKey<Int>("blocking-artist-followers-cache", storedAs = CacheStorage.Set)
 private val blockingFollowerAccountKey = key<Int>()
 private val blockingArtistFollowerCache = blockingArtistFollowersCache + blockingFollowerAccountKey
+private val blockingSongReactionsCache =
+    mainKey<Int>("blocking-song-reaction-cache", storedAs = CacheStorage.Set)
+private val blockingReactingAccountKey = key<Int>()
+private val blockingSongReactionCache = blockingSongReactionsCache + blockingReactingAccountKey
+
+private enum class BlockingSongReaction {
+    LIKE,
+    DISLIKE,
+    NONE,
+}
 
 private fun blockingArtistCacheKey(artistId: Int): String = "blocking-artist-cache:$artistId"
 
 private fun blockingArtistFollowersKey(artistId: Int): String = "blocking-artist-followers-cache:$artistId"
+
+private fun blockingSongReactionKey(songId: Int, reaction: BlockingSongReaction): String =
+    "blocking-song-reaction-cache:$songId:${reaction.name}"
 
 val BlockingCacheableTest by testSuite {
     testFixture {
@@ -145,6 +159,41 @@ val BlockingCacheableTest by testSuite {
                 that(fixture.commands.type(blockingArtistFollowersKey(artistId))).isEqualTo("set")
                 that(fixture.commands.sismember(blockingArtistFollowersKey(artistId), accountId.toString()))
                     .isEqualTo(true)
+            }
+        }
+
+        test("stores classified typed set membership entries as Redis set members") {
+            val fixture = blockingSubject()
+            val songId = 3
+            val accountId = 7
+            var calls = 0
+
+            val first = fixture.cache.typedInvoke(
+                blockingSongReactionCache.key(songId, accountId),
+                returnsAs = enumMember<BlockingSongReaction>(),
+            ) {
+                calls++
+                BlockingSongReaction.NONE
+            }
+            val second = fixture.cache.typedInvoke(
+                blockingSongReactionCache.key(songId, accountId),
+                returnsAs = enumMember<BlockingSongReaction>(),
+            ) {
+                calls++
+                BlockingSongReaction.LIKE
+            }
+
+            expect {
+                that(first).isEqualTo(BlockingSongReaction.NONE)
+                that(second).isEqualTo(BlockingSongReaction.NONE)
+                that(calls).isEqualTo(1)
+                that(fixture.commands.type(blockingSongReactionKey(songId, BlockingSongReaction.NONE))).isEqualTo("set")
+                that(
+                    fixture.commands.sismember(
+                        blockingSongReactionKey(songId, BlockingSongReaction.NONE),
+                        accountId.toString(),
+                    ),
+                ).isEqualTo(true)
             }
         }
 

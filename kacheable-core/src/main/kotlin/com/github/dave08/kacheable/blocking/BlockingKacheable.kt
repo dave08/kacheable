@@ -25,6 +25,14 @@ interface BlockingKacheable {
         block: () -> R,
     ): R
 
+    @ExperimentalKacheableApi
+    fun <R> invalidateSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        valueNames: List<String>,
+        block: () -> R,
+    ): R
+
     fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -51,6 +59,16 @@ interface BlockingKacheable {
         saveResultIf: (Boolean) -> Boolean = { true },
         block: () -> Boolean,
     ): Boolean
+
+    @ExperimentalKacheableApi
+    fun <R : Any> invokeSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        values: List<R>,
+        valueName: (R) -> String,
+        saveResultIf: (R) -> Boolean = { true },
+        block: () -> R,
+    ): R
 
     fun <R> invoke(
         name: String,

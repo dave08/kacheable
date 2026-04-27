@@ -11,8 +11,10 @@ import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.classificationInvalidationPlan
 import com.github.dave08.kacheable.cacheValueCodec
 import com.github.dave08.kacheable.invalidationPlan
+import com.github.dave08.kacheable.keyForClassificationResult
 import com.github.dave08.kacheable.setMembershipAddress
 import com.github.dave08.kacheable.shouldWriteSetMembershipResult
 import kotlinx.serialization.KSerializer
@@ -52,6 +54,21 @@ internal class BlockingKacheableImpl(
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val plan = address.invalidationPlan()
+        plan.keys.forEach { store.delete(it) }
+        plan.members.forEach { (key, member) ->
+            store.deleteSetMember(key, member)
+        }
+        return block()
+    }
+
+    override fun <R> invalidateSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        valueNames: List<String>,
+        block: () -> R,
+    ): R {
+        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
+        val plan = address.classificationInvalidationPlan(valueNames)
         plan.keys.forEach { store.delete(it) }
         plan.members.forEach { (key, member) ->
             store.deleteSetMember(key, member)
@@ -118,6 +135,42 @@ internal class BlockingKacheableImpl(
         val blockResult = block()
         if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
             val keyToWrite = address.keyFor(blockResult)
+            store.addSetMember(keyToWrite, member)
+            if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                store.setExpire(keyToWrite, config!!.expiry)
+        }
+
+        return blockResult
+    }
+
+    override fun <R : Any> invokeSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        values: List<R>,
+        valueName: (R) -> String,
+        saveResultIf: (R) -> Boolean,
+        block: () -> R,
+    ): R {
+        require(values.isNotEmpty()) { "Set classification caches require at least one possible value." }
+        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
+        val member = address.requiredMember
+        val config = configs[name]
+
+        values.forEach { value ->
+            val key = address.classifiedKey(valueName(value))
+            if (store.isSetMember(key, member)) {
+                if (config?.expiryType == ExpiryType.after_access)
+                    store.setExpire(key, config.expiry)
+                return value
+            }
+        }
+
+        val blockResult = block()
+        if (saveResultIf(blockResult)) {
+            values.forEach { value ->
+                store.deleteSetMember(address.classifiedKey(valueName(value)), member)
+            }
+            val keyToWrite = address.keyForClassificationResult(blockResult, values, valueName)
             store.addSetMember(keyToWrite, member)
             if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
                 store.setExpire(keyToWrite, config!!.expiry)

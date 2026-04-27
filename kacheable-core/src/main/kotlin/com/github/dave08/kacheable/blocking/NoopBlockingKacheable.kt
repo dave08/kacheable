@@ -25,6 +25,14 @@ internal object NoopBlockingKacheable : BlockingKacheable {
         block: () -> R,
     ): R = block()
 
+    @ExperimentalKacheableApi
+    override fun <R> invalidateSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        valueNames: List<String>,
+        block: () -> R,
+    ): R = block()
+
     override fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
@@ -51,6 +59,16 @@ internal object NoopBlockingKacheable : BlockingKacheable {
         saveResultIf: (Boolean) -> Boolean,
         block: () -> Boolean,
     ): Boolean = block()
+
+    @ExperimentalKacheableApi
+    override fun <R : Any> invokeSetClassification(
+        name: String,
+        keyGroups: CacheKeyGroups,
+        values: List<R>,
+        valueName: (R) -> String,
+        saveResultIf: (R) -> Boolean,
+        block: () -> R,
+    ): R = block()
 
     override fun <R> invoke(
         name: String,
