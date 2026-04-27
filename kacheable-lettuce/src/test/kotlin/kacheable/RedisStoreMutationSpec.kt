@@ -55,6 +55,25 @@ val RedisStoreMutationSpec by testSuite {
         }
     }
 
+    test("suspend Redis store can replace boolean membership state semantically") {
+        RedisFixture.start().use { fixture ->
+            val store = RedisKacheableStore(fixture.connection)
+            fixture.commands.sadd("artist-followers:3:__kacheable_non_members", "7")
+
+            store.replaceSetMembership(
+                member = "7",
+                membersKey = "artist-followers:3",
+                nonMembersKey = "artist-followers:3:__kacheable_non_members",
+                isMember = true,
+                expiry = 4.minutes,
+            )
+
+            expectThat(fixture.commands.sismember("artist-followers:3", "7")).isEqualTo(true)
+            expectThat(fixture.commands.sismember("artist-followers:3:__kacheable_non_members", "7")).isEqualTo(false)
+            expectThat(fixture.commands.ttl("artist-followers:3")).isEqualTo(4.minutes.inWholeSeconds)
+        }
+    }
+
     test("blocking Redis store can refresh expiry while reading a string value") {
         RedisFixture.start().use { fixture ->
             val store = RedisBlockingKacheableStore(fixture.connection)
@@ -65,6 +84,30 @@ val RedisStoreMutationSpec by testSuite {
 
             expectThat(result).isEqualTo("""{"id":10}""")
             expectThat(fixture.commands.ttl("songs:10")).isEqualTo(1.minutes.inWholeSeconds)
+        }
+    }
+
+    test("blocking Redis store can replace classified membership state semantically") {
+        RedisFixture.start().use { fixture ->
+            val store = RedisBlockingKacheableStore(fixture.connection)
+            fixture.commands.sadd("song-like-cache:7:DISLIKE", "11")
+            fixture.commands.sadd("song-like-cache:7:NONE", "11")
+
+            store.replaceClassifiedMembership(
+                member = "11",
+                targetKey = "song-like-cache:7:LIKE",
+                candidateKeys = listOf(
+                    "song-like-cache:7:LIKE",
+                    "song-like-cache:7:DISLIKE",
+                    "song-like-cache:7:NONE",
+                ),
+                expiry = 6.minutes,
+            )
+
+            expectThat(fixture.commands.sismember("song-like-cache:7:LIKE", "11")).isEqualTo(true)
+            expectThat(fixture.commands.sismember("song-like-cache:7:DISLIKE", "11")).isEqualTo(false)
+            expectThat(fixture.commands.sismember("song-like-cache:7:NONE", "11")).isEqualTo(false)
+            expectThat(fixture.commands.ttl("song-like-cache:7:LIKE")).isEqualTo(6.minutes.inWholeSeconds)
         }
     }
 }

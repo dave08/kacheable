@@ -7,6 +7,7 @@ import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
+import io.lettuce.core.ScriptOutputType
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands
 import io.lettuce.core.api.coroutines
@@ -97,6 +98,54 @@ class RedisKacheableStore(
             }
         }
 
+    override suspend fun replaceSetMembership(
+        member: String,
+        membersKey: String,
+        nonMembersKey: String,
+        isMember: Boolean,
+        expiry: Duration?,
+        cacheFalse: Boolean,
+    ) {
+        withContext(Dispatchers.IO) {
+            mutationMutex.withLock {
+                val targetIndex =
+                    when {
+                        isMember -> "1"
+                        cacheFalse -> "2"
+                        else -> "0"
+                    }
+                conn.sync().eval<Long>(
+                    REPLACE_SET_MEMBERSHIP_SCRIPT,
+                    ScriptOutputType.INTEGER,
+                    arrayOf(membersKey, nonMembersKey),
+                    member,
+                    targetIndex,
+                    expiry?.inWholeMilliseconds?.toString().orEmpty(),
+                )
+            }
+        }
+    }
+
+    override suspend fun replaceClassifiedMembership(
+        member: String,
+        targetKey: String,
+        candidateKeys: List<String>,
+        expiry: Duration?,
+    ) {
+        withContext(Dispatchers.IO) {
+            mutationMutex.withLock {
+                val keys = listOf(targetKey) + candidateKeys.filterNot { it == targetKey }
+                conn.sync().eval<Long>(
+                    REPLACE_CLASSIFIED_MEMBERSHIP_SCRIPT,
+                    ScriptOutputType.INTEGER,
+                    keys.toTypedArray(),
+                    member,
+                    expiry?.inWholeMilliseconds?.toString().orEmpty(),
+                )
+            }
+        }
+    }
+
     override suspend fun mutate(block: suspend StoreMutationScope.() -> Unit) {
         withContext(Dispatchers.IO) {
             mutationMutex.withLock {
@@ -113,6 +162,30 @@ class RedisKacheableStore(
         }
     }
 }
+
+private const val REPLACE_SET_MEMBERSHIP_SCRIPT = """
+redis.call('SREM', KEYS[1], ARGV[1])
+redis.call('SREM', KEYS[2], ARGV[1])
+local targetIndex = tonumber(ARGV[2])
+if targetIndex ~= nil and targetIndex > 0 then
+  redis.call('SADD', KEYS[targetIndex], ARGV[1])
+  if ARGV[3] ~= '' then
+    redis.call('PEXPIRE', KEYS[targetIndex], ARGV[3])
+  end
+end
+return 1
+"""
+
+private const val REPLACE_CLASSIFIED_MEMBERSHIP_SCRIPT = """
+for i = 1, #KEYS do
+  redis.call('SREM', KEYS[i], ARGV[1])
+end
+redis.call('SADD', KEYS[1], ARGV[1])
+if ARGV[2] ~= '' then
+  redis.call('PEXPIRE', KEYS[1], ARGV[2])
+end
+return 1
+"""
 
 private class RedisStoreMutationScope(
     private val commands: RedisCommands<String, String>,
