@@ -2,9 +2,9 @@ package kacheable
 
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.Kacheable
-import com.github.dave08.kacheable.RedisKacheableStore
 import com.github.dave08.kacheable.blocking.BlockingKacheable
-import com.github.dave08.kacheable.blocking.RedisBlockingKacheableStore
+import com.github.dave08.kacheable.blocking.redis.RedisBlockingKacheableStore
+import com.github.dave08.kacheable.redis.RedisKacheableStore
 import io.lettuce.core.RedisClient
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands

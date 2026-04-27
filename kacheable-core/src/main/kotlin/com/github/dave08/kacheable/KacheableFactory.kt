@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.KacheableImpl
+import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.serialization.json.Json
 
 fun Kacheable(

@@ -1,11 +1,11 @@
 package com.github.dave08
 
-import com.github.dave08.kacheable.InMemoryKacheableStore
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.blocking.BlockingKacheable
-import com.github.dave08.kacheable.blocking.BlockingKacheableStore
+import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
+import com.github.dave08.kacheable.store.InMemoryKacheableStore
 
 class SuspendCacheFixture(
     val store: InMemoryKacheableStore = InMemoryKacheableStore(),

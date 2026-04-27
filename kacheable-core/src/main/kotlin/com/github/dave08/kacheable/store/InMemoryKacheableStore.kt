@@ -1,4 +1,4 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.store
 
 import kotlin.time.Duration
 
@@ -47,9 +47,7 @@ class InMemoryKacheableStore(
 
     override suspend fun isSetMember(key: String, member: String): Boolean = sets[key]?.contains(member) == true
 
-    override suspend fun setExpire(key: String, expiry: Duration) {
-        // No-op
-    }
+    override suspend fun setExpire(key: String, expiry: Duration) = Unit
 
     private fun wildcardRegex(pattern: String): Regex =
         Regex("^${pattern.split("*").joinToString(".*") { Regex.escape(it) }}$")

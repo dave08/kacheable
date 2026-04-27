@@ -4,6 +4,7 @@ import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.blocking.internal.BlockingKacheableImpl
+import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import kotlinx.serialization.json.Json
 
 fun BlockingKacheable(

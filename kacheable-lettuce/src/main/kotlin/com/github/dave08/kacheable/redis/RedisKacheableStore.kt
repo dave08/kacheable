@@ -1,5 +1,6 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.redis
 
+import com.github.dave08.kacheable.store.KacheableStore
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator

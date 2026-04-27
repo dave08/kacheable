@@ -1,9 +1,9 @@
 package com.github.dave08.kacheable.blocking
 
-import com.github.dave08.kacheable.CacheValueCodec
 import com.github.dave08.kacheable.CacheKeyGroups
 import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 
 internal object NoopBlockingKacheable : BlockingKacheable {

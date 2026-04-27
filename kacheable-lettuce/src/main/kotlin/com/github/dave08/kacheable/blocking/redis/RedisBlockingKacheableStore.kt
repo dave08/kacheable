@@ -1,7 +1,7 @@
-package com.github.dave08.kacheable.blocking
+package com.github.dave08.kacheable.blocking.redis
 
-import com.github.dave08.kacheable.KacheableStore
-import com.github.dave08.kacheable.RedisDeleteMode
+import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
+import com.github.dave08.kacheable.redis.RedisDeleteMode
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.api.StatefulRedisConnection
@@ -47,11 +47,9 @@ class RedisBlockingKacheableStore(
         conn.sync().hset(key, field, value)
     }
 
-    override fun get(key: String): String? =
-        conn.sync().get(key)
+    override fun get(key: String): String? = conn.sync().get(key)
 
-    override fun getHashValue(key: String, field: String): String? =
-        conn.sync().hget(key, field)
+    override fun getHashValue(key: String, field: String): String? = conn.sync().hget(key, field)
 
     override fun deleteHashValue(key: String, field: String) {
         conn.sync().hdel(key, field)
@@ -65,8 +63,7 @@ class RedisBlockingKacheableStore(
         conn.sync().sadd(key, member)
     }
 
-    override fun isSetMember(key: String, member: String): Boolean =
-        conn.sync().sismember(key, member)
+    override fun isSetMember(key: String, member: String): Boolean = conn.sync().sismember(key, member)
 
     override fun setExpire(key: String, expiry: Duration) {
         conn.sync().pexpire(key, expiry.inWholeMilliseconds)

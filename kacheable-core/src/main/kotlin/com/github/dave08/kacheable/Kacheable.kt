@@ -1,5 +1,6 @@
 package  com.github.dave08.kacheable
 
+import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer

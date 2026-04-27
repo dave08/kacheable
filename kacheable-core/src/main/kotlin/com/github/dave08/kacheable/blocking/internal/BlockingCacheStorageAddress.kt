@@ -1,7 +1,7 @@
 package com.github.dave08.kacheable.blocking.internal
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.blocking.BlockingKacheableStore
+import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.internal.CacheStorageAddress
 
 @OptIn(ExperimentalKacheableApi::class)

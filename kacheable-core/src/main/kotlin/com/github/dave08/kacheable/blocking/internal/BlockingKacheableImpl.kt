@@ -3,13 +3,11 @@ package com.github.dave08.kacheable.blocking.internal
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheKeyGroups
 import com.github.dave08.kacheable.CacheStorageLayout
-import com.github.dave08.kacheable.CacheValueCodec
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.GetNameStrategy
-import com.github.dave08.kacheable.cacheValueCodec
 import com.github.dave08.kacheable.blocking.BlockingKacheable
-import com.github.dave08.kacheable.blocking.BlockingKacheableStore
+import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.internal.CacheResultPolicy
 import com.github.dave08.kacheable.internal.CacheStorageAddress
 import com.github.dave08.kacheable.internal.CacheStorageAddressResolver
@@ -18,6 +16,8 @@ import com.github.dave08.kacheable.internal.invalidationPlan
 import com.github.dave08.kacheable.internal.keyForClassificationResult
 import com.github.dave08.kacheable.internal.setMembershipAddress
 import com.github.dave08.kacheable.internal.shouldWriteSetMembershipResult
+import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.cacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 

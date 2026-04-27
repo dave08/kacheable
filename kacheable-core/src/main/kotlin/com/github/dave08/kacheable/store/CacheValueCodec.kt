@@ -1,4 +1,4 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.store
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json

@@ -6,7 +6,7 @@ import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.CacheWildcard
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.GetNameStrategy
-import com.github.dave08.kacheable.KacheableStore
+import com.github.dave08.kacheable.store.KacheableStore
 
 @ExperimentalKacheableApi
 internal data class CacheStorageAddress(

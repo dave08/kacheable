@@ -3,14 +3,14 @@ package com.github.dave08.kacheable.internal
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheKeyGroups
 import com.github.dave08.kacheable.CacheStorageLayout
-import com.github.dave08.kacheable.CacheValueCodec
 import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.Kacheable
-import com.github.dave08.kacheable.KacheableStore
-import com.github.dave08.kacheable.cacheValueCodec
+import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.KacheableStore
+import com.github.dave08.kacheable.store.cacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 

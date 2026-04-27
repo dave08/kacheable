@@ -1,4 +1,4 @@
-package com.github.dave08.kacheable.blocking
+package com.github.dave08.kacheable.blocking.store
 
 import kotlin.time.Duration
 

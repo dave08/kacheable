@@ -1,7 +1,7 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
-import com.github.dave08.kacheable.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheValueCodec
 
 internal object CacheResultPolicy {
     fun <R> encodeResultToSave(

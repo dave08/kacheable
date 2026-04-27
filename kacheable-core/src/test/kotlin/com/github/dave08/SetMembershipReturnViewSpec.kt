@@ -4,7 +4,6 @@ package com.github.dave08
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.InMemoryKacheableStore
 import com.github.dave08.kacheable.enumMember
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
@@ -13,6 +12,7 @@ import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.blocking.invoke
+import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
