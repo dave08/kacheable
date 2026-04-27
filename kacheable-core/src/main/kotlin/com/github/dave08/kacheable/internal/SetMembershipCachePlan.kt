@@ -1,4 +1,8 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.internal
+
+import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.GetNameStrategy
 
 @ExperimentalKacheableApi
 internal data class SetMembershipAddress(

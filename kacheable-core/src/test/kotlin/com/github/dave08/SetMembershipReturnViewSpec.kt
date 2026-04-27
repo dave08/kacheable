@@ -12,6 +12,7 @@ import com.github.dave08.kacheable.isMember
 import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.blocking.invoke
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -124,7 +125,7 @@ val SetMembershipReturnViewSpec by testSuite {
             cache(artistFollowerCache.key(artistId, memberAccountId), returnsAs = isMember()) { true }
             cache(artistFollowerCache.key(artistId, nonMemberAccountId), returnsAs = isMember()) { false }
 
-            cache.invalidate(artistFollowerCache.keyPart(artistFollowersCache.keyPart(artistId)))
+            cache.invalidate(artistFollowerCache.keyPart(artistId))
 
             store.assertSetMissing(artistFollowersKey(artistId))
             store.assertSetMissing(artistFollowerNonMembersKey(artistId))
@@ -152,6 +153,35 @@ val SetMembershipReturnViewSpec by testSuite {
             store.assertSetMissing(songLikeKey(songId, SongLike.NONE))
         }
 
+        test("classified set membership can use custom enum value names") {
+            val songId = 4
+            val accountId = 9
+            val resultView = enumMember<SongLike> { like -> like.name.lowercase() }
+
+            val result = cache(songLikeCache.key(songId, accountId), returnsAs = resultView) {
+                SongLike.DISLIKE
+            }
+
+            assertEquals(SongLike.DISLIKE, result)
+            store.assertSetMember("song-like-cache:$songId:dislike", accountId)
+            store.assertSetMissing(songLikeKey(songId, SongLike.DISLIKE))
+        }
+
+        test("classified set membership only writes configured enum values") {
+            val songId = 4
+            val accountId = 11
+            val cacheableValues = enumMember(values = listOf(SongLike.LIKE, SongLike.DISLIKE))
+
+            val failure = kotlin.runCatching {
+                cache(songLikeCache.key(songId, accountId), returnsAs = cacheableValues) {
+                    SongLike.NONE
+                }
+            }
+
+            assertTrue(failure.isFailure)
+            store.assertSetMissing(songLikeKey(songId, SongLike.NONE))
+        }
+
         test("classified set membership invalidation removes a member from all enum value sets") {
             val songId = 3
             val accountId = 7
@@ -174,7 +204,7 @@ val SetMembershipReturnViewSpec by testSuite {
             cache(songLikeCache.key(songId, likeAccountId), returnsAs = enumMember<SongLike>()) { SongLike.LIKE }
             cache(songLikeCache.key(songId, noneAccountId), returnsAs = enumMember<SongLike>()) { SongLike.NONE }
 
-            cache.invalidate(songLikeCache.keyPart(songLikesCache.keyPart(songId)), returnsAs = enumMember<SongLike>())
+            cache.invalidate(songLikeCache.keyPart(songId), returnsAs = enumMember<SongLike>())
 
             store.assertSetMissing(songLikeKey(songId, SongLike.LIKE))
             store.assertSetMissing(songLikeKey(songId, SongLike.DISLIKE))

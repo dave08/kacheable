@@ -94,3 +94,32 @@ val MyGetNameStrategy = GetNameStrategy { name, params ->
 
 val cache = Kacheable(RedisKacheableStore(conn), getNameStrategy = MyGetNameStrategy)
 ```
+
+## Experimental typed storage API
+
+The current experimental direction also supports defining grouped caches with typed key mappers:
+
+```kotlin
+val artistSongsCache =
+    mainKey<Int>("artist-songs-cache", storedAs = CacheStorage.HashMap) + key<Int>()
+
+suspend fun getSong(artistId: Int, songId: Int) =
+    cache(artistSongsCache.key(artistId, songId), returnsAs = value<Song>()) {
+        loadSong(artistId, songId)
+    }
+
+suspend fun invalidateArtistSongs(artistId: Int) {
+    cache.invalidate(artistSongsCache.keyPart(artistId))
+}
+```
+
+If the main cache group needs more than one encoded segment, provide a single mapper with multiple extractors:
+
+```kotlin
+val localizedArtistSongsCache =
+    mainKey<ArtistRef>(
+        "artist-songs-cache",
+        key(ArtistRef::artistId, ArtistRef::locale),
+        storedAs = CacheStorage.HashMap,
+    ) + key<Int>()
+```

@@ -3,18 +3,10 @@
 package kacheable
 
 import com.github.dave08.kacheable.CacheConfig
-import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.Kacheable
-import com.github.dave08.kacheable.enumMember
-import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
-import com.github.dave08.kacheable.isMember
-import com.github.dave08.kacheable.key
-import com.github.dave08.kacheable.mainKey
-import com.github.dave08.kacheable.plus
-import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.coroutines.delay
 import strikt.api.expect
@@ -26,32 +18,6 @@ import strikt.assertions.isEqualTo
 import strikt.assertions.isGreaterThan
 import strikt.assertions.isNull
 import kotlin.time.Duration.Companion.minutes
-
-private val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
-private val songKey = key<Int>()
-private val artistSongsCache = artistCache + songKey
-private val artistFollowersCache = mainKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
-private val followerAccountKey = key<Int>()
-private val artistFollowerCache = artistFollowersCache + followerAccountKey
-private val songReactionsCache = mainKey<Int>("song-reaction-cache", storedAs = CacheStorage.Set)
-private val reactingAccountKey = key<Int>()
-private val songReactionCache = songReactionsCache + reactingAccountKey
-
-private enum class SongReaction {
-    LIKE,
-    DISLIKE,
-    NONE,
-}
-
-private fun artistCacheKey(artistId: Int): String = "artist-cache:$artistId"
-
-private fun artistFollowersKey(artistId: Int): String = "artist-followers-cache:$artistId"
-
-private fun artistFollowerNonMembersKey(artistId: Int): String =
-    "${artistFollowersKey(artistId)}:__kacheable_non_members"
-
-private fun songReactionKey(songId: Int, reaction: SongReaction): String =
-    "song-reaction-cache:$songId:${reaction.name}"
 
 val KacheableTest by testSuite {
     testFixture {
@@ -77,154 +43,6 @@ val KacheableTest by testSuite {
             fixture.subject.baz(32, "something")
 
             expectThat(fixture.commands.keys("*")).containsExactly("foo:32,something")
-        }
-
-        test("stores typed hash-map cache entries as Redis hash fields") {
-            val fixture = suspendSubject()
-            val artistId = 3
-            val songId = 7
-            var calls = 0
-
-            val first = fixture.cache(
-                artistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
-            ) {
-                calls++
-                Bar(songId, "Seven")
-            }
-            val second = fixture.cache(
-                artistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
-            ) {
-                calls++
-                Bar(songId, "Changed")
-            }
-
-            expect {
-                that(first).isEqualTo(Bar(songId, "Seven"))
-                that(second).isEqualTo(Bar(songId, "Seven"))
-                that(calls).isEqualTo(1)
-                that(fixture.commands.type(artistCacheKey(artistId))).isEqualTo("hash")
-                that(fixture.commands.hget(artistCacheKey(artistId), songId.toString()))
-                    .isEqualTo("""{"id":7,"name":"Seven"}""")
-            }
-        }
-
-        test("invalidates typed hash-map cache entries by main key") {
-            val fixture = suspendSubject()
-            val artistId = 13
-            val firstSongId = 7
-            val secondSongId = 8
-
-            fixture.cache(artistSongsCache.key(artistId, firstSongId), returnsAs = value<Bar>()) {
-                Bar(firstSongId, "Seven")
-            }
-            fixture.cache(artistSongsCache.key(artistId, secondSongId), returnsAs = value<Bar>()) {
-                Bar(secondSongId, "Eight")
-            }
-
-            fixture.cache.invalidate(artistSongsCache.keyPart(artistCache.keyPart(artistId)))
-
-            expectThat(fixture.commands.exists(artistCacheKey(artistId))).isEqualTo(0)
-        }
-
-        test("stores typed set membership entries as Redis set members") {
-            val fixture = suspendSubject()
-            val artistId = 3
-            val accountId = 7
-            var calls = 0
-
-            val first = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
-                calls++
-                true
-            }
-            val second = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
-                calls++
-                false
-            }
-
-            expect {
-                that(first).isEqualTo(true)
-                that(second).isEqualTo(true)
-                that(calls).isEqualTo(1)
-                that(fixture.commands.type(artistFollowersKey(artistId))).isEqualTo("set")
-                that(fixture.commands.sismember(artistFollowersKey(artistId), accountId.toString())).isEqualTo(true)
-            }
-        }
-
-        test("stores false typed set membership entries in the non-member set") {
-            val fixture = suspendSubject()
-            val artistId = 13
-            val accountId = 7
-            var calls = 0
-
-            val first = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
-                calls++
-                false
-            }
-            val second = fixture.cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
-                calls++
-                true
-            }
-
-            expect {
-                that(first).isEqualTo(false)
-                that(second).isEqualTo(false)
-                that(calls).isEqualTo(1)
-                that(fixture.commands.type(artistFollowerNonMembersKey(artistId))).isEqualTo("set")
-                that(fixture.commands.sismember(artistFollowerNonMembersKey(artistId), accountId.toString()))
-                    .isEqualTo(true)
-            }
-        }
-
-        test("stores classified typed set membership entries as Redis set members") {
-            val fixture = suspendSubject()
-            val songId = 3
-            val accountId = 7
-            var calls = 0
-
-            val first = fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
-                calls++
-                SongReaction.LIKE
-            }
-            val second = fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
-                calls++
-                SongReaction.DISLIKE
-            }
-
-            expect {
-                that(first).isEqualTo(SongReaction.LIKE)
-                that(second).isEqualTo(SongReaction.LIKE)
-                that(calls).isEqualTo(1)
-                that(fixture.commands.type(songReactionKey(songId, SongReaction.LIKE))).isEqualTo("set")
-                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.LIKE), accountId.toString()))
-                    .isEqualTo(true)
-                that(fixture.commands.exists(songReactionKey(songId, SongReaction.DISLIKE))).isEqualTo(0)
-                that(fixture.commands.exists(songReactionKey(songId, SongReaction.NONE))).isEqualTo(0)
-            }
-        }
-
-        test("invalidates classified typed set membership entries across all values") {
-            val fixture = suspendSubject()
-            val songId = 13
-            val accountId = 7
-            val otherAccountId = 8
-
-            fixture.cache(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>()) {
-                SongReaction.DISLIKE
-            }
-            fixture.cache(songReactionCache.key(songId, otherAccountId), returnsAs = enumMember<SongReaction>()) {
-                SongReaction.LIKE
-            }
-
-            fixture.cache.invalidate(songReactionCache.key(songId, accountId), returnsAs = enumMember<SongReaction>())
-
-            expect {
-                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.DISLIKE), accountId.toString()))
-                    .isEqualTo(false)
-                that(fixture.commands.sismember(songReactionKey(songId, SongReaction.LIKE), otherAccountId.toString()))
-                    .isEqualTo(true)
-            }
         }
 
         test("sets expiry from last write") {

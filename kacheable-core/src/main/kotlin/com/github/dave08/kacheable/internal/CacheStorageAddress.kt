@@ -1,4 +1,12 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.internal
+
+import com.github.dave08.kacheable.CacheArgs
+import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.CacheStorageLayout
+import com.github.dave08.kacheable.CacheWildcard
+import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.KacheableStore
 
 @ExperimentalKacheableApi
 internal data class CacheStorageAddress(

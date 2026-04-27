@@ -12,7 +12,9 @@ import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.map
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.rawStringCacheValueCodec
 import com.github.dave08.kacheable.value
+import com.github.dave08.kacheable.blocking.invoke
 import de.infix.testBalloon.framework.core.testSuite
 import kotlinx.serialization.Serializable
 import kotlin.test.assertEquals
@@ -104,7 +106,7 @@ val StoredCacheReturnViewSpec by testSuite {
                 CachedSong(secondSongId, "Eight")
             }
 
-            cache.invalidate(artistSongsCache.keyPart(artistCache.keyPart(artistId)))
+            cache.invalidate(artistSongsCache.keyPart(artistId))
 
             store.assertHashMissing(artistCacheKey(artistId))
         }
@@ -124,6 +126,34 @@ val StoredCacheReturnViewSpec by testSuite {
                 "20,10,en",
                 """[{"id":7,"title":"Seven"}]""",
             )
+        }
+
+        test("value return descriptors can store set values") {
+            val artistId = 3
+            val page = ResultPage(offset = 20, limit = 10)
+            val locale = "en"
+
+            val result = cache(artistPageCache.key(artistId, page, locale), returnsAs = value<Set<Int>>()) {
+                setOf(7, 8, 9)
+            }
+
+            assertEquals(setOf(7, 8, 9), result)
+            store.assertHashField(artistCacheKey(artistId), "20,10,en", """[7,8,9]""")
+        }
+
+        test("value return descriptors can use custom value codecs") {
+            val artistId = 3
+            val songId = 7
+
+            val result = cache(
+                artistSongsCache.key(artistId, songId),
+                returnsAs = value(codec = rawStringCacheValueCodec()),
+            ) {
+                "Plain Title"
+            }
+
+            assertEquals("Plain Title", result)
+            store.assertHashField(artistCacheKey(artistId), songId, "Plain Title")
         }
 
         test("hash map stored caches support the maximum cache arity") {

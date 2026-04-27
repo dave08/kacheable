@@ -1,18 +1,36 @@
-package com.github.dave08.kacheable
+package com.github.dave08.kacheable.blocking.internal
 
+import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.CacheStorageLayout
+import com.github.dave08.kacheable.CacheValueCodec
+import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.ExpiryType
+import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.cacheValueCodec
+import com.github.dave08.kacheable.blocking.BlockingKacheable
+import com.github.dave08.kacheable.blocking.BlockingKacheableStore
+import com.github.dave08.kacheable.internal.CacheResultPolicy
+import com.github.dave08.kacheable.internal.CacheStorageAddress
+import com.github.dave08.kacheable.internal.CacheStorageAddressResolver
+import com.github.dave08.kacheable.internal.classificationInvalidationPlan
+import com.github.dave08.kacheable.internal.invalidationPlan
+import com.github.dave08.kacheable.internal.keyForClassificationResult
+import com.github.dave08.kacheable.internal.setMembershipAddress
+import com.github.dave08.kacheable.internal.shouldWriteSetMembershipResult
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalKacheableApi::class)
-internal class KacheableImpl(
-    private val store: KacheableStore,
+internal class BlockingKacheableImpl(
+    private val store: BlockingKacheableStore,
     private val configs: Map<String, CacheConfig>,
     private val getNameStrategy: GetNameStrategy,
-    private val jsonParser: Json,
-) : Kacheable {
+    private val jsonParser: Json
+) : BlockingKacheable {
     private val addressResolver = CacheStorageAddressResolver(getNameStrategy)
 
-    override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R {
+    override fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R {
         keys.forEach { (name, params) ->
             store.delete(getNameStrategy.getName(name, params.toTypedArray()))
         }
@@ -20,21 +38,20 @@ internal class KacheableImpl(
         return block()
     }
 
-    @ExperimentalKacheableApi
-    override suspend fun <R> invalidate(
+    override fun <R> invalidate(
         name: String,
         keyGroups: CacheKeyGroups,
         storageLayout: CacheStorageLayout,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         store.delete(addressResolver.resolve(name, keyGroups, storageLayout))
         return block()
     }
 
-    override suspend fun <R> invalidateSetMembership(
+    override fun <R> invalidateSetMembership(
         name: String,
         keyGroups: CacheKeyGroups,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val plan = address.invalidationPlan()
@@ -45,11 +62,11 @@ internal class KacheableImpl(
         return block()
     }
 
-    override suspend fun <R> invalidateSetClassification(
+    override fun <R> invalidateSetClassification(
         name: String,
         keyGroups: CacheKeyGroups,
         valueNames: List<String>,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val plan = address.classificationInvalidationPlan(valueNames)
@@ -60,12 +77,12 @@ internal class KacheableImpl(
         return block()
     }
 
-    override suspend fun <R> invoke(
+    override fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean,
-        block: suspend () -> R
+        block: () -> R
     ): R {
         return invokeAtAddress(
             address = addressResolver.resolve(name, params),
@@ -76,13 +93,13 @@ internal class KacheableImpl(
         )
     }
 
-    override suspend fun <R> invoke(
+    override fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
         keyGroups: CacheKeyGroups,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         return invokeAtAddress(
             address = addressResolver.resolve(name, keyGroups, storageLayout),
@@ -93,12 +110,12 @@ internal class KacheableImpl(
         )
     }
 
-    override suspend fun invokeSetMembership(
+    override fun invokeSetMembership(
         name: String,
         keyGroups: CacheKeyGroups,
         cacheFalse: Boolean,
         saveResultIf: (Boolean) -> Boolean,
-        block: suspend () -> Boolean,
+        block: () -> Boolean,
     ): Boolean {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val member = address.requiredMember
@@ -127,13 +144,13 @@ internal class KacheableImpl(
         return blockResult
     }
 
-    override suspend fun <R : Any> invokeSetClassification(
+    override fun <R : Any> invokeSetClassification(
         name: String,
         keyGroups: CacheKeyGroups,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         require(values.isNotEmpty()) { "Set classification caches require at least one possible value." }
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
@@ -163,12 +180,12 @@ internal class KacheableImpl(
         return blockResult
     }
 
-    private suspend fun <R> invokeAtAddress(
+    private fun <R> invokeAtAddress(
         address: CacheStorageAddress,
         cacheName: String,
         codec: CacheValueCodec<R>,
         saveResultIf: (R) -> Boolean,
-        block: suspend () -> R,
+        block: () -> R,
     ): R {
         val result = store.get(address)
         val config = configs[cacheName]
@@ -195,12 +212,12 @@ internal class KacheableImpl(
         }
     }
 
-    override suspend fun <R> invoke(
+    override fun <R> invoke(
         name: String,
         type: KSerializer<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean,
-        block: suspend () -> R
+        block: () -> R
     ): R = invoke(
         name = name,
         codec = cacheValueCodec(type, jsonParser),
@@ -209,10 +226,3 @@ internal class KacheableImpl(
         block = block,
     )
 }
-
-fun Kacheable(
-    store: KacheableStore,
-    configs: Map<String, CacheConfig> = emptyMap(),
-    getNameStrategy: GetNameStrategy = DefaultGetNameStrategy,
-    jsonParser: Json = Json
-): Kacheable = KacheableImpl(store, configs, getNameStrategy, jsonParser)
