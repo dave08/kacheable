@@ -56,3 +56,14 @@ internal fun InMemoryBlockingKacheableStore.assertSetMember(
 ) {
     assertTrue(sets[key]?.contains(member.toString()) == true)
 }
+
+internal fun InMemoryBlockingKacheableStore.assertSetDoesNotContain(
+    key: String,
+    member: Any,
+) {
+    assertFalse(sets[key]?.contains(member.toString()) == true)
+}
+
+internal fun InMemoryBlockingKacheableStore.assertSetMissing(key: String) {
+    assertNull(sets[key])
+}

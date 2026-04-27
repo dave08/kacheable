@@ -39,6 +39,46 @@ interface BlockingKacheableStore {
     fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
         get(key)?.also { setExpire(key, expiry) }
 
+    fun replaceSetMembership(
+        member: String,
+        membersKey: String,
+        nonMembersKey: String,
+        isMember: Boolean,
+        expiry: Duration? = null,
+        cacheFalse: Boolean = true,
+    ) {
+        mutate {
+            deleteSetMember(membersKey, member)
+            if (cacheFalse) {
+                deleteSetMember(nonMembersKey, member)
+            }
+
+            val targetKey = when {
+                isMember -> membersKey
+                cacheFalse -> nonMembersKey
+                else -> null
+            }
+
+            if (targetKey != null) {
+                addSetMember(targetKey, member)
+                expiry?.let { setExpire(targetKey, it) }
+            }
+        }
+    }
+
+    fun replaceClassifiedMembership(
+        member: String,
+        targetKey: String,
+        candidateKeys: List<String>,
+        expiry: Duration? = null,
+    ) {
+        mutate {
+            candidateKeys.forEach { deleteSetMember(it, member) }
+            addSetMember(targetKey, member)
+            expiry?.let { setExpire(targetKey, it) }
+        }
+    }
+
     fun mutate(block: BlockingStoreMutationScope.() -> Unit) {
         DefaultBlockingStoreMutationScope(this).block()
     }

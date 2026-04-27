@@ -141,12 +141,14 @@ internal class BlockingKacheableImpl(
 
         val blockResult = block()
         if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
-            val keyToWrite = address.keyFor(blockResult)
-            store.mutate {
-                addSetMember(keyToWrite, member)
-                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                    setExpire(keyToWrite, config!!.expiry)
-            }
+            store.replaceSetMembership(
+                member = member,
+                membersKey = address.membersKey,
+                nonMembersKey = address.nonMembersKey,
+                isMember = blockResult,
+                expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
+                cacheFalse = cacheFalse,
+            )
         }
 
         return blockResult
@@ -177,14 +179,12 @@ internal class BlockingKacheableImpl(
         val blockResult = block()
         if (saveResultIf(blockResult)) {
             val keyToWrite = address.keyForClassificationResult(blockResult, values, valueName)
-            store.mutate {
-                values.forEach { value ->
-                    deleteSetMember(address.classifiedKey(valueName(value)), member)
-                }
-                addSetMember(keyToWrite, member)
-                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                    setExpire(keyToWrite, config!!.expiry)
-            }
+            store.replaceClassifiedMembership(
+                member = member,
+                targetKey = keyToWrite,
+                candidateKeys = values.map { value -> address.classifiedKey(valueName(value)) },
+                expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
+            )
         }
 
         return blockResult
