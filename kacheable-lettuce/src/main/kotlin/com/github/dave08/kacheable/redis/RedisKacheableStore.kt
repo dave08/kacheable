@@ -1,12 +1,16 @@
 package com.github.dave08.kacheable.redis
 
 import com.github.dave08.kacheable.store.KacheableStore
+import com.github.dave08.kacheable.store.StoreMutationScope
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.api.StatefulRedisConnection
+import io.lettuce.core.api.sync.RedisCommands
 import io.lettuce.core.api.coroutines
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 
@@ -17,6 +21,7 @@ class RedisKacheableStore(
     private val deleteScanCount: Long = 1000,
     private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
 ) : KacheableStore {
+    private val mutationMutex = Mutex()
 
     override suspend fun delete(key: String) {
         if (!key.contains("*"))
@@ -73,5 +78,58 @@ class RedisKacheableStore(
 
     override suspend fun setExpire(key: String, expiry: Duration) {
         conn.coroutines().pexpire(key, expiry.inWholeMilliseconds)
+    }
+
+    override suspend fun mutate(block: suspend StoreMutationScope.() -> Unit) {
+        withContext(Dispatchers.IO) {
+            mutationMutex.withLock {
+                val commands = conn.sync()
+                commands.multi()
+                try {
+                    RedisStoreMutationScope(commands, deleteMode).block()
+                    commands.exec()
+                } catch (t: Throwable) {
+                    commands.discard()
+                    throw t
+                }
+            }
+        }
+    }
+}
+
+private class RedisStoreMutationScope(
+    private val commands: RedisCommands<String, String>,
+    private val deleteMode: RedisDeleteMode,
+) : StoreMutationScope {
+    override suspend fun delete(key: String) {
+        require(!key.contains("*")) { "Pattern deletes are not supported inside atomic Redis mutations." }
+        when (deleteMode) {
+            RedisDeleteMode.Del -> commands.del(key)
+            RedisDeleteMode.Unlink -> commands.unlink(key)
+        }
+    }
+
+    override suspend fun deleteHashValue(key: String, field: String) {
+        commands.hdel(key, field)
+    }
+
+    override suspend fun deleteSetMember(key: String, member: String) {
+        commands.srem(key, member)
+    }
+
+    override suspend fun set(key: String, value: String) {
+        commands.set(key, value)
+    }
+
+    override suspend fun setHashValue(key: String, field: String, value: String) {
+        commands.hset(key, field, value)
+    }
+
+    override suspend fun addSetMember(key: String, member: String) {
+        commands.sadd(key, member)
+    }
+
+    override suspend fun setExpire(key: String, expiry: Duration) {
+        commands.pexpire(key, expiry.inWholeMilliseconds)
     }
 }

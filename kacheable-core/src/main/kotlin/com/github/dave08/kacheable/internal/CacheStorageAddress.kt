@@ -7,6 +7,7 @@ import com.github.dave08.kacheable.CacheWildcard
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.store.KacheableStore
+import com.github.dave08.kacheable.store.StoreMutationScope
 
 @ExperimentalKacheableApi
 internal data class CacheStorageAddress(
@@ -67,7 +68,20 @@ internal suspend fun KacheableStore.set(address: CacheStorageAddress, value: Str
 }
 
 @OptIn(ExperimentalKacheableApi::class)
+internal suspend fun StoreMutationScope.set(address: CacheStorageAddress, value: String) {
+    address.field?.let { setHashValue(address.key, it, value) } ?: set(address.key, value)
+}
+
+@OptIn(ExperimentalKacheableApi::class)
 internal suspend fun KacheableStore.delete(address: CacheStorageAddress) {
+    if (address.field == null)
+        delete(address.key)
+    else
+        deleteHashValue(address.key, address.field)
+}
+
+@OptIn(ExperimentalKacheableApi::class)
+internal suspend fun StoreMutationScope.delete(address: CacheStorageAddress) {
     if (address.field == null)
         delete(address.key)
     else

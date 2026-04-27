@@ -38,7 +38,9 @@ internal class KacheableImpl(
         storageLayout: CacheStorageLayout,
         block: suspend () -> R,
     ): R {
-        store.delete(addressResolver.resolve(name, keyGroups, storageLayout))
+        store.mutate {
+            delete(addressResolver.resolve(name, keyGroups, storageLayout))
+        }
         return block()
     }
 
@@ -49,9 +51,11 @@ internal class KacheableImpl(
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val plan = address.invalidationPlan()
-        plan.keys.forEach { store.delete(it) }
-        plan.members.forEach { (key, member) ->
-            store.deleteSetMember(key, member)
+        store.mutate {
+            plan.keys.forEach { delete(it) }
+            plan.members.forEach { (key, member) ->
+                deleteSetMember(key, member)
+            }
         }
         return block()
     }
@@ -64,9 +68,11 @@ internal class KacheableImpl(
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
         val plan = address.classificationInvalidationPlan(valueNames)
-        plan.keys.forEach { store.delete(it) }
-        plan.members.forEach { (key, member) ->
-            store.deleteSetMember(key, member)
+        store.mutate {
+            plan.keys.forEach { delete(it) }
+            plan.members.forEach { (key, member) ->
+                deleteSetMember(key, member)
+            }
         }
         return block()
     }
@@ -130,9 +136,11 @@ internal class KacheableImpl(
         val blockResult = block()
         if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
             val keyToWrite = address.keyFor(blockResult)
-            store.addSetMember(keyToWrite, member)
-            if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                store.setExpire(keyToWrite, config!!.expiry)
+            store.mutate {
+                addSetMember(keyToWrite, member)
+                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                    setExpire(keyToWrite, config!!.expiry)
+            }
         }
 
         return blockResult
@@ -162,13 +170,15 @@ internal class KacheableImpl(
 
         val blockResult = block()
         if (saveResultIf(blockResult)) {
-            values.forEach { value ->
-                store.deleteSetMember(address.classifiedKey(valueName(value)), member)
-            }
             val keyToWrite = address.keyForClassificationResult(blockResult, values, valueName)
-            store.addSetMember(keyToWrite, member)
-            if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                store.setExpire(keyToWrite, config!!.expiry)
+            store.mutate {
+                values.forEach { value ->
+                    deleteSetMember(address.classifiedKey(valueName(value)), member)
+                }
+                addSetMember(keyToWrite, member)
+                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                    setExpire(keyToWrite, config!!.expiry)
+            }
         }
 
         return blockResult
@@ -190,10 +200,12 @@ internal class KacheableImpl(
             val resultToSave = CacheResultPolicy.encodeResultToSave(blockResult, config, saveResultIf, codec)
 
             resultToSave?.let {
-                store.set(address, it)
+                store.mutate {
+                    set(address, it)
 
-                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                    store.setExpire(address.key, config!!.expiry)
+                    if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                        setExpire(address.key, config!!.expiry)
+                }
             }
 
             blockResult

@@ -6,6 +6,7 @@ import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
+import kotlin.time.Duration
 
 class SuspendCacheFixture(
     val store: InMemoryKacheableStore = InMemoryKacheableStore(),
@@ -18,6 +19,8 @@ class InMemoryBlockingKacheableStore(
     val map: MutableMap<String, String> = mutableMapOf(),
     val hashMap: MutableMap<String, MutableMap<String, String>> = mutableMapOf(),
     val sets: MutableMap<String, MutableSet<String>> = mutableMapOf(),
+    val expiries: MutableMap<String, Duration> = mutableMapOf(),
+    val expireCalls: MutableList<Pair<String, Duration>> = mutableListOf(),
 ) : BlockingKacheableStore {
     override fun delete(key: String) {
         if (!key.contains("*")) {
@@ -59,7 +62,10 @@ class InMemoryBlockingKacheableStore(
 
     override fun isSetMember(key: String, member: String): Boolean = sets[key]?.contains(member) == true
 
-    override fun setExpire(key: String, expiry: kotlin.time.Duration) = Unit
+    override fun setExpire(key: String, expiry: Duration) {
+        expiries[key] = expiry
+        expireCalls += key to expiry
+    }
 }
 
 class BlockingCacheFixture(

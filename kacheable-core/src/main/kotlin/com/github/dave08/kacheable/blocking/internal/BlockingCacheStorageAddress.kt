@@ -2,6 +2,7 @@ package com.github.dave08.kacheable.blocking.internal
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
+import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
 import com.github.dave08.kacheable.internal.CacheStorageAddress
 
 @OptIn(ExperimentalKacheableApi::class)
@@ -17,7 +18,20 @@ internal fun BlockingKacheableStore.set(address: CacheStorageAddress, value: Str
 }
 
 @OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingStoreMutationScope.set(address: CacheStorageAddress, value: String) {
+    address.field?.let { setHashValue(address.key, it, value) } ?: set(address.key, value)
+}
+
+@OptIn(ExperimentalKacheableApi::class)
 internal fun BlockingKacheableStore.delete(address: CacheStorageAddress) {
+    if (address.field == null)
+        delete(address.key)
+    else
+        deleteHashValue(address.key, address.field)
+}
+
+@OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingStoreMutationScope.delete(address: CacheStorageAddress) {
     if (address.field == null)
         delete(address.key)
     else

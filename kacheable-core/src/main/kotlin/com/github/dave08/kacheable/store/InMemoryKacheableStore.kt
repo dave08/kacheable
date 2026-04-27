@@ -6,6 +6,8 @@ class InMemoryKacheableStore(
     val map: MutableMap<String, String> = mutableMapOf(),
     val hashMap: MutableMap<String, MutableMap<String, String>> = mutableMapOf(),
     val sets: MutableMap<String, MutableSet<String>> = mutableMapOf(),
+    val expiries: MutableMap<String, Duration> = mutableMapOf(),
+    val expireCalls: MutableList<Pair<String, Duration>> = mutableListOf(),
 ) : KacheableStore {
     override suspend fun delete(key: String) {
         if (!key.contains("*")) {
@@ -47,7 +49,10 @@ class InMemoryKacheableStore(
 
     override suspend fun isSetMember(key: String, member: String): Boolean = sets[key]?.contains(member) == true
 
-    override suspend fun setExpire(key: String, expiry: Duration) = Unit
+    override suspend fun setExpire(key: String, expiry: Duration) {
+        expiries[key] = expiry
+        expireCalls += key to expiry
+    }
 
     private fun wildcardRegex(pattern: String): Regex =
         Regex("^${pattern.split("*").joinToString(".*") { Regex.escape(it) }}$")

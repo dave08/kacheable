@@ -29,6 +29,10 @@ interface BlockingKacheableStore {
 
     fun setExpire(key: String, expiry: Duration)
 
+    fun mutate(block: BlockingStoreMutationScope.() -> Unit) {
+        DefaultBlockingStoreMutationScope(this).block()
+    }
+
     private fun unsupportedSetMembership(): Nothing =
         throw UnsupportedOperationException("This BlockingKacheableStore does not support set membership storage.")
 }

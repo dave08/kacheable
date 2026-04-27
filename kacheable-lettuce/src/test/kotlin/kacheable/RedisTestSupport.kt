@@ -66,8 +66,6 @@ class SuspendRedisFixture(
     val cache: Kacheable,
     val commands: RedisCommands<String, String>,
 ) : AutoCloseable {
-    val subject = Foo(cache)
-
     override fun close() {
         redis.close()
     }
@@ -78,8 +76,6 @@ class BlockingRedisFixture(
     val cache: BlockingKacheable,
     val commands: RedisCommands<String, String>,
 ) : AutoCloseable {
-    val subject = BlockingFoo(cache)
-
     override fun close() {
         redis.close()
     }
