@@ -21,10 +21,10 @@ private data class StoredSong(val id: Int, val title: String)
 
 private data class Page(val offset: Int, val limit: Int)
 
-private val pageKey = key<Page>(Page::offset, Page::limit)
-private val songKey = key<Int>()
-private val songsByPageCache = mainKey<Int>("songs-by-page-cache", storedAs = CacheStorage.HashMap) + pageKey
-private val songsByArtistCache = mainKey<Int>("songs-by-artist-cache", storedAs = CacheStorage.HashMap) + songKey
+private val pageSliceKey = key<Page>(Page::offset, Page::limit)
+private val artistSongIdKey = key<Int>()
+private val songsByPageCache = mainKey<Int>("songs-by-page-cache", storedAs = CacheStorage.HashMap) + pageSliceKey
+private val songsByArtistCache = mainKey<Int>("songs-by-artist-cache", storedAs = CacheStorage.HashMap) + artistSongIdKey
 
 val CacheStorageLayoutSpec by testSuite {
     testFixture {
