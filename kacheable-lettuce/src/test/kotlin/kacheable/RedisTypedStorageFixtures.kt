@@ -56,5 +56,8 @@ fun redisBlockingArtistCacheKey(artistId: Int): String = "blocking-artist-cache:
 
 fun redisBlockingArtistFollowersKey(artistId: Int): String = "blocking-artist-followers-cache:$artistId"
 
+fun redisBlockingArtistFollowerNonMembersKey(artistId: Int): String =
+    "${redisBlockingArtistFollowersKey(artistId)}:__kacheable_non_members"
+
 fun redisBlockingSongReactionKey(songId: Int, reaction: RedisBlockingSongReaction): String =
     "blocking-song-reaction-cache:$songId:${reaction.name}"

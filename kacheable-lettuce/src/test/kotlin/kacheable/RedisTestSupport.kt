@@ -22,17 +22,23 @@ class RedisFixture private constructor(
     val commands: RedisCommands<String, String>
         get() = connection.sync()
 
-    fun suspendSubject(vararg configs: CacheConfig): SuspendFooFixture =
-        SuspendFooFixture(
+    fun suspendFixture(vararg configs: CacheConfig): SuspendRedisFixture =
+        SuspendRedisFixture(
+            redis = this,
             cache = Kacheable(RedisKacheableStore(connection), configs.toConfigMap()),
             commands = commands,
         )
 
-    fun blockingSubject(vararg configs: CacheConfig): BlockingFooFixture =
-        BlockingFooFixture(
+    fun suspendSubject(vararg configs: CacheConfig): SuspendRedisFixture = suspendFixture(*configs)
+
+    fun blockingFixture(vararg configs: CacheConfig): BlockingRedisFixture =
+        BlockingRedisFixture(
+            redis = this,
             cache = BlockingKacheable(RedisBlockingKacheableStore(connection), configs.toConfigMap()),
             commands = commands,
         )
+
+    fun blockingSubject(vararg configs: CacheConfig): BlockingRedisFixture = blockingFixture(*configs)
 
     override fun close() {
         connection.close()
@@ -55,18 +61,28 @@ class RedisFixture private constructor(
     }
 }
 
-class SuspendFooFixture(
+class SuspendRedisFixture(
+    private val redis: RedisFixture,
     val cache: Kacheable,
     val commands: RedisCommands<String, String>,
-) {
+) : AutoCloseable {
     val subject = Foo(cache)
+
+    override fun close() {
+        redis.close()
+    }
 }
 
-class BlockingFooFixture(
+class BlockingRedisFixture(
+    private val redis: RedisFixture,
     val cache: BlockingKacheable,
     val commands: RedisCommands<String, String>,
-) {
+) : AutoCloseable {
     val subject = BlockingFoo(cache)
+
+    override fun close() {
+        redis.close()
+    }
 }
 
 private fun Array<out CacheConfig>.toConfigMap(): Map<String, CacheConfig> = associateBy { it.name }

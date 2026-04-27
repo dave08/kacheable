@@ -3,33 +3,6 @@
 package com.github.dave08.kacheable
 
 @ExperimentalKacheableApi
-interface StoredCacheEntryRef<S : CacheStorage> {
-    val name: String
-    val keyGroups: CacheKeyGroups
-    val storageLayout: CacheStorageLayout
-}
-
-@ExperimentalKacheableApi
-data class HashMapCacheEntryRef(
-    override val name: String,
-    override val keyGroups: CacheKeyGroups,
-) : StoredCacheEntryRef<CacheStorage.HashMap> {
-    override val storageLayout: CacheStorageLayout = CacheStorageLayout.HashValue
-}
-
-@ExperimentalKacheableApi
-data class SetMembershipCacheEntryRef(
-    val name: String,
-    val keyGroups: CacheKeyGroups,
-)
-
-@ExperimentalKacheableApi
-data class SetMembershipCachePartRef(
-    val name: String,
-    val keyGroups: CacheKeyGroups,
-)
-
-@ExperimentalKacheableApi
 data class HashMapMainKey<P1 : Any>(
     val name: String,
     val key: MainKeyPart<P1>,
@@ -39,33 +12,6 @@ data class HashMapMainKey<P1 : Any>(
 
     fun keyPart(value: P1): CacheEntryPartRef =
         SimpleCacheEntryPartRef(name, key.encode(value), CacheStorageLayout.HashValue)
-}
-
-@ExperimentalKacheableApi
-data class SetMainKey<P1 : Any>(
-    val name: String,
-    val key: MainKeyPart<P1>,
-) {
-    fun keyPart(value: P1): SetMembershipCachePartRef =
-        SetMembershipCachePartRef(name, CacheKeyGroups(main = key.encode(value)))
-}
-
-@ExperimentalKacheableApi
-data class SetStoredCache2<P1 : Any, P2 : Any>(
-    val name: String,
-    val key: MainSecondaryKey2<P1, P2>,
-) {
-    fun key(p1: P1, p2: P2): SetMembershipCacheEntryRef =
-        SetMembershipCacheEntryRef(
-            name = name,
-            keyGroups = CacheKeyGroups(
-                main = key.main.encode(p1),
-                secondary = key.secondary.encode(p2),
-            ),
-        )
-
-    fun keyPart(value: P1): SetMembershipCachePartRef =
-        SetMembershipCachePartRef(name, CacheKeyGroups(main = key.main.encode(value)))
 }
 
 @ExperimentalKacheableApi
