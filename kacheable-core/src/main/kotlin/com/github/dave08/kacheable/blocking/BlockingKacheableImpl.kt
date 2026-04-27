@@ -12,6 +12,9 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.cacheValueCodec
+import com.github.dave08.kacheable.invalidationPlan
+import com.github.dave08.kacheable.setMembershipAddress
+import com.github.dave08.kacheable.shouldWriteSetMembershipResult
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
@@ -48,12 +51,10 @@ internal class BlockingKacheableImpl(
         block: () -> R,
     ): R {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        if (address.member == null) {
-            store.delete(address.membersKey)
-            store.delete(address.nonMembersKey)
-        } else {
-            store.deleteSetMember(address.membersKey, address.member)
-            store.deleteSetMember(address.nonMembersKey, address.member)
+        val plan = address.invalidationPlan()
+        plan.keys.forEach { store.delete(it) }
+        plan.members.forEach { (key, member) ->
+            store.deleteSetMember(key, member)
         }
         return block()
     }
@@ -99,7 +100,7 @@ internal class BlockingKacheableImpl(
         block: () -> Boolean,
     ): Boolean {
         val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        val member = requireNotNull(address.member) { "Set membership cache entries require a secondary key member." }
+        val member = address.requiredMember
         val config = configs[name]
 
         if (store.isSetMember(address.membersKey, member)) {
@@ -115,13 +116,11 @@ internal class BlockingKacheableImpl(
         }
 
         val blockResult = block()
-        if (saveResultIf(blockResult)) {
-            val keyToWrite = if (blockResult) address.membersKey else address.nonMembersKey
-            if (blockResult || cacheFalse) {
-                store.addSetMember(keyToWrite, member)
-                if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                    store.setExpire(keyToWrite, config!!.expiry)
-            }
+        if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
+            val keyToWrite = address.keyFor(blockResult)
+            store.addSetMember(keyToWrite, member)
+            if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                store.setExpire(keyToWrite, config!!.expiry)
         }
 
         return blockResult
@@ -171,27 +170,6 @@ internal class BlockingKacheableImpl(
         params = params,
         saveResultIf = saveResultIf,
         block = block,
-    )
-}
-
-@OptIn(ExperimentalKacheableApi::class)
-private data class SetMembershipAddress(
-    val membersKey: String,
-    val nonMembersKey: String,
-    val member: String?,
-)
-
-@OptIn(ExperimentalKacheableApi::class)
-private fun setMembershipAddress(
-    name: String,
-    keyGroups: CacheKeyGroups,
-    getNameStrategy: GetNameStrategy,
-): SetMembershipAddress {
-    val membersKey = getNameStrategy.getName(name, keyGroups.main.toParamsArray())
-    return SetMembershipAddress(
-        membersKey = membersKey,
-        nonMembersKey = "$membersKey:__kacheable_non_members",
-        member = keyGroups.secondary?.toParamsArray()?.joinToString(","),
     )
 }
 
