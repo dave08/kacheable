@@ -197,8 +197,13 @@ internal class BlockingKacheableImpl(
         saveResultIf: (R) -> Boolean,
         block: () -> R,
     ): R {
-        val result = store.get(address)
         val config = configs[cacheName]
+        val result =
+            if (address.field == null && config?.expiryType == ExpiryType.after_access) {
+                store.getValueRefreshingExpire(address.key, config.expiry)
+            } else {
+                store.get(address)
+            }
 
         return if (result == null) {
             val blockResult = block()
@@ -206,18 +211,22 @@ internal class BlockingKacheableImpl(
             val resultToSave = CacheResultPolicy.encodeResultToSave(blockResult, config, saveResultIf, codec)
 
             resultToSave?.let {
-                store.mutate {
-                    set(address, it)
+                if (address.field == null && (config?.expiryType ?: ExpiryType.none) != ExpiryType.none) {
+                    store.setValueWithExpire(address.key, it, config!!.expiry)
+                } else {
+                    store.mutate {
+                        set(address, it)
 
-                    if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                        setExpire(address.key, config!!.expiry)
+                        if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
+                            setExpire(address.key, config!!.expiry)
+                    }
                 }
             }
 
             blockResult
         } else {
             // Set expiry after access
-            if (config?.expiryType == ExpiryType.after_access)
+            if (address.field != null && config?.expiryType == ExpiryType.after_access)
                 store.setExpire(address.key, config.expiry)
 
             CacheResultPolicy.decodeCachedResult(result, config, codec)

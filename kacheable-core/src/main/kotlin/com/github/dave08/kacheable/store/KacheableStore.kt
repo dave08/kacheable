@@ -29,6 +29,16 @@ interface KacheableStore {
 
     suspend fun setExpire(key: String, expiry: Duration)
 
+    suspend fun setValueWithExpire(key: String, value: String, expiry: Duration) {
+        mutate {
+            set(key, value)
+            setExpire(key, expiry)
+        }
+    }
+
+    suspend fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        get(key)?.also { setExpire(key, expiry) }
+
     suspend fun mutate(block: suspend StoreMutationScope.() -> Unit) {
         DefaultStoreMutationScope(this).block()
     }

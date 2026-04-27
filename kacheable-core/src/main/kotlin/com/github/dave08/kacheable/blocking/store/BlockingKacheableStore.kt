@@ -29,6 +29,16 @@ interface BlockingKacheableStore {
 
     fun setExpire(key: String, expiry: Duration)
 
+    fun setValueWithExpire(key: String, value: String, expiry: Duration) {
+        mutate {
+            set(key, value)
+            setExpire(key, expiry)
+        }
+    }
+
+    fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        get(key)?.also { setExpire(key, expiry) }
+
     fun mutate(block: BlockingStoreMutationScope.() -> Unit) {
         DefaultBlockingStoreMutationScope(this).block()
     }

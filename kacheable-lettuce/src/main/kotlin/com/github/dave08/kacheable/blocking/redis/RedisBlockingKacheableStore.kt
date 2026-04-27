@@ -3,6 +3,8 @@ package com.github.dave08.kacheable.blocking.redis
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
 import com.github.dave08.kacheable.redis.RedisDeleteMode
+import io.lettuce.core.GetExArgs
+import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.api.StatefulRedisConnection
@@ -74,6 +76,19 @@ class RedisBlockingKacheableStore(
     override fun setExpire(key: String, expiry: Duration) {
         conn.sync().pexpire(key, expiry.inWholeMilliseconds)
     }
+
+    override fun setValueWithExpire(key: String, value: String, expiry: Duration) {
+        conn.sync().psetex(key, expiry.inWholeMilliseconds, value)
+    }
+
+    override fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        try {
+            conn.sync().getex(key, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
+        } catch (_: RedisCommandExecutionException) {
+            conn.sync().get(key)?.also {
+                conn.sync().pexpire(key, expiry.inWholeMilliseconds)
+            }
+        }
 
     override fun mutate(block: BlockingStoreMutationScope.() -> Unit) {
         mutationLock.withLock {

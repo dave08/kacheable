@@ -3,6 +3,8 @@ package com.github.dave08.kacheable.redis
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.StoreMutationScope
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
+import io.lettuce.core.GetExArgs
+import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.api.StatefulRedisConnection
@@ -79,6 +81,21 @@ class RedisKacheableStore(
     override suspend fun setExpire(key: String, expiry: Duration) {
         conn.coroutines().pexpire(key, expiry.inWholeMilliseconds)
     }
+
+    override suspend fun setValueWithExpire(key: String, value: String, expiry: Duration) {
+        conn.coroutines().psetex(key, expiry.inWholeMilliseconds, value)
+    }
+
+    override suspend fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                conn.sync().getex(key, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
+            } catch (_: RedisCommandExecutionException) {
+                conn.sync().get(key)?.also {
+                    conn.sync().pexpire(key, expiry.inWholeMilliseconds)
+                }
+            }
+        }
 
     override suspend fun mutate(block: suspend StoreMutationScope.() -> Unit) {
         withContext(Dispatchers.IO) {

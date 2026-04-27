@@ -43,4 +43,28 @@ val RedisStoreMutationSpec by testSuite {
             expectThat(fixture.commands.exists("songs:old")).isEqualTo(0)
         }
     }
+
+    test("suspend Redis store can write a value with expiry in one operation") {
+        RedisFixture.start().use { fixture ->
+            val store = RedisKacheableStore(fixture.connection)
+
+            store.setValueWithExpire("songs:9", """{"id":9}""", 2.minutes)
+
+            expectThat(fixture.commands.get("songs:9")).isEqualTo("""{"id":9}""")
+            expectThat(fixture.commands.ttl("songs:9")).isEqualTo(2.minutes.inWholeSeconds)
+        }
+    }
+
+    test("blocking Redis store can refresh expiry while reading a string value") {
+        RedisFixture.start().use { fixture ->
+            val store = RedisBlockingKacheableStore(fixture.connection)
+            fixture.commands.set("songs:10", """{"id":10}""")
+            fixture.commands.pexpire("songs:10", 500)
+
+            val result = store.getValueRefreshingExpire("songs:10", 1.minutes)
+
+            expectThat(result).isEqualTo("""{"id":10}""")
+            expectThat(fixture.commands.ttl("songs:10")).isEqualTo(1.minutes.inWholeSeconds)
+        }
+    }
 }
