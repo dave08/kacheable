@@ -104,5 +104,82 @@ val StoredCacheValueSpec by testSuite {
                 """{"id":7,"title":"Seven"}""",
             )
         }
+
+        test("hash map stored caches can group multiple image variants under one source image key") {
+            val imageId = "cover-7"
+            val thumbnail = ImageVariantRequest(format = "webp", width = 320)
+            val fullSize = ImageVariantRequest(format = "jpg", width = 1280)
+
+            cache(imageVariantsCache.key(imageId, thumbnail), returnsAs = value<CachedImageVariant>()) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-7-320.webp",
+                    width = 320,
+                    height = 320,
+                )
+            }
+            cache(imageVariantsCache.key(imageId, fullSize), returnsAs = value<CachedImageVariant>()) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-7-1280.jpg",
+                    width = 1280,
+                    height = 1280,
+                )
+            }
+
+            store.assertHashField(
+                imageCacheKey(imageId),
+                "webp,320",
+                """{"url":"https://cdn.example.test/images/cover-7-320.webp","width":320,"height":320}""",
+            )
+            store.assertHashField(
+                imageCacheKey(imageId),
+                "jpg,1280",
+                """{"url":"https://cdn.example.test/images/cover-7-1280.jpg","width":1280,"height":1280}""",
+            )
+        }
+
+        test("image variant caches can invalidate all variants for one source image") {
+            val imageId = "cover-8"
+            val otherImageId = "cover-9"
+
+            cache(
+                imageVariantsCache.key(imageId, ImageVariantRequest(format = "webp", width = 320)),
+                returnsAs = value<CachedImageVariant>(),
+            ) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-8-320.webp",
+                    width = 320,
+                    height = 320,
+                )
+            }
+            cache(
+                imageVariantsCache.key(imageId, ImageVariantRequest(format = "jpg", width = 1280)),
+                returnsAs = value<CachedImageVariant>(),
+            ) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-8-1280.jpg",
+                    width = 1280,
+                    height = 1280,
+                )
+            }
+            cache(
+                imageVariantsCache.key(otherImageId, ImageVariantRequest(format = "webp", width = 320)),
+                returnsAs = value<CachedImageVariant>(),
+            ) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-9-320.webp",
+                    width = 320,
+                    height = 320,
+                )
+            }
+
+            cache.invalidate(imageVariantsCache.keyPart(imageId))
+
+            store.assertHashMissing(imageCacheKey(imageId))
+            store.assertHashField(
+                imageCacheKey(otherImageId),
+                "webp,320",
+                """{"url":"https://cdn.example.test/images/cover-9-320.webp","width":320,"height":320}""",
+            )
+        }
     }
 }

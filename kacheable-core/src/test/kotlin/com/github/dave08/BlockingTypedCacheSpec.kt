@@ -37,7 +37,7 @@ val BlockingTypedCacheSpec by testSuite {
     }
 
     testFixture {
-        BlockingCacheFixture(getNameStrategy = structuredKeyStrategy)
+        BlockingCacheFixture(namingStrategy = structuredKeyStrategy)
     } asContextForEach {
         test("blocking grouped invalidation uses the stored key definition") {
             val artistId = 11

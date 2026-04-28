@@ -1,13 +1,16 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheEntryName
+import com.github.dave08.kacheable.key
 import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheStorageLayout
-import com.github.dave08.kacheable.DefaultGetNameStrategy
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
-import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.baseKey
 import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.cacheValueCodec
@@ -18,14 +21,16 @@ import kotlinx.serialization.json.Json
 internal class KacheableImpl(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
-    private val getNameStrategy: GetNameStrategy,
+    private val namingStrategy: CacheNamingStrategy,
     private val jsonParser: Json,
 ) : Kacheable {
-    private val addressResolver = CacheStorageAddressResolver(getNameStrategy)
+    private val entryNameResolver = CacheEntryNameResolver(namingStrategy)
 
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R {
         keys.forEach { (name, params) ->
-            store.delete(getNameStrategy.getName(name, params.toTypedArray()))
+            store.delete(
+                namingStrategy.getEntryName(name, CacheStorage.String, params.toTypedArray(), emptyArray()).baseKey,
+            )
         }
 
         return block()
@@ -39,7 +44,7 @@ internal class KacheableImpl(
         block: suspend () -> R,
     ): R {
         store.mutate {
-            delete(addressResolver.resolve(name, keyGroups, storageLayout))
+            delete(entryNameResolver.resolve(name, keyGroups, storageLayout))
         }
         return block()
     }
@@ -49,8 +54,8 @@ internal class KacheableImpl(
         keyGroups: CacheKeyGroups,
         block: suspend () -> R,
     ): R {
-        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        val plan = address.invalidationPlan()
+        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val plan = membershipEntry.invalidationPlan()
         store.mutate {
             plan.keys.forEach { delete(it) }
             plan.members.forEach { (key, member) ->
@@ -66,8 +71,8 @@ internal class KacheableImpl(
         valueNames: List<String>,
         block: suspend () -> R,
     ): R {
-        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        val plan = address.classificationInvalidationPlan(valueNames)
+        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val plan = membershipEntry.classificationInvalidationPlan(valueNames)
         store.mutate {
             plan.keys.forEach { delete(it) }
             plan.members.forEach { (key, member) ->
@@ -85,7 +90,7 @@ internal class KacheableImpl(
         block: suspend () -> R
     ): R {
         return invokeAtAddress(
-            address = addressResolver.resolve(name, params),
+            entryName = entryNameResolver.resolve(name, params),
             cacheName = name,
             codec = codec,
             saveResultIf = saveResultIf,
@@ -102,7 +107,7 @@ internal class KacheableImpl(
         block: suspend () -> R,
     ): R {
         return invokeAtAddress(
-            address = addressResolver.resolve(name, keyGroups, storageLayout),
+            entryName = entryNameResolver.resolve(name, keyGroups, storageLayout),
             cacheName = name,
             codec = codec,
             saveResultIf = saveResultIf,
@@ -117,19 +122,19 @@ internal class KacheableImpl(
         saveResultIf: (Boolean) -> Boolean,
         block: suspend () -> Boolean,
     ): Boolean {
-        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        val member = address.requiredMember
+        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val member = membershipEntry.requiredMember
         val config = configs[name]
 
-        if (store.isSetMember(address.membersKey, member)) {
+        if (store.isSetMember(membershipEntry.membersKey, member)) {
             if (config?.expiryType == ExpiryType.after_access)
-                store.setExpire(address.membersKey, config.expiry)
+                store.setExpire(membershipEntry.membersKey, config.expiry)
             return true
         }
 
-        if (cacheFalse && store.isSetMember(address.nonMembersKey, member)) {
+        if (cacheFalse && store.isSetMember(membershipEntry.nonMembersKey, member)) {
             if (config?.expiryType == ExpiryType.after_access)
-                store.setExpire(address.nonMembersKey, config.expiry)
+                store.setExpire(membershipEntry.nonMembersKey, config.expiry)
             return false
         }
 
@@ -137,8 +142,8 @@ internal class KacheableImpl(
         if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
             store.replaceSetMembership(
                 member = member,
-                membersKey = address.membersKey,
-                nonMembersKey = address.nonMembersKey,
+                membersKey = membershipEntry.membersKey,
+                nonMembersKey = membershipEntry.nonMembersKey,
                 isMember = blockResult,
                 expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
                 cacheFalse = cacheFalse,
@@ -157,12 +162,12 @@ internal class KacheableImpl(
         block: suspend () -> R,
     ): R {
         require(values.isNotEmpty()) { "Set classification caches require at least one possible value." }
-        val address = setMembershipAddress(name, keyGroups, getNameStrategy)
-        val member = address.requiredMember
+        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val member = membershipEntry.requiredMember
         val config = configs[name]
 
         values.forEach { value ->
-            val key = address.classifiedKey(valueName(value))
+            val key = membershipEntry.classifiedKey(valueName(value))
             if (store.isSetMember(key, member)) {
                 if (config?.expiryType == ExpiryType.after_access)
                     store.setExpire(key, config.expiry)
@@ -172,11 +177,11 @@ internal class KacheableImpl(
 
         val blockResult = block()
         if (saveResultIf(blockResult)) {
-            val keyToWrite = address.keyForClassificationResult(blockResult, values, valueName)
+            val keyToWrite = membershipEntry.keyForClassificationResult(blockResult, values, valueName)
             store.replaceClassifiedMembership(
                 member = member,
                 targetKey = keyToWrite,
-                candidateKeys = values.map { value -> address.classifiedKey(valueName(value)) },
+                candidateKeys = values.map { value -> membershipEntry.classifiedKey(valueName(value)) },
                 expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
             )
         }
@@ -185,7 +190,7 @@ internal class KacheableImpl(
     }
 
     private suspend fun <R> invokeAtAddress(
-        address: CacheStorageAddress,
+        entryName: CacheEntryName,
         cacheName: String,
         codec: CacheValueCodec<R>,
         saveResultIf: (R) -> Boolean,
@@ -193,10 +198,10 @@ internal class KacheableImpl(
     ): R {
         val config = configs[cacheName]
         val result =
-            if (address.field == null && config?.expiryType == ExpiryType.after_access) {
-                store.getValueRefreshingExpire(address.key, config.expiry)
+            if (entryName is CacheEntryName.Combined && config?.expiryType == ExpiryType.after_access) {
+                store.getValueRefreshingExpire(entryName.baseKey, config.expiry)
             } else {
-                store.get(address)
+                store.get(entryName)
             }
 
         return if (result == null) {
@@ -205,14 +210,14 @@ internal class KacheableImpl(
             val resultToSave = CacheResultPolicy.encodeResultToSave(blockResult, config, saveResultIf, codec)
 
             resultToSave?.let {
-                if (address.field == null && (config?.expiryType ?: ExpiryType.none) != ExpiryType.none) {
-                    store.setValueWithExpire(address.key, it, config!!.expiry)
+                if (entryName is CacheEntryName.Combined && (config?.expiryType ?: ExpiryType.none) != ExpiryType.none) {
+                    store.setValueWithExpire(entryName.baseKey, it, config!!.expiry)
                 } else {
                     store.mutate {
-                        set(address, it)
+                        set(entryName, it)
 
                         if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                            setExpire(address.key, config!!.expiry)
+                            setExpire(entryName.baseKey, config!!.expiry)
                     }
                 }
             }
@@ -220,8 +225,8 @@ internal class KacheableImpl(
             blockResult
         } else {
             // Set expiry after access
-            if (address.field != null && config?.expiryType == ExpiryType.after_access)
-                store.setExpire(address.key, config.expiry)
+            if (entryName is CacheEntryName.Split && config?.expiryType == ExpiryType.after_access)
+                store.setExpire(entryName.baseKey, config.expiry)
 
             CacheResultPolicy.decodeCachedResult(result, config, codec)
         }

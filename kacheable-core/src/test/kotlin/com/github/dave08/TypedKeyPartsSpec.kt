@@ -87,7 +87,7 @@ val TypedKeyPartsSpec by testSuite {
     }
 
     testFixture {
-        SuspendCacheFixture(getNameStrategy = structuredKeyStrategy)
+        SuspendCacheFixture(namingStrategy = structuredKeyStrategy)
     } asContextForEach {
         test("structured key parts respect a custom name strategy") {
             val artistId = 7

@@ -1,11 +1,18 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.asCombined
+import com.github.dave08.kacheable.baseKey
+import com.github.dave08.kacheable.requireEntry
+import com.github.dave08.kacheable.withInternalSuffix
+
+private const val NON_MEMBERS_SUFFIX = "__kacheable_non_members"
 
 @ExperimentalKacheableApi
-internal data class SetMembershipAddress(
+internal data class SetMembershipEntry(
     val membersKey: String,
     val nonMembersKey: String,
     val member: String?,
@@ -25,21 +32,30 @@ internal data class SetMembershipInvalidationPlan(
 )
 
 @ExperimentalKacheableApi
-internal fun setMembershipAddress(
+internal fun setMembershipEntry(
     name: String,
     keyGroups: CacheKeyGroups,
-    getNameStrategy: GetNameStrategy,
-): SetMembershipAddress {
-    val membersKey = getNameStrategy.getName(name, keyGroups.main.toParamsArray())
-    return SetMembershipAddress(
-        membersKey = membersKey,
-        nonMembersKey = "$membersKey:__kacheable_non_members",
-        member = keyGroups.secondary?.toParamsArray()?.joinToString(","),
+    namingStrategy: CacheNamingStrategy,
+): SetMembershipEntry {
+    val entryName = namingStrategy.getEntryName(
+        cacheName = name,
+        storage = CacheStorage.Set,
+        mainParams = keyGroups.main.toParamsArray(),
+        secondaryParams = keyGroups.secondary?.toParamsArray() ?: emptyArray(),
+    )
+    val groupName = entryName.asCombined()
+    return SetMembershipEntry(
+        membersKey = groupName.baseKey,
+        nonMembersKey = groupName.withInternalSuffix(NON_MEMBERS_SUFFIX),
+        member = when {
+            keyGroups.secondary == null -> null
+            else -> entryName.requireEntry()
+        },
     )
 }
 
 @ExperimentalKacheableApi
-internal fun SetMembershipAddress.invalidationPlan(): SetMembershipInvalidationPlan =
+internal fun SetMembershipEntry.invalidationPlan(): SetMembershipInvalidationPlan =
     if (member == null)
         SetMembershipInvalidationPlan(keys = listOf(membersKey, nonMembersKey))
     else
@@ -58,7 +74,7 @@ internal fun shouldWriteSetMembershipResult(
 ): Boolean = saveResultIf(result) && (result || cacheFalse)
 
 @ExperimentalKacheableApi
-internal fun SetMembershipAddress.classificationInvalidationPlan(
+internal fun SetMembershipEntry.classificationInvalidationPlan(
     valueNames: List<String>,
 ): SetMembershipInvalidationPlan =
     if (member == null)
@@ -67,7 +83,7 @@ internal fun SetMembershipAddress.classificationInvalidationPlan(
         SetMembershipInvalidationPlan(members = valueNames.map { classifiedKey(it) to member })
 
 @ExperimentalKacheableApi
-internal fun <R : Any> SetMembershipAddress.keyForClassificationResult(
+internal fun <R : Any> SetMembershipEntry.keyForClassificationResult(
     result: R,
     values: List<R>,
     valueName: (R) -> String,

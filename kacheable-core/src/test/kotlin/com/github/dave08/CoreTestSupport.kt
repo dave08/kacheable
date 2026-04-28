@@ -1,8 +1,8 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.Kacheable
-import com.github.dave08.kacheable.DefaultGetNameStrategy
-import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.defaultCacheNamingStrategy
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
@@ -10,9 +10,9 @@ import kotlin.time.Duration
 
 class SuspendCacheFixture(
     val store: InMemoryKacheableStore = InMemoryKacheableStore(),
-    getNameStrategy: GetNameStrategy = DefaultGetNameStrategy,
+    namingStrategy: CacheNamingStrategy = defaultCacheNamingStrategy(),
 ) {
-    val cache = Kacheable(store, getNameStrategy = getNameStrategy)
+    val cache = Kacheable(store, namingStrategy = namingStrategy)
 }
 
 class InMemoryBlockingKacheableStore(
@@ -70,7 +70,7 @@ class InMemoryBlockingKacheableStore(
 
 class BlockingCacheFixture(
     val store: InMemoryBlockingKacheableStore = InMemoryBlockingKacheableStore(),
-    getNameStrategy: GetNameStrategy = DefaultGetNameStrategy,
+    namingStrategy: CacheNamingStrategy = defaultCacheNamingStrategy(),
 ) {
-    val cache = BlockingKacheable(store, getNameStrategy = getNameStrategy)
+    val cache = BlockingKacheable(store, namingStrategy = namingStrategy)
 }
