@@ -10,7 +10,7 @@ internal object NoopKacheable : Kacheable {
     @ExperimentalKacheableApi
     override suspend fun <R> invalidate(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         block: suspend () -> R,
     ): R = block()
@@ -18,14 +18,14 @@ internal object NoopKacheable : Kacheable {
     @ExperimentalKacheableApi
     override suspend fun <R> invalidateSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         block: suspend () -> R,
     ): R = block()
 
     @ExperimentalKacheableApi
     override suspend fun <R> invalidateSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         valueNames: List<String>,
         block: suspend () -> R,
     ): R = block()
@@ -42,7 +42,7 @@ internal object NoopKacheable : Kacheable {
     override suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R
@@ -51,7 +51,7 @@ internal object NoopKacheable : Kacheable {
     @ExperimentalKacheableApi
     override suspend fun invokeSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean,
         saveResultIf: (Boolean) -> Boolean,
         block: suspend () -> Boolean,
@@ -60,7 +60,7 @@ internal object NoopKacheable : Kacheable {
     @ExperimentalKacheableApi
     override suspend fun <R : Any> invokeSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean,

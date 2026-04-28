@@ -2,15 +2,14 @@ package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheEntryName
-import com.github.dave08.kacheable.key
-import com.github.dave08.kacheable.CacheKeyGroups
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.Kacheable
-import com.github.dave08.kacheable.baseKey
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
+import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.cacheValueCodec
@@ -29,7 +28,7 @@ internal class KacheableImpl(
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R {
         keys.forEach { (name, params) ->
             store.delete(
-                namingStrategy.getEntryName(name, CacheStorage.String, params.toTypedArray(), emptyArray()).baseKey,
+                namingStrategy.getEntryName(name, CacheStorage.String, params.toTypedArray(), emptyArray()).cacheKey,
             )
         }
 
@@ -39,22 +38,22 @@ internal class KacheableImpl(
     @ExperimentalKacheableApi
     override suspend fun <R> invalidate(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         block: suspend () -> R,
     ): R {
         store.mutate {
-            delete(entryNameResolver.resolve(name, keyGroups, storageLayout))
+            delete(entryNameResolver.resolve(name, cacheArgs, storageLayout))
         }
         return block()
     }
 
     override suspend fun <R> invalidateSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         block: suspend () -> R,
     ): R {
-        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val plan = membershipEntry.invalidationPlan()
         store.mutate {
             plan.keys.forEach { delete(it) }
@@ -67,11 +66,11 @@ internal class KacheableImpl(
 
     override suspend fun <R> invalidateSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         valueNames: List<String>,
         block: suspend () -> R,
     ): R {
-        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val plan = membershipEntry.classificationInvalidationPlan(valueNames)
         store.mutate {
             plan.keys.forEach { delete(it) }
@@ -101,13 +100,13 @@ internal class KacheableImpl(
     override suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R {
         return invokeAtAddress(
-            entryName = entryNameResolver.resolve(name, keyGroups, storageLayout),
+            entryName = entryNameResolver.resolve(name, cacheArgs, storageLayout),
             cacheName = name,
             codec = codec,
             saveResultIf = saveResultIf,
@@ -117,12 +116,12 @@ internal class KacheableImpl(
 
     override suspend fun invokeSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean,
         saveResultIf: (Boolean) -> Boolean,
         block: suspend () -> Boolean,
     ): Boolean {
-        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val member = membershipEntry.requiredMember
         val config = configs[name]
 
@@ -155,14 +154,14 @@ internal class KacheableImpl(
 
     override suspend fun <R : Any> invokeSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R {
         require(values.isNotEmpty()) { "Set classification caches require at least one possible value." }
-        val membershipEntry = setMembershipEntry(name, keyGroups, namingStrategy)
+        val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val member = membershipEntry.requiredMember
         val config = configs[name]
 
@@ -198,8 +197,8 @@ internal class KacheableImpl(
     ): R {
         val config = configs[cacheName]
         val result =
-            if (entryName is CacheEntryName.Combined && config?.expiryType == ExpiryType.after_access) {
-                store.getValueRefreshingExpire(entryName.baseKey, config.expiry)
+            if (entryName is CacheEntryName.Flat && config?.expiryType == ExpiryType.after_access) {
+                store.getValueRefreshingExpire(entryName.cacheKey, config.expiry)
             } else {
                 store.get(entryName)
             }
@@ -210,14 +209,14 @@ internal class KacheableImpl(
             val resultToSave = CacheResultPolicy.encodeResultToSave(blockResult, config, saveResultIf, codec)
 
             resultToSave?.let {
-                if (entryName is CacheEntryName.Combined && (config?.expiryType ?: ExpiryType.none) != ExpiryType.none) {
-                    store.setValueWithExpire(entryName.baseKey, it, config!!.expiry)
+                if (entryName is CacheEntryName.Flat && (config?.expiryType ?: ExpiryType.none) != ExpiryType.none) {
+                    store.setValueWithExpire(entryName.cacheKey, it, config!!.expiry)
                 } else {
                     store.mutate {
                         set(entryName, it)
 
                         if ((config?.expiryType ?: ExpiryType.none) != ExpiryType.none)
-                            setExpire(entryName.baseKey, config!!.expiry)
+                            setExpire(entryName.cacheKey, config!!.expiry)
                     }
                 }
             }
@@ -225,8 +224,8 @@ internal class KacheableImpl(
             blockResult
         } else {
             // Set expiry after access
-            if (entryName is CacheEntryName.Split && config?.expiryType == ExpiryType.after_access)
-                store.setExpire(entryName.baseKey, config.expiry)
+            if (entryName is CacheEntryName.Layered && config?.expiryType == ExpiryType.after_access)
+                store.setExpire(entryName.cacheKey, config.expiry)
 
             CacheResultPolicy.decodeCachedResult(result, config, codec)
         }

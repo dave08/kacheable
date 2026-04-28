@@ -91,7 +91,7 @@ val SetMembershipBooleanSpec by testSuite {
             store.assertSetMember(artistFollowersKey(artistId), otherAccountId)
         }
 
-        test("set membership grouped invalidation removes all membership state for the main key") {
+        test("set membership grouped invalidation removes all membership state for the primary key") {
             val artistId = 3
             val memberAccountId = 7
             val nonMemberAccountId = 8

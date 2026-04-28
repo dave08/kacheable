@@ -1,12 +1,12 @@
 package com.github.dave08.kacheable.internal
 
-import com.github.dave08.kacheable.CacheKeyGroups
 import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.asCombined
-import com.github.dave08.kacheable.baseKey
-import com.github.dave08.kacheable.requireEntry
+import com.github.dave08.kacheable.asFlat
+import com.github.dave08.kacheable.cacheKey
+import com.github.dave08.kacheable.requireSecondaryEntry
 import com.github.dave08.kacheable.withInternalSuffix
 
 private const val NON_MEMBERS_SUFFIX = "__kacheable_non_members"
@@ -34,22 +34,22 @@ internal data class SetMembershipInvalidationPlan(
 @ExperimentalKacheableApi
 internal fun setMembershipEntry(
     name: String,
-    keyGroups: CacheKeyGroups,
+    cacheArgs: PrimarySecondaryCacheArgs,
     namingStrategy: CacheNamingStrategy,
 ): SetMembershipEntry {
     val entryName = namingStrategy.getEntryName(
         cacheName = name,
         storage = CacheStorage.Set,
-        mainParams = keyGroups.main.toParamsArray(),
-        secondaryParams = keyGroups.secondary?.toParamsArray() ?: emptyArray(),
+        primaryParams = cacheArgs.primary.toParamsArray(),
+        secondaryParams = cacheArgs.secondary?.toParamsArray() ?: emptyArray(),
     )
-    val groupName = entryName.asCombined()
+    val groupName = entryName.asFlat()
     return SetMembershipEntry(
-        membersKey = groupName.baseKey,
+        membersKey = groupName.cacheKey,
         nonMembersKey = groupName.withInternalSuffix(NON_MEMBERS_SUFFIX),
         member = when {
-            keyGroups.secondary == null -> null
-            else -> entryName.requireEntry()
+            cacheArgs.secondary == null -> null
+            else -> entryName.requireSecondaryEntry()
         },
     )
 }

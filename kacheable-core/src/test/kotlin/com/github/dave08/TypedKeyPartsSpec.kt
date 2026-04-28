@@ -5,9 +5,13 @@ package com.github.dave08
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheStorageLayout.HashValue
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.argsOf
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.mainKey
+import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.rawKeyPart
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
@@ -17,7 +21,7 @@ val TypedKeyPartsSpec by testSuite {
     testFixture {
         SuspendCacheFixture()
     } asContextForEach {
-        test("main and secondary key parts support grouped invalidation") {
+        test("primary and secondary key parts support grouped invalidation") {
             val artistId = 7
             val otherArtistId = 8
 
@@ -43,16 +47,16 @@ val TypedKeyPartsSpec by testSuite {
             val partRef = typedSongPageCache.keyPart(artistId)
 
             assertEquals(HashValue, entryRef.storageLayout)
-            assertEquals(listOf(7), entryRef.keyGroups.main.toList())
-            assertEquals(listOf(0, 10, "en"), entryRef.keyGroups.secondary?.toList())
-            assertEquals(listOf(7, 0, 10, "en"), entryRef.keyGroups.flattened.toList())
+            assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
+            assertEquals(listOf(0, 10, "en"), entryRef.cacheArgs.secondary?.toList())
+            assertEquals(listOf(7, 0, 10, "en"), entryRef.cacheArgs.flattened.toList())
             assertEquals(listOf("7", "*", "*", "*"), partRef.args.toList().map(Any::toString))
-            assertEquals(listOf(7), partRef.keyGroups.main.toList())
-            assertEquals(listOf("*", "*", "*"), partRef.keyGroups.secondary?.toList()?.map(Any::toString))
-            assertEquals(listOf("7", "*", "*", "*"), partRef.keyGroups.flattened.toList().map(Any::toString))
+            assertEquals(listOf(7), partRef.cacheArgs.primary.toList())
+            assertEquals(listOf("*", "*", "*"), partRef.cacheArgs.secondary?.toList()?.map(Any::toString))
+            assertEquals(listOf("7", "*", "*", "*"), partRef.cacheArgs.flattened.toList().map(Any::toString))
         }
 
-        test("main keys can use explicit mappers for value classes") {
+        test("primary keys can use explicit mappers for value classes") {
             val songByIdCache = mainKey("song-cache", songIdKey, storedAs = CacheStorage.HashMap)
             val songId = SongId(13)
 
@@ -63,6 +67,36 @@ val TypedKeyPartsSpec by testSuite {
             cache.invalidate(songByIdCache.keyPart(songId))
 
             assertNull(store.get("song-cache:13"))
+        }
+
+        test("primary keys can compose multiple key parts without forcing a wrapper type") {
+            val songByArtistAndLocale = mainKey(
+                "song-cache",
+                keyPart<Int>() + keyPart<String>(),
+                storedAs = CacheStorage.HashMap,
+            )
+
+            cache(songByArtistAndLocale.key(13, "en"), returnsAs = value<TestSong>()) {
+                TestSong(13, "Mapped Id")
+            }
+
+            cache.invalidate(songByArtistAndLocale.keyPart(13, "en"))
+
+            assertNull(store.get("song-cache:13,en"))
+        }
+
+        test("raw key parts provide an escape hatch for untyped key segments") {
+            val rawSongsCache = mainKey(
+                "raw-song-cache",
+                rawKeyPart(segmentCount = 2),
+                storedAs = CacheStorage.HashMap,
+            )
+
+            cache(rawSongsCache.key(argsOf(7, "en")), returnsAs = value<TestSong>()) {
+                TestSong(7, "Raw")
+            }
+
+            assertEquals("""{"id":7,"title":"Raw"}""", store.get("raw-song-cache:7,en"))
         }
 
         test("secondary mappers can encode multiple fields from one parameter") {
@@ -103,7 +137,7 @@ val TypedKeyPartsSpec by testSuite {
             )
         }
 
-        test("secondary composition can cover five function parameters under one main key") {
+        test("secondary composition can cover five function parameters under one primary key") {
             val artistId = 7
             val otherArtistId = 9
 

@@ -44,7 +44,7 @@ val CacheNamingStrategyCompatibilitySpec by testSuite {
             assertNull(store.hashMap["song-page-cache[7]"])
         }
 
-        test("set membership uses the configured main key naming and preserves the internal suffix") {
+        test("set membership uses the configured primary key naming and preserves the internal suffix") {
             val artistId = 3
             val accountId = 7
 
@@ -56,7 +56,7 @@ val CacheNamingStrategyCompatibilitySpec by testSuite {
             store.assertSetMissing("artist-followers-cache[3]")
         }
 
-        test("classified membership uses the configured main key naming for each value set") {
+        test("classified membership uses the configured primary key naming for each value set") {
             val songId = 9
             val accountId = 11
 
@@ -115,10 +115,10 @@ val CacheNamingStrategyCompatibilitySpec by testSuite {
         }
     }
 
-    test("default cache naming strategy can customize only the split entry combiner") {
+    test("default cache naming strategy can customize only the layered entry combiner") {
         val fixture = SuspendCacheFixture(
             namingStrategy = defaultCacheNamingStrategy(
-                entryCombiner = { params -> params.joinToString("|") },
+                secondaryEntryCombiner = { params -> params.joinToString("|") },
             ),
         )
 

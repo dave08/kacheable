@@ -12,21 +12,21 @@ import com.github.dave08.kacheable.SetMembershipCachePartRef
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: HashMapCacheEntryRef) {
     entryRefs.forEach { entryRef ->
-        invalidate(entryRef.name, entryRef.keyGroups, entryRef.storageLayout) {}
+        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
     }
 }
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: SetMembershipCacheEntryRef) {
     entryRefs.forEach { entryRef ->
-        invalidateSetMembership(entryRef.name, entryRef.keyGroups) {}
+        invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
     }
 }
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
     partRefs.forEach { partRef ->
-        invalidateSetMembership(partRef.name, partRef.keyGroups) {}
+        invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
     }
 }
 
@@ -35,7 +35,7 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
     entryRef: SetMembershipCacheEntryRef,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(entryRef.name, entryRef.keyGroups, returnsAs.valueNames) {}
+    invalidateSetClassification(entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
 }
 
 @ExperimentalKacheableApi
@@ -43,7 +43,7 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
     partRef: SetMembershipCachePartRef,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(partRef.name, partRef.keyGroups, returnsAs.valueNames) {}
+    invalidateSetClassification(partRef.name, partRef.cacheArgs, returnsAs.valueNames) {}
 }
 
 @ExperimentalKacheableApi
@@ -53,7 +53,7 @@ fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
         if (storageLayout == null) {
             invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
         } else {
-            invalidate(partRef.name, partRef.keyGroups, storageLayout) {}
+            invalidate(partRef.name, partRef.cacheArgs, storageLayout) {}
         }
     }
 }

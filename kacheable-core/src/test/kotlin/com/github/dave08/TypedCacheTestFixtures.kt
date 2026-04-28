@@ -7,7 +7,7 @@ import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.key
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import kotlinx.serialization.Serializable
@@ -27,102 +27,102 @@ data class SongSection(
     val category: String,
 )
 
-val structuredKeyStrategy = CacheNamingStrategy { name, storage, mainParams, secondaryParams ->
+val structuredKeyStrategy = CacheNamingStrategy { name, storage, primaryParams, secondaryParams ->
     when (storage) {
         CacheStorage.HashMap ->
             when (name) {
                 "song-page-cache" ->
                     if (secondaryParams.isEmpty()) {
-                        CacheEntryName.Combined("$name|song=${mainParams[0]}")
+                        CacheEntryName.Flat("$name|song=${primaryParams[0]}")
                     } else {
-                        CacheEntryName.Split(
-                            key = "$name|song=${mainParams[0]}",
+                        CacheEntryName.Layered(
+                            key = "$name|song=${primaryParams[0]}",
                             entry = "${secondaryParams[0]},${secondaryParams[1]},${secondaryParams[2]}",
                         )
                     }
                 "song-section-cache" ->
                     if (secondaryParams.isEmpty()) {
-                        CacheEntryName.Combined("$name:${mainParams.joinToString("|")}")
+                        CacheEntryName.Flat("$name:${primaryParams.joinToString("|")}")
                     } else {
-                        CacheEntryName.Split(
-                            key = "$name:${mainParams.joinToString("|")}",
+                        CacheEntryName.Layered(
+                            key = "$name:${primaryParams.joinToString("|")}",
                             entry = secondaryParams.joinToString(","),
                         )
                     }
                 "wide-cache" ->
                     if (secondaryParams.isEmpty()) {
-                        CacheEntryName.Combined("$name:${mainParams.joinToString("|")}")
+                        CacheEntryName.Flat("$name:${primaryParams.joinToString("|")}")
                     } else {
-                        CacheEntryName.Split(
-                            key = "$name:${mainParams.joinToString("|")}",
+                        CacheEntryName.Layered(
+                            key = "$name:${primaryParams.joinToString("|")}",
                             entry = secondaryParams.joinToString(","),
                         )
                     }
                 else ->
                     if (secondaryParams.isEmpty()) {
-                        CacheEntryName.Combined(if (mainParams.isEmpty()) name else "$name:${mainParams.joinToString(",")}")
+                        CacheEntryName.Flat(if (primaryParams.isEmpty()) name else "$name:${primaryParams.joinToString(",")}")
                     } else {
-                        CacheEntryName.Split(
-                            key = if (mainParams.isEmpty()) name else "$name:${mainParams.joinToString(",")}",
+                        CacheEntryName.Layered(
+                            key = if (primaryParams.isEmpty()) name else "$name:${primaryParams.joinToString(",")}",
                             entry = secondaryParams.joinToString(","),
                         )
                     }
             }
         else ->
-            CacheEntryName.Combined(
-                combineForTests(name, ":", mainParams, secondaryParams),
+            CacheEntryName.Flat(
+                combineForTests(name, ":", primaryParams, secondaryParams),
             )
     }
 }
 
-val bracketedKeyStrategy = CacheNamingStrategy { name, storage, mainParams, secondaryParams ->
+val bracketedKeyStrategy = CacheNamingStrategy { name, storage, primaryParams, secondaryParams ->
     when (storage) {
         CacheStorage.HashMap, CacheStorage.Set ->
             if (secondaryParams.isEmpty()) {
-                CacheEntryName.Combined(
-                    if (mainParams.isEmpty()) name else "$name[${mainParams.joinToString("][")}]",
+                CacheEntryName.Flat(
+                    if (primaryParams.isEmpty()) name else "$name[${primaryParams.joinToString("][")}]",
                 )
             } else {
-                CacheEntryName.Split(
-                    key = if (mainParams.isEmpty()) name else "$name[${mainParams.joinToString("][")}]",
+                CacheEntryName.Layered(
+                    key = if (primaryParams.isEmpty()) name else "$name[${primaryParams.joinToString("][")}]",
                     entry = secondaryParams.joinToString(","),
                 )
             }
         else -> {
-            CacheEntryName.Combined(
-                combineForTests(name, "][", mainParams, secondaryParams, prefix = "[", suffix = "]"),
+            CacheEntryName.Flat(
+                combineForTests(name, "][", primaryParams, secondaryParams, prefix = "[", suffix = "]"),
             )
         }
     }
 }
 
-val verboseEntryStrategy = CacheNamingStrategy { name, storage, mainParams, secondaryParams ->
-    val mainKey = if (mainParams.isEmpty()) name else "$name|${mainParams.joinToString("|")}"
+val verboseEntryStrategy = CacheNamingStrategy { name, storage, primaryParams, secondaryParams ->
+    val primaryKey = if (primaryParams.isEmpty()) name else "$name|${primaryParams.joinToString("|")}"
 
     when (storage) {
         CacheStorage.HashMap, CacheStorage.Set ->
             if (secondaryParams.isEmpty()) {
-                CacheEntryName.Combined(mainKey)
+                CacheEntryName.Flat(primaryKey)
             } else {
-                CacheEntryName.Split(
-                    key = mainKey,
+                CacheEntryName.Layered(
+                    key = primaryKey,
                     entry = secondaryParams.mapIndexed { index, value -> "part$index=$value" }.joinToString("|"),
                 )
             }
-        else -> CacheEntryName.Combined(
-            combineForTests(name, "|", mainParams, secondaryParams),
+        else -> CacheEntryName.Flat(
+            combineForTests(name, "|", primaryParams, secondaryParams),
         )
     }
 }
 
-val songIdKey = key<SongId>(SongId::value)
-val songSectionKey = key<SongSection>({ it.id.value }, SongSection::category)
-val typedPagingKey = key<PageWindow>(PageWindow::offset, PageWindow::limit)
-val typedLocaleKey = key<String>()
-val typedFilterKey = key<String>()
-val typedSortKey = key<String>()
-val typedPageSizeKey = key<Int>()
-val typedMarketKey = key<String>()
+val songIdKey = keyPart<SongId>(SongId::value)
+val songSectionKey = keyPart<SongSection>({ it.id.value }, SongSection::category)
+val typedPagingKey = keyPart<PageWindow>(PageWindow::offset, PageWindow::limit)
+val typedLocaleKey = keyPart<String>()
+val typedFilterKey = keyPart<String>()
+val typedSortKey = keyPart<String>()
+val typedPageSizeKey = keyPart<Int>()
+val typedMarketKey = keyPart<String>()
 
 val typedSongPageCache = mainKey<Int>("song-page-cache", storedAs = CacheStorage.HashMap) + (typedPagingKey + typedLocaleKey)
 val typedSongSectionCache = mainKey("song-section-cache", songIdKey, storedAs = CacheStorage.HashMap) + songSectionKey

@@ -1,6 +1,6 @@
 package com.github.dave08.kacheable.blocking
 
-import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.store.CacheValueCodec
@@ -13,7 +13,7 @@ internal object NoopBlockingKacheable : BlockingKacheable {
     @ExperimentalKacheableApi
     override fun <R> invalidate(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         block: () -> R,
     ): R = block()
@@ -21,14 +21,14 @@ internal object NoopBlockingKacheable : BlockingKacheable {
     @ExperimentalKacheableApi
     override fun <R> invalidateSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         block: () -> R,
     ): R = block()
 
     @ExperimentalKacheableApi
     override fun <R> invalidateSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         valueNames: List<String>,
         block: () -> R,
     ): R = block()
@@ -45,7 +45,7 @@ internal object NoopBlockingKacheable : BlockingKacheable {
     override fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean,
         block: () -> R
@@ -54,7 +54,7 @@ internal object NoopBlockingKacheable : BlockingKacheable {
     @ExperimentalKacheableApi
     override fun invokeSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean,
         saveResultIf: (Boolean) -> Boolean,
         block: () -> Boolean,
@@ -63,7 +63,7 @@ internal object NoopBlockingKacheable : BlockingKacheable {
     @ExperimentalKacheableApi
     override fun <R : Any> invokeSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean,

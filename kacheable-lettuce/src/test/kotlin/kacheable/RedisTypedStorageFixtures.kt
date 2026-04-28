@@ -4,18 +4,18 @@ package kacheable
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.key
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 
 val redisArtistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
-val redisSongKey = key<Int>()
+val redisSongKey = keyPart<Int>()
 val redisArtistSongsCache = redisArtistCache + redisSongKey
 val redisArtistFollowersCache = mainKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
-val redisFollowerAccountKey = key<Int>()
+val redisFollowerAccountKey = keyPart<Int>()
 val redisArtistFollowerCache = redisArtistFollowersCache + redisFollowerAccountKey
 val redisSongReactionsCache = mainKey<Int>("song-reaction-cache", storedAs = CacheStorage.Set)
-val redisReactingAccountKey = key<Int>()
+val redisReactingAccountKey = keyPart<Int>()
 val redisSongReactionCache = redisSongReactionsCache + redisReactingAccountKey
 
 enum class RedisSongReaction {
@@ -35,15 +35,15 @@ fun redisSongReactionKey(songId: Int, reaction: RedisSongReaction): String =
     "song-reaction-cache:$songId:${reaction.name}"
 
 val redisBlockingArtistCache = mainKey<Int>("blocking-artist-cache", storedAs = CacheStorage.HashMap)
-val redisBlockingSongKey = key<Int>()
+val redisBlockingSongKey = keyPart<Int>()
 val redisBlockingArtistSongsCache = redisBlockingArtistCache + redisBlockingSongKey
 val redisBlockingArtistFollowersCache =
     mainKey<Int>("blocking-artist-followers-cache", storedAs = CacheStorage.Set)
-val redisBlockingFollowerAccountKey = key<Int>()
+val redisBlockingFollowerAccountKey = keyPart<Int>()
 val redisBlockingArtistFollowerCache = redisBlockingArtistFollowersCache + redisBlockingFollowerAccountKey
 val redisBlockingSongReactionsCache =
     mainKey<Int>("blocking-song-reaction-cache", storedAs = CacheStorage.Set)
-val redisBlockingReactingAccountKey = key<Int>()
+val redisBlockingReactingAccountKey = keyPart<Int>()
 val redisBlockingSongReactionCache = redisBlockingSongReactionsCache + redisBlockingReactingAccountKey
 
 enum class RedisBlockingSongReaction {

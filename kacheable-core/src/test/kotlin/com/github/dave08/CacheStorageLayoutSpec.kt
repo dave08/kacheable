@@ -7,7 +7,7 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
-import com.github.dave08.kacheable.key
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.value
@@ -21,8 +21,8 @@ private data class StoredSong(val id: Int, val title: String)
 
 private data class Page(val offset: Int, val limit: Int)
 
-private val pageSliceKey = key<Page>(Page::offset, Page::limit)
-private val artistSongIdKey = key<Int>()
+private val pageSliceKey = keyPart<Page>(Page::offset, Page::limit)
+private val artistSongIdKey = keyPart<Int>()
 private val songsByPageCache = mainKey<Int>("songs-by-page-cache", storedAs = CacheStorage.HashMap) + pageSliceKey
 private val songsByArtistCache = mainKey<Int>("songs-by-artist-cache", storedAs = CacheStorage.HashMap) + artistSongIdKey
 
@@ -71,7 +71,7 @@ val CacheStorageLayoutSpec by testSuite {
             assertEquals("""[{"id":2,"title":"Second"}]""", store.hashMap["songs-by-page-cache:3"]?.get("10,10"))
         }
 
-        test("hash-backed stored caches can invalidate all fields under the main key") {
+        test("hash-backed stored caches can invalidate all fields under the primary key") {
             cache(songsByArtistCache.key(3, 1), returnsAs = value<StoredSong>()) {
                 StoredSong(1, "First")
             }

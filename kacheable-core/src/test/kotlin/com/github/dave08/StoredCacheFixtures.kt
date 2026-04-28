@@ -4,7 +4,7 @@ package com.github.dave08
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.key
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
@@ -24,14 +24,14 @@ internal data class ImageVariantRequest(val format: String, val width: Int)
 
 internal val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
 internal val imageCache = mainKey<String>("image-cache", storedAs = CacheStorage.HashMap)
-internal val songKey = key<Int>()
-internal val pageKey = key<ResultPage>(ResultPage::offset, ResultPage::limit)
-internal val imageVariantKey = key<ImageVariantRequest>(ImageVariantRequest::format, ImageVariantRequest::width)
-internal val filterKey = key<String>()
-internal val sortKey = key<String>()
-internal val pageSizeKey = key<Int>()
-internal val marketKey = key<String>()
-internal val localeKey = key<String>()
+internal val songKey = keyPart<Int>()
+internal val pageKey = keyPart<ResultPage>(ResultPage::offset, ResultPage::limit)
+internal val imageVariantKey = keyPart<ImageVariantRequest>(ImageVariantRequest::format, ImageVariantRequest::width)
+internal val filterKey = keyPart<String>()
+internal val sortKey = keyPart<String>()
+internal val pageSizeKey = keyPart<Int>()
+internal val marketKey = keyPart<String>()
+internal val localeKey = keyPart<String>()
 internal val artistSongsCache = artistCache + songKey
 internal val artistPageCache = artistCache + (pageKey + localeKey)
 internal val artistCatalogCache = artistCache + (filterKey + sortKey + pageSizeKey + marketKey + localeKey)

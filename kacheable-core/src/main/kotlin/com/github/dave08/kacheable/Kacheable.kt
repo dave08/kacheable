@@ -11,7 +11,7 @@ interface Kacheable {
     @ExperimentalKacheableApi
     suspend fun <R> invalidate(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         block: suspend () -> R,
     ): R
@@ -19,14 +19,14 @@ interface Kacheable {
     @ExperimentalKacheableApi
     suspend fun <R> invalidateSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         block: suspend () -> R,
     ): R
 
     @ExperimentalKacheableApi
     suspend fun <R> invalidateSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         valueNames: List<String>,
         block: suspend () -> R,
     ): R
@@ -43,7 +43,7 @@ interface Kacheable {
     suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean = { true },
         block: suspend () -> R
@@ -52,7 +52,7 @@ interface Kacheable {
     @ExperimentalKacheableApi
     suspend fun invokeSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean = true,
         saveResultIf: (Boolean) -> Boolean = { true },
         block: suspend () -> Boolean,
@@ -61,7 +61,7 @@ interface Kacheable {
     @ExperimentalKacheableApi
     suspend fun <R : Any> invokeSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean = { true },

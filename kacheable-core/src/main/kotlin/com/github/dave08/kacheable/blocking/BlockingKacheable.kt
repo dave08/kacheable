@@ -1,6 +1,6 @@
 package com.github.dave08.kacheable.blocking
 
-import com.github.dave08.kacheable.CacheKeyGroups
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.store.CacheValueCodec
@@ -13,7 +13,7 @@ interface BlockingKacheable {
     @ExperimentalKacheableApi
     fun <R> invalidate(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         block: () -> R,
     ): R
@@ -21,14 +21,14 @@ interface BlockingKacheable {
     @ExperimentalKacheableApi
     fun <R> invalidateSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         block: () -> R,
     ): R
 
     @ExperimentalKacheableApi
     fun <R> invalidateSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         valueNames: List<String>,
         block: () -> R,
     ): R
@@ -45,7 +45,7 @@ interface BlockingKacheable {
     fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
         saveResultIf: (R) -> Boolean = { true },
         block: () -> R
@@ -54,7 +54,7 @@ interface BlockingKacheable {
     @ExperimentalKacheableApi
     fun invokeSetMembership(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean = true,
         saveResultIf: (Boolean) -> Boolean = { true },
         block: () -> Boolean,
@@ -63,7 +63,7 @@ interface BlockingKacheable {
     @ExperimentalKacheableApi
     fun <R : Any> invokeSetClassification(
         name: String,
-        keyGroups: CacheKeyGroups,
+        cacheArgs: PrimarySecondaryCacheArgs,
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean = { true },

@@ -45,7 +45,7 @@ val RedisTypedHashStorageSpec by testSuite {
             }
         }
 
-        test("invalidates typed hash-map cache entries by main key") {
+        test("invalidates typed hash-map cache entries by primary key") {
             val artistId = 13
             val firstSongId = 7
             val secondSongId = 8

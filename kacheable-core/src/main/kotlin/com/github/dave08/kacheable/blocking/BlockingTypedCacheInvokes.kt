@@ -18,7 +18,7 @@ operator fun <R> BlockingKacheable.invoke(
 ): R = invoke(
     name = entryRef.name,
     codec = returnsAs.codec,
-    keyGroups = entryRef.keyGroups,
+    cacheArgs = entryRef.cacheArgs,
     storageLayout = entryRef.storageLayout,
     saveResultIf = cacheIf,
     block = block,
@@ -32,7 +32,7 @@ operator fun BlockingKacheable.invoke(
     block: () -> Boolean,
 ): Boolean = invokeSetMembership(
     name = entryRef.name,
-    keyGroups = entryRef.keyGroups,
+    cacheArgs = entryRef.cacheArgs,
     cacheFalse = returnsAs.cacheFalse,
     saveResultIf = cacheIf,
     block = block,
@@ -46,7 +46,7 @@ operator fun <E : Enum<E>> BlockingKacheable.invoke(
     block: () -> E,
 ): E = invokeSetClassification(
     name = entryRef.name,
-    keyGroups = entryRef.keyGroups,
+    cacheArgs = entryRef.cacheArgs,
     values = returnsAs.values,
     valueName = returnsAs.valueName,
     saveResultIf = cacheIf,
