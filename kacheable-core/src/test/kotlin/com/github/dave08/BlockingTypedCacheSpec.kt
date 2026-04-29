@@ -34,6 +34,25 @@ val BlockingTypedCacheSpec by testSuite {
             assertEquals(1, calls)
             assertEquals("""{"id":11,"title":"Blocking"}""", store.get("song-cache:11"))
         }
+
+        test("blocking exact caching works with typed string storage") {
+            val songByIdCache = entryKey<Int>("song-cache", storedAs = CacheStorage.String)
+            var calls = 0
+
+            val first = cache(songByIdCache.key(11), returnsAs = value<TestSong>()) {
+                calls++
+                TestSong(11, "Blocking String")
+            }
+            val second = cache(songByIdCache.key(11), returnsAs = value<TestSong>()) {
+                calls++
+                TestSong(11, "Other")
+            }
+
+            assertEquals(TestSong(11, "Blocking String"), first)
+            assertEquals(TestSong(11, "Blocking String"), second)
+            assertEquals(1, calls)
+            assertEquals("""{"id":11,"title":"Blocking String"}""", store.get("song-cache:11"))
+        }
     }
 
     testFixture {

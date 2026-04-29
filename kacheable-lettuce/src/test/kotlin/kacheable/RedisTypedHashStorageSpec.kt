@@ -75,7 +75,7 @@ val RedisTypedHashStorageSpec by testSuite {
                 Bar(artistId, "Page HE 1")
             }
 
-            cache.invalidate(redisArtistSongsByLocaleCache.keyPart(artistId, redisLocaleKey("en")))
+            cache.invalidate(redisArtistSongsByLocaleCache.keyPart(redisArtistPagePrimaryKey(artistId), redisLocaleKey("en")))
 
             expect {
                 that(commands.hget("artist-page-cache:$artistId", "1,he")).isEqualTo("""{"id":13,"name":"Page HE 1"}""")

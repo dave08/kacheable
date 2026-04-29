@@ -6,7 +6,10 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.entryKey
+import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
+import com.github.dave08.kacheable.keyPart
+import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
@@ -40,6 +43,49 @@ val TypedExactApiSpec by testSuite {
             cache.invalidate("song-cache" to listOf(3)) {}
 
             assertNull(store.get("song-cache:3"))
+        }
+
+        test("typed string storage caches exact values at flat keys") {
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.String)
+            var calls = 0
+
+            val first = cache(songCache.key(21), returnsAs = value<TestSong>()) {
+                calls++
+                TestSong(21, "Typed String")
+            }
+            val second = cache(songCache.key(21), returnsAs = value<TestSong>()) {
+                calls++
+                TestSong(21, "Other")
+            }
+
+            assertEquals(TestSong(21, "Typed String"), first)
+            assertEquals(TestSong(21, "Typed String"), second)
+            assertEquals(1, calls)
+            assertEquals("""{"id":21,"title":"Typed String"}""", store.get("song-cache:21"))
+        }
+
+        test("typed string storage composes same-level key parts into flat keys") {
+            val songId by keyPart<Int>()
+            val locale = keyPart<String>("locale")
+            val songCache = entryKey("song-cache", songId + locale, storedAs = CacheStorage.String)
+
+            cache(songCache.key(21, "en"), returnsAs = value<TestSong>()) {
+                TestSong(21, "Typed String")
+            }
+
+            assertEquals("""{"id":21,"title":"Typed String"}""", store.get("song-cache:21,en"))
+        }
+
+        test("typed string storage invalidation removes exact flat values") {
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.String)
+
+            cache(songCache.key(21), returnsAs = value<TestSong>()) {
+                TestSong(21, "Typed String")
+            }
+
+            cache.invalidate(songCache.keyPart(21))
+
+            assertNull(store.get("song-cache:21"))
         }
 
         test("stored exact refs can still use typed return views") {

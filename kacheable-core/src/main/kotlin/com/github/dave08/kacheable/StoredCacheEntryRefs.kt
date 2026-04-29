@@ -18,6 +18,14 @@ data class HashMapCacheEntryRef(
 }
 
 @ExperimentalKacheableApi
+data class StringCacheEntryRef(
+    override val name: String,
+    override val cacheArgs: PrimarySecondaryCacheArgs,
+) : StoredCacheEntryRef<CacheStorage.String> {
+    override val storageLayout: CacheStorageLayout = CacheStorageLayout.StringValue
+}
+
+@ExperimentalKacheableApi
 data class SetMembershipCacheEntryRef(
     val name: String,
     val cacheArgs: PrimarySecondaryCacheArgs,

@@ -14,9 +14,10 @@ val redisSongKey = keyPart<Int>()
 val redisArtistSongsCache = redisArtistCache + redisSongKey
 val redisPagingKey = keyPart<Int>("page")
 val redisLocaleKey = keyPart<String>("locale")
+val redisArtistPagePrimaryKey = keyPart<Int>("artist")
 val redisArtistSongsByLocaleCache = entryKey(
     "artist-page-cache",
-    keyPart<Int>() * (redisPagingKey + redisLocaleKey),
+    redisArtistPagePrimaryKey * (redisPagingKey + redisLocaleKey),
     storedAs = CacheStorage.HashMap,
 )
 val redisArtistFollowersCache = entryKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
@@ -47,9 +48,10 @@ val redisBlockingSongKey = keyPart<Int>()
 val redisBlockingArtistSongsCache = redisBlockingArtistCache + redisBlockingSongKey
 val redisBlockingPagingKey = keyPart<Int>("page")
 val redisBlockingLocaleKey = keyPart<String>("locale")
+val redisBlockingArtistPagePrimaryKey = keyPart<Int>("artist")
 val redisBlockingArtistSongsByLocaleCache = entryKey(
     "blocking-artist-page-cache",
-    keyPart<Int>() * (redisBlockingPagingKey + redisBlockingLocaleKey),
+    redisBlockingArtistPagePrimaryKey * (redisBlockingPagingKey + redisBlockingLocaleKey),
     storedAs = CacheStorage.HashMap,
 )
 val redisBlockingArtistFollowersCache =

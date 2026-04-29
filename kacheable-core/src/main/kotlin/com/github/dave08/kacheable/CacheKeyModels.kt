@@ -17,9 +17,26 @@ data class PrimarySecondaryCacheArgs(
         require(primaryPartArgs.isNotEmpty()) { "Primary cache args must contain at least one key part." }
         require(primaryPartArgs.size == primaryPartNames.size) { "Primary key-part args and names must align." }
         require(secondaryPartArgs.size == secondaryPartNames.size) { "Secondary key-part args and names must align." }
+
+        validateUniqueKeyPartNames(primaryPartNames + secondaryPartNames)
     }
 
     val flattened: CacheArgs = joinArgs(*(primaryPartArgs + secondaryPartArgs).toTypedArray())
+}
+
+@PublishedApi
+internal fun validateUniqueKeyPartNames(names: List<String?>) {
+    val duplicateName = names
+        .filterNotNull()
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .firstOrNull { it.value > 1 }
+        ?.key
+
+    require(duplicateName == null) {
+        "entryKey key-part name '$duplicateName' is ambiguous. Key-part names must be unique across primary and secondary parts."
+    }
 }
 
 @ExperimentalKacheableApi

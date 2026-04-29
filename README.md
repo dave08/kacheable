@@ -10,6 +10,75 @@
 
 Kacheable is a Kotlin caching library for wrapping computations behind a small API.
 
+## Why use it
+
+Kacheable lets you start with exact caching:
+
+```kotlin
+suspend fun loadUser(userId: Int): User =
+    cache("user-cache", userId) {
+        fetchUserFromDatabase(userId)
+    }
+```
+
+Then move to structured storage when the cache should express a real relationship instead of flattening everything into one string key:
+
+```kotlin
+// Delegated key parts are named from the property: "artistId".
+val artistId by keyPart<Int>()
+
+// This part is anonymous. It is fine for exact reads/writes, but not for
+// named partial invalidation selectors.
+val page = keyPart<Page>(Page::offset, Page::limit)
+
+// Explicit names are useful when there is no delegated property.
+val locale = keyPart<String>("locale")
+
+val songPageCache = entryKey(
+    "song-page-cache",
+    // `*` means primary * secondary:
+    // one artistId bucket containing many page + locale entries.
+    artistId * (page + locale),
+    storedAs = CacheStorage.HashMap,
+)
+
+suspend fun loadSongPage(artistIdValue: Int, page: Page, locale: String): SongPage =
+    cache(songPageCache.key(artistIdValue, page, locale), returnsAs = value<SongPage>()) {
+        fetchSongPage(artistIdValue, page, locale)
+    }
+
+suspend fun invalidateArtistPages(artistIdValue: Int) {
+    // Partial invalidation selectors use named key parts.
+    cache.invalidate(songPageCache.keyPart(artistId(artistIdValue)))
+}
+
+suspend fun invalidateEnglishPages(artistIdValue: Int) {
+    // This targets all secondary fields under artistIdValue where locale == "en".
+    cache.invalidate(songPageCache.keyPart(artistId(artistIdValue), locale("en")))
+}
+```
+
+And use set-backed relationships when the cache is really answering a membership question:
+
+```kotlin
+val accountId = keyPart<Int>("accountId")
+
+val artistFollowCache = entryKey(
+    "artist-follow-cache",
+    // For set storage, the primary side names the set and the secondary side
+    // is the member being checked/classified.
+    artistId * accountId,
+    storedAs = CacheStorage.Set,
+)
+
+suspend fun isFollowing(artistId: Int, accountId: Int): Boolean =
+    cache(artistFollowCache.key(artistId, accountId), returnsAs = isMember()) {
+        repository.isFollowing(artistId, accountId)
+    }
+```
+
+So the library’s main value is not just “cache this result”, but “make the cache structure explicit enough that reads, invalidation, and storage shape stay aligned”.
+
 Its goals are:
 - make exact cache reads/writes easy
 - support grouped storage layouts like hash fields and membership sets
@@ -35,6 +104,68 @@ It is **not** trying to be:
 - Per-cache expiry configuration
 - Custom cache naming strategies
 
+## Storage layouts in practice
+
+`storedAs = ...` is there so the cache definition can describe how entries relate to each other.
+
+### Flat string-style storage
+
+Good for typed exact cache entries that should be stored as one flat key:
+
+```kotlin
+val userCache = entryKey<Int>("user-cache", storedAs = CacheStorage.String)
+
+suspend fun loadUser(userId: Int): User =
+    cache(userCache.key(userId), returnsAs = value<User>()) {
+        loadUserFromDatabase(userId)
+    }
+```
+
+This uses `CacheStorage.String`: all key parts are flattened into the final cache key, such as `user-cache:42`. It is the simplest typed storage shape when invalidation is mostly exact:
+
+```kotlin
+suspend fun invalidateUser(userId: Int) {
+    cache.invalidate(userCache.keyPart(userId))
+}
+```
+
+The raw `cache("user-cache", userId) { ... }` form remains available as the low-level escape hatch when you do not need a typed `entryKey`.
+
+### Layered hash storage
+
+Good when many entries share one primary bucket:
+
+```kotlin
+val songPageCache = entryKey(
+    "song-page-cache",
+    artistId * (page + locale),
+    storedAs = CacheStorage.HashMap,
+)
+```
+
+Practical advantages:
+- avoid duplicating the primary part into every Redis key
+- invalidate one whole group by primary key
+- invalidate selected secondary slices without dropping the whole group
+- keep related entries together
+
+### Set storage
+
+Good when the cache is fundamentally about presence or classification:
+
+```kotlin
+val artistFollowCache = entryKey(
+    "artist-follow-cache",
+    artistId * accountId,
+    storedAs = CacheStorage.Set,
+)
+```
+
+This fits:
+- follow / liked / saved relationships
+- boolean membership checks
+- enum-like classified membership such as `LIKE`, `DISLIKE`, `NONE`
+
 ## Installation
 
 Snapshots are published through JitPack.
@@ -51,7 +182,7 @@ dependencies {
 }
 ```
 
-## Basic usage
+## Raw exact-key usage
 
 ```kotlin
 import com.github.dave08.kacheable.Kacheable
@@ -108,10 +239,10 @@ The typed API separates:
 `keyPart()` defines one reusable part of a cache key.
 
 ```kotlin
-val artistId by keyPart<Int>()
-val songId by keyPart<Int>()
-val locale = keyPart<String>("locale")
-val page = keyPart<Page>(Page::offset, Page::limit)
+val artistId by keyPart<Int>()                   // name inferred as "artistId"
+val songId by keyPart<Int>()                     // name inferred as "songId"
+val locale = keyPart<String>("locale")           // explicit name
+val page = keyPart<Page>(Page::offset, Page::limit) // anonymous multi-segment part
 ```
 
 You can:
@@ -127,21 +258,53 @@ You can:
 val songCache = entryKey("song-cache", songId, storedAs = CacheStorage.HashMap)
 ```
 
-Use `+` for parts on the same level:
+Use `+` for parts on the same level. These parts are encoded together into one key level:
 
 ```kotlin
+// `+` keeps both parts on the same key level.
 val artistLocale = artistId + locale
 val artistLocaleCache = entryKey("artist-locale-cache", artistLocale, storedAs = CacheStorage.HashMap)
 ```
 
-Use `*` to create a layered key with primary and secondary parts:
+Use `*` to split a cache into primary and secondary levels:
 
 ```kotlin
 val songPageCache = entryKey(
     "song-page-cache",
+    // `artistId` is the primary bucket.
+    // `page + locale` is the secondary hash field shape.
     artistId * (page + locale),
     storedAs = CacheStorage.HashMap,
 )
+```
+
+Read `artistId * (page + locale)` as: store many `page + locale` entries under one `artistId` bucket. With `CacheStorage.HashMap`, `artistId` becomes the hash key and `page + locale` becomes the hash field. This is what makes whole-bucket invalidation and selected secondary invalidation possible.
+
+## API cheat sheet
+
+```kotlin
+val songId by keyPart<Int>()                      // named from property: "songId"
+val locale = keyPart<String>("locale")            // explicitly named
+val page = keyPart<Page>(Page::offset, Page::limit) // anonymous, encodes two segments
+
+val exact = entryKey("song-cache", songId, storedAs = CacheStorage.String)
+
+// `*` splits primary and secondary storage levels.
+// `+` combines page and locale at the secondary level.
+val grouped = entryKey("song-page-cache", songId * (page + locale), storedAs = CacheStorage.HashMap)
+
+// In set storage, the secondary side is the set member.
+val membership = entryKey("song-like-cache", songId * keyPart<Int>("accountId"), storedAs = CacheStorage.Set)
+
+cache(exact.key(7), returnsAs = value<Song>()) { loadSong(7) }
+cache(grouped.key(7, Page(0, 25), "en"), returnsAs = value<List<Song>>()) { loadPage() }
+cache(membership.key(7, 42), returnsAs = isMember()) { isLiked(songId = 7, accountId = 42) }
+
+cache.invalidate(exact.keyPart(7))
+
+// Named selectors support precise partial invalidation.
+cache.invalidate(grouped.keyPart(songId(7)))
+cache.invalidate(grouped.keyPart(songId(7), locale("en")))
 ```
 
 ## Working with typed caches
@@ -149,35 +312,62 @@ val songPageCache = entryKey(
 ### Exact entries
 
 ```kotlin
-suspend fun loadSongPage(artistId: Int, page: Page, locale: String): SongPage =
-    cache(songPageCache.key(artistId, page, locale), returnsAs = value<SongPage>()) {
-        fetchSongPage(artistId, page, locale)
+suspend fun loadSongPage(artistIdValue: Int, page: Page, locale: String): SongPage =
+    cache(songPageCache.key(artistIdValue, page, locale), returnsAs = value<SongPage>()) {
+        fetchSongPage(artistIdValue, page, locale)
     }
 ```
 
 ### Group invalidation
 
 ```kotlin
-suspend fun invalidateArtistPages(artistId: Int) {
-    cache.invalidate(songPageCache.keyPart(artistId))
+suspend fun invalidateArtistPages(artistIdValue: Int) {
+    // Select only the named primary part to invalidate the whole hash bucket.
+    cache.invalidate(songPageCache.keyPart(artistId(artistIdValue)))
 }
 ```
 
 ### Partial invalidation
 
-For layered hash storage, you can invalidate a subset of secondary entries by selecting named or reusable secondary parts:
+For layered hash storage, you can invalidate a subset of secondary entries by selecting named key parts:
 
 ```kotlin
-suspend fun invalidateEnglishPages(artistId: Int) {
-    cache.invalidate(songPageCache.keyPart(artistId, locale("en")))
+suspend fun invalidateEnglishPages(artistIdValue: Int) {
+    // Select the named primary part plus one named secondary part.
+    // Omitted secondary parts are wildcards within the known hash bucket.
+    cache.invalidate(songPageCache.keyPart(artistId(artistIdValue), locale("en")))
 }
 ```
 
-This removes entries matching that secondary part while keeping others under the same primary bucket.
+This removes entries matching that secondary part while keeping others under the same primary bucket. If you want to invalidate the entire primary bucket, select only the primary key part:
+
+```kotlin
+suspend fun invalidateArtistPages(artistIdValue: Int) {
+    cache.invalidate(songPageCache.keyPart(artistId(artistIdValue)))
+}
+```
+
+There is also a shorthand for the common one-primary hash case:
+
+```kotlin
+suspend fun invalidateEnglishPages(artistIdValue: Int) {
+    // Shorthand for one-primary hash caches. Secondary selectors still need names.
+    cache.invalidate(songPageCache.keyPart(artistIdValue, locale("en")))
+}
+
+suspend fun invalidateArtistPages(artistIdValue: Int) {
+    // Shorthand for selecting the concrete primary bucket.
+    cache.invalidate(songPageCache.keyPart(artistIdValue))
+}
+```
 
 Current scope:
 - supported for layered hash storage
+- primary key parts must be selected concretely; primary wildcard scans are not part of the typed DSL
+- selected parts must be named with delegated `val part by keyPart<T>()` or explicit `keyPart<T>("part")`
 - intended for precise invalidation of grouped entries
+
+Redis note: partial hash invalidation scans fields inside the known hash key and deletes matching fields. That keeps the operation scoped to one primary bucket, but very large hashes can still make partial invalidation more expensive than exact field deletes or whole-bucket invalidation.
 
 Not currently intended as a generic wildcard language for every storage type.
 
@@ -217,19 +407,52 @@ suspend fun reaction(songId: Int, accountId: Int): Reaction =
 
 ## Return views
 
-`returnsAs = ...` tells Kacheable how the selected storage entry should be interpreted.
+`returnsAs = ...` tells Kacheable how the selected storage entry should be interpreted. Choose it based on the storage layout and the kind of answer you want back.
 
-Examples:
+For raw exact string-style calls, you do not pass `returnsAs`; the serializer is inferred from the function result:
 
 ```kotlin
-value<Song>()
-value<List<Song>>()
-map<Int, Song>()
-isMember()
-enumMember<Reaction>()
+cache("user-cache", userId) { loadUser(userId) }
 ```
 
-The return view is chosen at the call site instead of being baked into the key definition.
+For hash-backed value entries, use `value<T>()`. This stores one encoded value at the selected typed entry. In a layered hash cache, that means one hash field:
+
+```kotlin
+cache(songPageCache.key(artistIdValue, page, "en"), returnsAs = value<SongPage>()) {
+    loadSongPage(artistIdValue, page, "en")
+}
+```
+
+For a whole hash bucket, use `map<K, V>()`. This treats the primary key as a map-like view over the stored hash fields:
+
+```kotlin
+cache(artistSongsCache.key(artistIdValue), returnsAs = map<Int, Song>()) {
+    loadSongsById(artistIdValue)
+}
+```
+
+For set-backed boolean membership, use `isMember()`. This stores positive members in one set and, by default, false results in an internal non-member set:
+
+```kotlin
+cache(artistFollowCache.key(artistIdValue, accountIdValue), returnsAs = isMember()) {
+    repository.isFollowing(artistIdValue, accountIdValue)
+}
+```
+
+For set-backed classified membership, use `enumMember<E>()`. This stores the member in one set per enum value, such as `LIKE`, `DISLIKE`, or `NONE`:
+
+```kotlin
+cache(reactionCache.key(songIdValue, accountIdValue), returnsAs = enumMember<Reaction>()) {
+    repository.reaction(songIdValue, accountIdValue)
+}
+```
+
+In short:
+- `value<T>()` is for one stored value in typed `String` or `HashMap` caches
+- raw exact calls infer the result serializer directly
+- `map<K, V>()` is for reading/writing a whole hash bucket
+- `isMember()` is for boolean set membership
+- `enumMember<E>()` is for enum-like set classification
 
 ## Custom naming strategies
 

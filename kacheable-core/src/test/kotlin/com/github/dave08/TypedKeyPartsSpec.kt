@@ -123,25 +123,63 @@ val TypedKeyPartsSpec by testSuite {
             assertNull(store.hashMap["named-song-page-cache:7"]?.get("0,10,en"))
         }
 
-        test("partial invalidation can match a reusable unnamed secondary key part by identity") {
+        test("partial invalidation can use named primary and secondary selectors") {
             val artistId = 7
 
-            cache(typedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
                 TestSong(artistId, "Page EN")
             }
-            cache(typedSongPageCache.key(artistId, PageWindow(0, 10), "he"), returnsAs = value<TestSong>()) {
+            cache(namedSongPageCache.key(artistId, PageWindow(10, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Next EN")
+            }
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "he"), returnsAs = value<TestSong>()) {
                 TestSong(artistId, "Page HE")
             }
+            cache(namedSongPageCache.key(8, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(8, "Other Artist")
+            }
 
-            cache.invalidate(typedSongPageCache.keyPart(artistId, typedLocaleKey("en")))
+            cache.invalidate(namedSongPageCache.keyPart(namedSongPagePrimary(artistId), namedLocaleKey("en")))
 
-            assertEquals("""{"id":7,"title":"Page HE"}""", store.hashMap["song-page-cache:7"]?.get("0,10,he"))
-            assertNull(store.hashMap["song-page-cache:7"]?.get("0,10,en"))
+            assertNull(store.hashMap["named-song-page-cache:7"]?.get("0,10,en"))
+            assertNull(store.hashMap["named-song-page-cache:7"]?.get("10,10,en"))
+            assertEquals("""{"id":7,"title":"Page HE"}""", store.hashMap["named-song-page-cache:7"]?.get("0,10,he"))
+            assertEquals("""{"id":8,"title":"Other Artist"}""", store.hashMap["named-song-page-cache:8"]?.get("0,10,en"))
         }
 
-        test("partial invalidation rejects anonymous ad hoc secondary key parts") {
+        test("partial invalidation can use named primary selector for grouped hash invalidation") {
+            val artistId = 7
+
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page EN")
+            }
+            cache(namedSongPageCache.key(artistId, PageWindow(10, 10), "he"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page HE")
+            }
+            cache(namedSongPageCache.key(8, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(8, "Other Artist")
+            }
+
+            cache.invalidate(namedSongPageCache.keyPart(namedSongPagePrimary(artistId)))
+
+            assertNull(store.hashMap["named-song-page-cache:7"])
+            assertEquals("""{"id":8,"title":"Other Artist"}""", store.hashMap["named-song-page-cache:8"]?.get("0,10,en"))
+        }
+
+        test("partial invalidation rejects secondary selectors without a primary selector") {
             assertFailsWith<IllegalArgumentException> {
-                typedSongPageCache.keyPart(7, keyPart<String>()("en"))
+                namedSongPageCache.keyPart(namedLocaleKey("en"))
+            }
+        }
+
+        listOf(
+            "reusable unnamed secondary key part" to { typedLocaleKey("en") },
+            "anonymous ad hoc secondary key part" to { keyPart<String>()("en") },
+        ).forEach { (caseName, selection) ->
+            test("partial invalidation rejects $caseName") {
+                assertFailsWith<IllegalArgumentException> {
+                    typedSongPageCache.keyPart(7, selection())
+                }
             }
         }
 
@@ -211,6 +249,43 @@ val TypedKeyPartsSpec by testSuite {
             assertEquals(listOf("locale"), entryRef.cacheArgs.secondaryPartNames)
             assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
             assertEquals(listOf("en"), entryRef.cacheArgs.secondary?.toList())
+        }
+
+        listOf(
+            "hash primary composition" to {
+                entryKey(
+                    "duplicate-hash-primary-cache",
+                    keyPart<Int>("songId") + keyPart<String>("songId"),
+                    storedAs = CacheStorage.HashMap,
+                )
+            },
+            "hash primary-secondary composition" to {
+                entryKey(
+                    "duplicate-hash-layered-cache",
+                    keyPart<Int>("songId") * keyPart<String>("songId"),
+                    storedAs = CacheStorage.HashMap,
+                )
+            },
+            "hash secondary composition" to {
+                entryKey(
+                    "duplicate-hash-secondary-cache",
+                    keyPart<Int>("artist") * (keyPart<String>("locale") + keyPart<String>("locale")),
+                    storedAs = CacheStorage.HashMap,
+                )
+            },
+            "set primary-secondary composition" to {
+                entryKey(
+                    "duplicate-set-layered-cache",
+                    keyPart<Int>("songId") * keyPart<String>("songId"),
+                    storedAs = CacheStorage.Set,
+                )
+            },
+        ).forEach { (caseName, buildEntryRef) ->
+            test("entry keys reject duplicate named parts for $caseName") {
+                assertFailsWith<IllegalArgumentException> {
+                    buildEntryRef()
+                }
+            }
         }
 
         test("secondary mappers can encode multiple fields from one parameter") {

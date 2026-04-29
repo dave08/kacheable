@@ -8,6 +8,23 @@ import com.github.dave08.kacheable.HashMapCacheEntryRef
 import com.github.dave08.kacheable.HashMapCacheReturn
 import com.github.dave08.kacheable.IsMemberCacheReturn
 import com.github.dave08.kacheable.SetMembershipCacheEntryRef
+import com.github.dave08.kacheable.StringCacheEntryRef
+import com.github.dave08.kacheable.ValueCacheReturn
+
+@ExperimentalKacheableApi
+operator fun <R> BlockingKacheable.invoke(
+    entryRef: StringCacheEntryRef,
+    returnsAs: ValueCacheReturn<R>,
+    cacheIf: (R) -> Boolean = { true },
+    block: () -> R,
+): R = invoke(
+    name = entryRef.name,
+    codec = returnsAs.codec,
+    cacheArgs = entryRef.cacheArgs,
+    storageLayout = entryRef.storageLayout,
+    saveResultIf = cacheIf,
+    block = block,
+)
 
 @ExperimentalKacheableApi
 operator fun <R> BlockingKacheable.invoke(

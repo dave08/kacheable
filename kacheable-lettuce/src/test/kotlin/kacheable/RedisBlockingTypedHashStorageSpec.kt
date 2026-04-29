@@ -75,7 +75,12 @@ val RedisBlockingTypedHashStorageSpec by testSuite {
                 Bar(artistId, "Page HE 1")
             }
 
-            cache.invalidate(redisBlockingArtistSongsByLocaleCache.keyPart(artistId, redisBlockingLocaleKey("en")))
+            cache.invalidate(
+                redisBlockingArtistSongsByLocaleCache.keyPart(
+                    redisBlockingArtistPagePrimaryKey(artistId),
+                    redisBlockingLocaleKey("en"),
+                ),
+            )
 
             expect {
                 that(commands.hget("blocking-artist-page-cache:$artistId", "1,he"))

@@ -17,27 +17,85 @@ private fun buildSecondaryPatternPartArgs(
 
     val selectedArgsByIndex = mutableMapOf<Int, CacheArgs>()
     selections.forEach { selection ->
+        val selectionName = requireNotNull(selection.name) {
+            "Partial invalidation requires named key parts. Use keyPart<T>(\"name\") or delegated key parts."
+        }
         val matches = secondaryParts.withIndex().filter { (_, part) ->
-            (part === selection.keyPart) ||
-                (selection.name != null && part.name == selection.name && selection.args.sizeMatches(part.segmentCount))
+            part.name == selectionName && selection.args.sizeMatches(part.segmentCount)
         }
 
         require(matches.isNotEmpty()) {
-            "Selected key part ${selection.name ?: "<anonymous>"} is not part of this entryKey."
+            "Selected key part $selectionName is not part of this entryKey."
         }
         require(matches.size == 1) {
-            "Selected key part ${selection.name ?: "<anonymous>"} matches more than one secondary key part."
+            "Selected key part $selectionName matches more than one secondary key part."
         }
 
         val index = matches.single().index
         require(selectedArgsByIndex.put(index, selection.args) == null) {
-            "Secondary key part ${selection.name ?: "<anonymous>"} was selected more than once."
+            "Secondary key part $selectionName was selected more than once."
         }
     }
 
     return secondaryParts.mapIndexed { index, part ->
         selectedArgsByIndex[index] ?: wildcardPartArgs(part)
     }
+}
+
+private fun buildLayeredHashPartRef(
+    name: String,
+    primaryParts: List<KeyPart<*>>,
+    secondaryParts: List<KeyPart<*>>,
+    selections: Array<out KeyPartValue>,
+): CacheEntryPartRef {
+    require(selections.isNotEmpty()) { "Partial invalidation requires at least one selected key part." }
+
+    val selectionsByName = selections.associateByName()
+    val primaryPartArgs = primaryParts.map { primaryPart ->
+        val primaryName = requireNotNull(primaryPart.name) {
+            "Partial invalidation requires named primary key parts. Use keyPart<T>(\"name\") or delegated key parts."
+        }
+        requireNotNull(selectionsByName.remove(primaryName)) {
+            "Partial hash invalidation requires all primary key parts. Primary wildcard invalidation is not supported."
+        }.args.also { args ->
+            require(args.sizeMatches(primaryPart.segmentCount)) {
+                "Selected key part $primaryName has the wrong number of cache segments."
+            }
+        }
+    }
+
+    val secondarySelections = selectionsByName.map { (selectionName, selection) ->
+        require(secondaryParts.any { part -> part.name == selectionName }) {
+            "Selected key part $selectionName is not part of this entryKey."
+        }
+        selection
+    }.toTypedArray()
+
+    return SimpleCacheEntryPartRef(
+        name = name,
+        args = joinArgs(*primaryPartArgs.toTypedArray()),
+        storageLayout = CacheStorageLayout.HashValue,
+        secondaryPatternPartArgs = secondarySelections
+            .takeIf { it.isNotEmpty() }
+            ?.let { buildSecondaryPatternPartArgs(secondaryParts, it) },
+        cacheArgs = cacheArgs(
+            primaryPartArgs = primaryPartArgs,
+            primaryPartNames = primaryParts.map { it.name },
+        ),
+    )
+}
+
+private fun Array<out KeyPartValue>.associateByName(): MutableMap<String, KeyPartValue> {
+    val selectionsByName = mutableMapOf<String, KeyPartValue>()
+    forEach { selection ->
+        val selectionName = requireNotNull(selection.name) {
+            "Partial invalidation requires named key parts. Use keyPart<T>(\"name\") or delegated key parts."
+        }
+        require(selectionsByName.put(selectionName, selection) == null) {
+            "Key part $selectionName was selected more than once."
+        }
+    }
+    return selectionsByName
 }
 
 private fun CacheArgs.sizeMatches(expectedSize: Int?): Boolean = expectedSize == null || toParamsArray().size == expectedSize
@@ -204,6 +262,9 @@ data class HashMapStoredCache2<P1 : Any, P2 : Any>(
                 ),
             )
         }
+
+    fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
+        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }
 
 @ExperimentalKacheableApi
@@ -257,6 +318,9 @@ data class HashMapStoredCache3<P1 : Any, P2 : Any, P3 : Any>(
                 ),
             )
         }
+
+    fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
+        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }
 
 @ExperimentalKacheableApi
@@ -310,6 +374,9 @@ data class HashMapStoredCache4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
                 ),
             )
         }
+
+    fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
+        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }
 
 @ExperimentalKacheableApi
@@ -363,6 +430,9 @@ data class HashMapStoredCache5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>
                 ),
             )
         }
+
+    fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
+        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }
 
 @ExperimentalKacheableApi
@@ -416,4 +486,7 @@ data class HashMapStoredCache6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
                 ),
             )
         }
+
+    fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
+        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }

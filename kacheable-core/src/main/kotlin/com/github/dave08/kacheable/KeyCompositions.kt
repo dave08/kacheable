@@ -7,6 +7,10 @@ data class KeyPartComposition2<P1 : Any, P2 : Any>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
 ) {
+    init {
+        validateUniqueKeyPartNames(partNames())
+    }
+
     fun encode(p1: P1, p2: P2): CacheArgs = joinArgs(first.encode(p1), second.encode(p2))
     internal fun encodeParts(p1: P1, p2: P2): List<CacheArgs> = listOf(first.encodePart(p1), second.encodePart(p2))
     internal fun partNames(): List<String?> = listOf(first.name, second.name)
@@ -18,6 +22,10 @@ data class KeyPartComposition3<P1 : Any, P2 : Any, P3 : Any>(
     val second: KeyPart<P2>,
     val third: KeyPart<P3>,
 ) {
+    init {
+        validateUniqueKeyPartNames(partNames())
+    }
+
     fun encode(p1: P1, p2: P2, p3: P3): CacheArgs = joinArgs(first.encode(p1), second.encode(p2), third.encode(p3))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3): List<CacheArgs> =
         listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3))
@@ -31,6 +39,10 @@ data class KeyPartComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     val third: KeyPart<P3>,
     val fourth: KeyPart<P4>,
 ) {
+    init {
+        validateUniqueKeyPartNames(partNames())
+    }
+
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4): List<CacheArgs> =
@@ -46,6 +58,10 @@ data class KeyPartComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>
     val fourth: KeyPart<P4>,
     val fifth: KeyPart<P5>,
 ) {
+    init {
+        validateUniqueKeyPartNames(partNames())
+    }
+
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4), fifth.encode(p5))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> =
@@ -62,6 +78,10 @@ data class KeyPartComposition6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
     val fifth: KeyPart<P5>,
     val sixth: KeyPart<P6>,
 ) {
+    init {
+        validateUniqueKeyPartNames(partNames())
+    }
+
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): CacheArgs =
         joinArgs(
             first.encode(p1),
@@ -88,6 +108,10 @@ data class KeyPartCompositionGroup2<P1 : Any, P2 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPart<P2>,
 ) {
+    init {
+        validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
+    }
+
     internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
     internal fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2): List<CacheArgs> = listOf(secondary.encodePart(p2))
@@ -100,6 +124,10 @@ data class KeyPartCompositionGroup3<P1 : Any, P2 : Any, P3 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition2<P2, P3>,
 ) {
+    init {
+        validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
+    }
+
     internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
     internal fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3): List<CacheArgs> = secondary.encodeParts(p2, p3)
@@ -112,6 +140,10 @@ data class KeyPartCompositionGroup4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition3<P2, P3, P4>,
 ) {
+    init {
+        validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
+    }
+
     internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
     internal fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4): List<CacheArgs> = secondary.encodeParts(p2, p3, p4)
@@ -124,6 +156,10 @@ data class KeyPartCompositionGroup5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 :
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition4<P2, P3, P4, P5>,
 ) {
+    init {
+        validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
+    }
+
     internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
     internal fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> = secondary.encodeParts(p2, p3, p4, p5)
@@ -136,6 +172,10 @@ data class KeyPartCompositionGroup6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 :
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition5<P2, P3, P4, P5, P6>,
 ) {
+    init {
+        validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
+    }
+
     internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
     internal fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): List<CacheArgs> =
