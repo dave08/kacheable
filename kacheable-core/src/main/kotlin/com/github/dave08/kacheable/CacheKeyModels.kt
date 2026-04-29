@@ -79,6 +79,64 @@ internal data class SimpleCacheEntryPartRef(
 ) : CacheEntryPartRef
 
 @PublishedApi
+internal data class ResolvedPrimaryKey(
+    val primaryPartArgs: List<CacheArgs>,
+    val primaryPartNames: List<String?>,
+) {
+    val cacheArgs: PrimarySecondaryCacheArgs = cacheArgs(
+        primaryPartArgs = primaryPartArgs,
+        primaryPartNames = primaryPartNames,
+    )
+
+    val primaryArgs: CacheArgs = cacheArgs.primary
+
+    fun stringEntryRef(name: String): StringCacheEntryRef = StringCacheEntryRef(name, cacheArgs)
+
+    fun hashEntryRef(name: String): HashMapCacheEntryRef = HashMapCacheEntryRef(name, cacheArgs)
+
+    fun setEntryRef(name: String): SetMembershipCacheEntryRef = SetMembershipCacheEntryRef(name, cacheArgs)
+
+    fun setPartRef(name: String): SetMembershipCachePartRef = SetMembershipCachePartRef(name, cacheArgs)
+
+    fun partRef(
+        name: String,
+        storageLayout: CacheStorageLayout,
+        args: CacheArgs = primaryArgs,
+        secondaryPatternPartArgs: List<CacheArgs>? = null,
+    ): CacheEntryPartRef = SimpleCacheEntryPartRef(
+        name = name,
+        args = args,
+        storageLayout = storageLayout,
+        secondaryPatternPartArgs = secondaryPatternPartArgs,
+        cacheArgs = cacheArgs,
+    )
+}
+
+@PublishedApi
+internal data class ResolvedPrimarySecondaryKey(
+    val primaryPartArgs: List<CacheArgs>,
+    val primaryPartNames: List<String?>,
+    val secondaryPartArgs: List<CacheArgs>,
+    val secondaryPartNames: List<String?>,
+) {
+    val cacheArgs: PrimarySecondaryCacheArgs = cacheArgs(
+        primaryPartArgs = primaryPartArgs,
+        primaryPartNames = primaryPartNames,
+        secondaryPartArgs = secondaryPartArgs,
+        secondaryPartNames = secondaryPartNames,
+    )
+
+    val primary: ResolvedPrimaryKey = ResolvedPrimaryKey(
+        primaryPartArgs = primaryPartArgs,
+        primaryPartNames = primaryPartNames,
+    )
+
+    fun hashEntryRef(name: String): HashMapCacheEntryRef = HashMapCacheEntryRef(name, cacheArgs)
+
+    fun setEntryRef(name: String): SetMembershipCacheEntryRef = SetMembershipCacheEntryRef(name, cacheArgs)
+}
+
+@PublishedApi
 internal data class SimpleSecondaryKeyPart<P1 : Any>(
     override val name: String? = null,
     private val encoders: List<(P1) -> Any>,
@@ -119,6 +177,27 @@ internal fun <P1 : Any> KeyPart<P1>.withName(name: String): KeyPart<P1> =
         else -> NamedKeyPart(name, this)
     }
 
+@PublishedApi
+internal fun typedPrimaryKey(
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+): ResolvedPrimaryKey = ResolvedPrimaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+)
+
+@PublishedApi
+internal fun typedPrimarySecondaryKey(
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+    secondaryPartArgs: List<CacheArgs>,
+    secondaryPartNames: List<String?>,
+): ResolvedPrimarySecondaryKey = ResolvedPrimarySecondaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+    secondaryPartArgs = secondaryPartArgs,
+    secondaryPartNames = secondaryPartNames,
+)
 
 @PublishedApi
 internal fun cacheArgs(

@@ -8,10 +8,18 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.HashMapCacheEntryRef
 import com.github.dave08.kacheable.SetMembershipCacheEntryRef
 import com.github.dave08.kacheable.SetMembershipCachePartRef
+import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StringCacheEntryRef
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: StringCacheEntryRef) {
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
+    }
+}
+
+@ExperimentalKacheableApi
+fun BlockingKacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
     }

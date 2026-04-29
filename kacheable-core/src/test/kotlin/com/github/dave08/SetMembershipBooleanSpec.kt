@@ -3,6 +3,7 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.invalidate
@@ -127,6 +128,20 @@ val SetMembershipBooleanSpec by testSuite {
             assertTrue(second)
             assertEquals(1, calls)
             store.assertSetMember(artistFollowersKey(artistId), accountId)
+        }
+
+        test("blocking set membership invalidation removes a single cached member") {
+            val artistId = 3
+            val accountId = 7
+            val otherAccountId = 8
+
+            cache(artistFollowerCache.key(artistId, accountId), returnsAs = isMember()) { true }
+            cache(artistFollowerCache.key(artistId, otherAccountId), returnsAs = isMember()) { true }
+
+            cache.invalidate(artistFollowerCache.key(artistId, accountId))
+
+            store.assertSetDoesNotContain(artistFollowersKey(artistId), accountId)
+            store.assertSetMember(artistFollowersKey(artistId), otherAccountId)
         }
     }
 }

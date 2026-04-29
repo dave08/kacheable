@@ -3,6 +3,7 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.enumMember
@@ -118,6 +119,20 @@ val SetMembershipEnumSpec by testSuite {
             assertEquals(SongLike.DISLIKE, second)
             assertEquals(1, calls)
             store.assertSetMember(songLikeKey(songId, SongLike.DISLIKE), accountId)
+        }
+
+        test("blocking classified set invalidation removes a cached member from all enum sets") {
+            val songId = 3
+            val accountId = 7
+            val otherAccountId = 8
+
+            cache(songLikeCache.key(songId, accountId), returnsAs = enumMember<SongLike>()) { SongLike.DISLIKE }
+            cache(songLikeCache.key(songId, otherAccountId), returnsAs = enumMember<SongLike>()) { SongLike.LIKE }
+
+            cache.invalidate(songLikeCache.key(songId, accountId), returnsAs = enumMember<SongLike>())
+
+            store.assertSetDoesNotContain(songLikeKey(songId, SongLike.DISLIKE), accountId)
+            store.assertSetMember(songLikeKey(songId, SongLike.LIKE), otherAccountId)
         }
     }
 }

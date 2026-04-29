@@ -10,6 +10,13 @@ suspend fun Kacheable.invalidate(vararg entryRefs: StringCacheEntryRef) {
 }
 
 @ExperimentalKacheableApi
+suspend fun Kacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
+    entryRefs.forEach { entryRef ->
+        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
+    }
+}
+
+@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: HashMapCacheEntryRef) {
     entryRefs.forEach { entryRef ->
         invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}

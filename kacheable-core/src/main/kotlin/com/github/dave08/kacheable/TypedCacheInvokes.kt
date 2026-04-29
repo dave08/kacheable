@@ -4,6 +4,21 @@ package com.github.dave08.kacheable
 
 @ExperimentalKacheableApi
 suspend operator fun <R> Kacheable.invoke(
+    entryRef: StoredCacheEntryRef<*>,
+    returnsAs: CacheReturn<R>,
+    cacheIf: (R) -> Boolean = { true },
+    block: suspend () -> R,
+): R = invoke(
+    name = entryRef.name,
+    codec = returnsAs.codec,
+    cacheArgs = entryRef.cacheArgs,
+    storageLayout = entryRef.storageLayout,
+    saveResultIf = cacheIf,
+    block = block,
+)
+
+@ExperimentalKacheableApi
+suspend operator fun <R> Kacheable.invoke(
     entryRef: StringCacheEntryRef,
     returnsAs: ValueCacheReturn<R>,
     cacheIf: (R) -> Boolean = { true },

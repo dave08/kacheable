@@ -88,6 +88,22 @@ val TypedExactApiSpec by testSuite {
             assertNull(store.get("song-cache:21"))
         }
 
+        test("typed string storage exact entry refs invalidate one flat value") {
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.String)
+
+            cache(songCache.key(21), returnsAs = value<TestSong>()) {
+                TestSong(21, "Typed String")
+            }
+            cache(songCache.key(22), returnsAs = value<TestSong>()) {
+                TestSong(22, "Other")
+            }
+
+            cache.invalidate(songCache.key(21))
+
+            assertNull(store.get("song-cache:21"))
+            assertEquals("""{"id":22,"title":"Other"}""", store.get("song-cache:22"))
+        }
+
         test("stored exact refs can still use typed return views") {
             val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.HashMap)
             val songId = 21
@@ -109,6 +125,20 @@ val TypedExactApiSpec by testSuite {
 
             assertEquals(TestSong(9, "Live"), result)
             assertNull(store.get("song-cache:9"))
+        }
+    }
+
+    testFixture {
+        SuspendCacheFixture(namingStrategy = bracketedKeyStrategy)
+    } asContextForEach {
+        test("typed string storage uses the configured naming strategy for exact keys") {
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.String)
+
+            cache(songCache.key(21), returnsAs = value<TestSong>()) {
+                TestSong(21, "Typed String")
+            }
+
+            assertEquals("""{"id":21,"title":"Typed String"}""", store.get("song-cache[21]"))
         }
     }
 }

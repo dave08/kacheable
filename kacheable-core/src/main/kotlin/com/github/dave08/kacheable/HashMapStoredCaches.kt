@@ -85,6 +85,79 @@ private fun buildLayeredHashPartRef(
     )
 }
 
+private fun typedHashPrimaryKey(
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+): ResolvedPrimaryKey = typedPrimaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+)
+
+private fun typedHashPrimarySecondaryKey(
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+    secondaryPartArgs: List<CacheArgs>,
+    secondaryPartNames: List<String?>,
+): ResolvedPrimarySecondaryKey = typedPrimarySecondaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+    secondaryPartArgs = secondaryPartArgs,
+    secondaryPartNames = secondaryPartNames,
+)
+
+private fun hashEntryRef(
+    name: String,
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+): HashMapCacheEntryRef = typedHashPrimaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+).hashEntryRef(name)
+
+private fun hashPartRef(
+    name: String,
+    args: CacheArgs,
+    primaryPartArgs: List<CacheArgs>,
+    primaryPartNames: List<String?>,
+): CacheEntryPartRef = typedHashPrimaryKey(
+    primaryPartArgs = primaryPartArgs,
+    primaryPartNames = primaryPartNames,
+).partRef(
+    name = name,
+    args = args,
+    storageLayout = CacheStorageLayout.HashValue,
+)
+
+private fun <P1 : Any> hashEntryRef(
+    name: String,
+    key: TypedPrimarySecondaryKeyDefinition<P1>,
+    primaryValue: P1,
+): HashMapCacheEntryRef = typedHashPrimaryKey(
+    primaryPartArgs = key.encodePrimaryParts(primaryValue),
+    primaryPartNames = key.primaryPartNames(),
+).hashEntryRef(name)
+
+private fun <P1 : Any> hashPrimaryPartRef(
+    name: String,
+    key: TypedPrimarySecondaryKeyDefinition<P1>,
+    primaryValue: P1,
+    secondaryPatternPartArgs: List<CacheArgs>? = null,
+): CacheEntryPartRef = typedHashPrimaryKey(
+    primaryPartArgs = key.encodePrimaryParts(primaryValue),
+    primaryPartNames = key.primaryPartNames(),
+).partRef(
+    name = name,
+    args = key.primary.encode(primaryValue),
+    storageLayout = CacheStorageLayout.HashValue,
+    secondaryPatternPartArgs = secondaryPatternPartArgs,
+)
+
+private fun <P1 : Any> groupedHashPartRef(
+    name: String,
+    key: TypedPrimarySecondaryKeyDefinition<P1>,
+    selections: Array<out KeyPartValue>,
+): CacheEntryPartRef = buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+
 private fun Array<out KeyPartValue>.associateByName(): MutableMap<String, KeyPartValue> {
     val selectionsByName = mutableMapOf<String, KeyPartValue>()
     forEach { selection ->
@@ -101,392 +174,191 @@ private fun Array<out KeyPartValue>.associateByName(): MutableMap<String, KeyPar
 private fun CacheArgs.sizeMatches(expectedSize: Int?): Boolean = expectedSize == null || toParamsArray().size == expectedSize
 
 @ExperimentalKacheableApi
-data class HashMapPrimaryKey<P1 : Any>(
-    val name: String,
-    val key: KeyPart<P1>,
-) {
-    fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = listOf(key.encodePart(p1)),
-                primaryPartNames = listOf(key.name),
-            ),
-        )
-
-    fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = listOf(key.encodePart(value)),
-                primaryPartNames = listOf(key.name),
-            ),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapPrimaryKey2<P1 : Any, P2 : Any>(
-    val name: String,
-    val key: KeyPartComposition2<P1, P2>,
-) {
-    fun key(p1: P1, p2: P2): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(name, cacheArgs(key.encodeParts(p1, p2), key.partNames()))
-
-    fun keyPart(p1: P1, p2: P2): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(p1, p2),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(key.encodeParts(p1, p2), key.partNames()),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapPrimaryKey3<P1 : Any, P2 : Any, P3 : Any>(
-    val name: String,
-    val key: KeyPartComposition3<P1, P2, P3>,
-) {
-    fun key(p1: P1, p2: P2, p3: P3): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(name, cacheArgs(key.encodeParts(p1, p2, p3), key.partNames()))
-
-    fun keyPart(p1: P1, p2: P2, p3: P3): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(p1, p2, p3),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(key.encodeParts(p1, p2, p3), key.partNames()),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapPrimaryKey4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
-    val name: String,
-    val key: KeyPartComposition4<P1, P2, P3, P4>,
-) {
-    fun key(p1: P1, p2: P2, p3: P3, p4: P4): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(name, cacheArgs(key.encodeParts(p1, p2, p3, p4), key.partNames()))
-
-    fun keyPart(p1: P1, p2: P2, p3: P3, p4: P4): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(p1, p2, p3, p4),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(key.encodeParts(p1, p2, p3, p4), key.partNames()),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapPrimaryKey5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
-    val name: String,
-    val key: KeyPartComposition5<P1, P2, P3, P4, P5>,
-) {
-    fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(name, cacheArgs(key.encodeParts(p1, p2, p3, p4, p5), key.partNames()))
-
-    fun keyPart(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(p1, p2, p3, p4, p5),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(key.encodeParts(p1, p2, p3, p4, p5), key.partNames()),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapPrimaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
-    val name: String,
-    val key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
-) {
-    fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(name, cacheArgs(key.encodeParts(p1, p2, p3, p4, p5, p6), key.partNames()))
-
-    fun keyPart(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.encode(p1, p2, p3, p4, p5, p6),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(key.encodeParts(p1, p2, p3, p4, p5, p6), key.partNames()),
-        )
-}
-
-@ExperimentalKacheableApi
-data class HashMapStoredCache2<P1 : Any, P2 : Any>(
+data class TypedPrimarySecondaryKey2<P1 : Any, P2 : Any>(
     val name: String,
     val key: KeyPartCompositionGroup2<P1, P2>,
 ) {
     fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashEntryRef(name, key, p1)
 
     fun key(p1: P1, p2: P2): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name = name,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-                secondaryPartArgs = key.encodeSecondaryParts(p2),
-                secondaryPartNames = key.secondaryPartNames(),
-            ),
-        )
+        typedHashPrimarySecondaryKey(
+            primaryPartArgs = key.encodePrimaryParts(p1),
+            primaryPartNames = key.primaryPartNames(),
+            secondaryPartArgs = key.encodeSecondaryParts(p2),
+            secondaryPartNames = key.secondaryPartNames(),
+        ).hashEntryRef(name)
 
     fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.primary.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(value),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashPrimaryPartRef(name, key, value)
 
     fun keyPart(value: P1, vararg secondaryParts: KeyPartValue): CacheEntryPartRef =
         if (secondaryParts.isEmpty()) {
             keyPart(value)
         } else {
-            SimpleCacheEntryPartRef(
+            hashPrimaryPartRef(
                 name = name,
-                args = key.primary.encode(value),
-                storageLayout = CacheStorageLayout.HashValue,
+                key = key,
+                primaryValue = value,
                 secondaryPatternPartArgs = buildSecondaryPatternPartArgs(key.secondaryParts(), secondaryParts),
-                cacheArgs = cacheArgs(
-                    primaryPartArgs = key.encodePrimaryParts(value),
-                    primaryPartNames = key.primaryPartNames(),
-                ),
             )
         }
 
     fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
-        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+        groupedHashPartRef(name, key, selections)
 }
 
 @ExperimentalKacheableApi
-data class HashMapStoredCache3<P1 : Any, P2 : Any, P3 : Any>(
+data class TypedPrimarySecondaryKey3<P1 : Any, P2 : Any, P3 : Any>(
     val name: String,
     val key: KeyPartCompositionGroup3<P1, P2, P3>,
 ) {
     fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashEntryRef(name, key, p1)
 
     fun key(p1: P1, p2: P2, p3: P3): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name = name,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-                secondaryPartArgs = key.encodeSecondaryParts(p2, p3),
-                secondaryPartNames = key.secondaryPartNames(),
-            ),
-        )
+        typedHashPrimarySecondaryKey(
+            primaryPartArgs = key.encodePrimaryParts(p1),
+            primaryPartNames = key.primaryPartNames(),
+            secondaryPartArgs = key.encodeSecondaryParts(p2, p3),
+            secondaryPartNames = key.secondaryPartNames(),
+        ).hashEntryRef(name)
 
     fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.primary.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(value),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashPrimaryPartRef(name, key, value)
 
     fun keyPart(value: P1, vararg secondaryParts: KeyPartValue): CacheEntryPartRef =
         if (secondaryParts.isEmpty()) {
             keyPart(value)
         } else {
-            SimpleCacheEntryPartRef(
+            hashPrimaryPartRef(
                 name = name,
-                args = key.primary.encode(value),
-                storageLayout = CacheStorageLayout.HashValue,
+                key = key,
+                primaryValue = value,
                 secondaryPatternPartArgs = buildSecondaryPatternPartArgs(key.secondaryParts(), secondaryParts),
-                cacheArgs = cacheArgs(
-                    primaryPartArgs = key.encodePrimaryParts(value),
-                    primaryPartNames = key.primaryPartNames(),
-                ),
             )
         }
 
     fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
-        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+        groupedHashPartRef(name, key, selections)
 }
 
 @ExperimentalKacheableApi
-data class HashMapStoredCache4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
+data class TypedPrimarySecondaryKey4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     val name: String,
     val key: KeyPartCompositionGroup4<P1, P2, P3, P4>,
 ) {
     fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashEntryRef(name, key, p1)
 
     fun key(p1: P1, p2: P2, p3: P3, p4: P4): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name = name,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-                secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4),
-                secondaryPartNames = key.secondaryPartNames(),
-            ),
-        )
+        typedHashPrimarySecondaryKey(
+            primaryPartArgs = key.encodePrimaryParts(p1),
+            primaryPartNames = key.primaryPartNames(),
+            secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4),
+            secondaryPartNames = key.secondaryPartNames(),
+        ).hashEntryRef(name)
 
     fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.primary.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(value),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashPrimaryPartRef(name, key, value)
 
     fun keyPart(value: P1, vararg secondaryParts: KeyPartValue): CacheEntryPartRef =
         if (secondaryParts.isEmpty()) {
             keyPart(value)
         } else {
-            SimpleCacheEntryPartRef(
+            hashPrimaryPartRef(
                 name = name,
-                args = key.primary.encode(value),
-                storageLayout = CacheStorageLayout.HashValue,
+                key = key,
+                primaryValue = value,
                 secondaryPatternPartArgs = buildSecondaryPatternPartArgs(key.secondaryParts(), secondaryParts),
-                cacheArgs = cacheArgs(
-                    primaryPartArgs = key.encodePrimaryParts(value),
-                    primaryPartNames = key.primaryPartNames(),
-                ),
             )
         }
 
     fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
-        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+        groupedHashPartRef(name, key, selections)
 }
 
 @ExperimentalKacheableApi
-data class HashMapStoredCache5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
+data class TypedPrimarySecondaryKey5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
     val name: String,
     val key: KeyPartCompositionGroup5<P1, P2, P3, P4, P5>,
 ) {
     fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashEntryRef(name, key, p1)
 
     fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name = name,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-                secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4, p5),
-                secondaryPartNames = key.secondaryPartNames(),
-            ),
-        )
+        typedHashPrimarySecondaryKey(
+            primaryPartArgs = key.encodePrimaryParts(p1),
+            primaryPartNames = key.primaryPartNames(),
+            secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4, p5),
+            secondaryPartNames = key.secondaryPartNames(),
+        ).hashEntryRef(name)
 
     fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.primary.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(value),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashPrimaryPartRef(name, key, value)
 
     fun keyPart(value: P1, vararg secondaryParts: KeyPartValue): CacheEntryPartRef =
         if (secondaryParts.isEmpty()) {
             keyPart(value)
         } else {
-            SimpleCacheEntryPartRef(
+            hashPrimaryPartRef(
                 name = name,
-                args = key.primary.encode(value),
-                storageLayout = CacheStorageLayout.HashValue,
+                key = key,
+                primaryValue = value,
                 secondaryPatternPartArgs = buildSecondaryPatternPartArgs(key.secondaryParts(), secondaryParts),
-                cacheArgs = cacheArgs(
-                    primaryPartArgs = key.encodePrimaryParts(value),
-                    primaryPartNames = key.primaryPartNames(),
-                ),
             )
         }
 
     fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
-        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+        groupedHashPartRef(name, key, selections)
 }
 
 @ExperimentalKacheableApi
-data class HashMapStoredCache6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
+data class TypedPrimarySecondaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
     val name: String,
     val key: KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6>,
 ) {
     fun key(p1: P1): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name,
-            cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashEntryRef(name, key, p1)
 
     fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): HashMapCacheEntryRef =
-        HashMapCacheEntryRef(
-            name = name,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(p1),
-                primaryPartNames = key.primaryPartNames(),
-                secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4, p5, p6),
-                secondaryPartNames = key.secondaryPartNames(),
-            ),
-        )
+        typedHashPrimarySecondaryKey(
+            primaryPartArgs = key.encodePrimaryParts(p1),
+            primaryPartNames = key.primaryPartNames(),
+            secondaryPartArgs = key.encodeSecondaryParts(p2, p3, p4, p5, p6),
+            secondaryPartNames = key.secondaryPartNames(),
+        ).hashEntryRef(name)
 
     fun keyPart(value: P1): CacheEntryPartRef =
-        SimpleCacheEntryPartRef(
-            name = name,
-            args = key.primary.encode(value),
-            storageLayout = CacheStorageLayout.HashValue,
-            cacheArgs = cacheArgs(
-                primaryPartArgs = key.encodePrimaryParts(value),
-                primaryPartNames = key.primaryPartNames(),
-            ),
-        )
+        hashPrimaryPartRef(name, key, value)
 
     fun keyPart(value: P1, vararg secondaryParts: KeyPartValue): CacheEntryPartRef =
         if (secondaryParts.isEmpty()) {
             keyPart(value)
         } else {
-            SimpleCacheEntryPartRef(
+            hashPrimaryPartRef(
                 name = name,
-                args = key.primary.encode(value),
-                storageLayout = CacheStorageLayout.HashValue,
+                key = key,
+                primaryValue = value,
                 secondaryPatternPartArgs = buildSecondaryPatternPartArgs(key.secondaryParts(), secondaryParts),
-                cacheArgs = cacheArgs(
-                    primaryPartArgs = key.encodePrimaryParts(value),
-                    primaryPartNames = key.primaryPartNames(),
-                ),
             )
         }
 
     fun keyPart(vararg selections: KeyPartValue): CacheEntryPartRef =
-        buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
+        groupedHashPartRef(name, key, selections)
 }
+
+@Deprecated("Use TypedPrimarySecondaryKey2 instead.")
+typealias HashMapStoredCache2<P1, P2> = TypedPrimarySecondaryKey2<P1, P2>
+
+@Deprecated("Use TypedPrimarySecondaryKey3 instead.")
+typealias HashMapStoredCache3<P1, P2, P3> = TypedPrimarySecondaryKey3<P1, P2, P3>
+
+@Deprecated("Use TypedPrimarySecondaryKey4 instead.")
+typealias HashMapStoredCache4<P1, P2, P3, P4> = TypedPrimarySecondaryKey4<P1, P2, P3, P4>
+
+@Deprecated("Use TypedPrimarySecondaryKey5 instead.")
+typealias HashMapStoredCache5<P1, P2, P3, P4, P5> = TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5>
+
+@Deprecated("Use TypedPrimarySecondaryKey6 instead.")
+typealias HashMapStoredCache6<P1, P2, P3, P4, P5, P6> = TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6>

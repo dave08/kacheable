@@ -2,18 +2,32 @@
 
 package com.github.dave08.kacheable
 
+@PublishedApi
+internal interface TypedPrimaryKeyDefinition {
+    fun partNames(): List<String?>
+}
+
+@PublishedApi
+internal interface TypedPrimarySecondaryKeyDefinition<P1 : Any> {
+    val primary: KeyPart<P1>
+    fun encodePrimaryParts(p1: P1): List<CacheArgs>
+    fun primaryPartNames(): List<String?>
+    fun secondaryPartNames(): List<String?>
+    fun secondaryParts(): List<KeyPart<*>>
+}
+
 @ExperimentalKacheableApi
 data class KeyPartComposition2<P1 : Any, P2 : Any>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
-) {
+) : TypedPrimaryKeyDefinition {
     init {
         validateUniqueKeyPartNames(partNames())
     }
 
     fun encode(p1: P1, p2: P2): CacheArgs = joinArgs(first.encode(p1), second.encode(p2))
     internal fun encodeParts(p1: P1, p2: P2): List<CacheArgs> = listOf(first.encodePart(p1), second.encodePart(p2))
-    internal fun partNames(): List<String?> = listOf(first.name, second.name)
+    override fun partNames(): List<String?> = listOf(first.name, second.name)
 }
 
 @ExperimentalKacheableApi
@@ -21,7 +35,7 @@ data class KeyPartComposition3<P1 : Any, P2 : Any, P3 : Any>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
     val third: KeyPart<P3>,
-) {
+) : TypedPrimaryKeyDefinition {
     init {
         validateUniqueKeyPartNames(partNames())
     }
@@ -29,7 +43,7 @@ data class KeyPartComposition3<P1 : Any, P2 : Any, P3 : Any>(
     fun encode(p1: P1, p2: P2, p3: P3): CacheArgs = joinArgs(first.encode(p1), second.encode(p2), third.encode(p3))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3): List<CacheArgs> =
         listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3))
-    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name)
+    override fun partNames(): List<String?> = listOf(first.name, second.name, third.name)
 }
 
 @ExperimentalKacheableApi
@@ -38,7 +52,7 @@ data class KeyPartComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     val second: KeyPart<P2>,
     val third: KeyPart<P3>,
     val fourth: KeyPart<P4>,
-) {
+) : TypedPrimaryKeyDefinition {
     init {
         validateUniqueKeyPartNames(partNames())
     }
@@ -47,7 +61,7 @@ data class KeyPartComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4): List<CacheArgs> =
         listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3), fourth.encodePart(p4))
-    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name)
+    override fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name)
 }
 
 @ExperimentalKacheableApi
@@ -57,7 +71,7 @@ data class KeyPartComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>
     val third: KeyPart<P3>,
     val fourth: KeyPart<P4>,
     val fifth: KeyPart<P5>,
-) {
+) : TypedPrimaryKeyDefinition {
     init {
         validateUniqueKeyPartNames(partNames())
     }
@@ -66,7 +80,7 @@ data class KeyPartComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4), fifth.encode(p5))
     internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> =
         listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3), fourth.encodePart(p4), fifth.encodePart(p5))
-    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name)
+    override fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name)
 }
 
 @ExperimentalKacheableApi
@@ -77,7 +91,7 @@ data class KeyPartComposition6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
     val fourth: KeyPart<P4>,
     val fifth: KeyPart<P5>,
     val sixth: KeyPart<P6>,
-) {
+) : TypedPrimaryKeyDefinition {
     init {
         validateUniqueKeyPartNames(partNames())
     }
@@ -100,88 +114,88 @@ data class KeyPartComposition6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
             fifth.encodePart(p5),
             sixth.encodePart(p6),
         )
-    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name, sixth.name)
+    override fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name, sixth.name)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup2<P1 : Any, P2 : Any>(
-    val primary: KeyPart<P1>,
+    override val primary: KeyPart<P1>,
     val secondary: KeyPart<P2>,
-) {
+) : TypedPrimarySecondaryKeyDefinition<P1> {
     init {
         validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
     }
 
-    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
-    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    override fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    override fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2): List<CacheArgs> = listOf(secondary.encodePart(p2))
-    internal fun secondaryPartNames(): List<String?> = listOf(secondary.name)
-    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary)
+    override fun secondaryPartNames(): List<String?> = listOf(secondary.name)
+    override fun secondaryParts(): List<KeyPart<*>> = listOf(secondary)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup3<P1 : Any, P2 : Any, P3 : Any>(
-    val primary: KeyPart<P1>,
+    override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition2<P2, P3>,
-) {
+) : TypedPrimarySecondaryKeyDefinition<P1> {
     init {
         validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
     }
 
-    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
-    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    override fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    override fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3): List<CacheArgs> = secondary.encodeParts(p2, p3)
-    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
-    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second)
+    override fun secondaryPartNames(): List<String?> = secondary.partNames()
+    override fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
-    val primary: KeyPart<P1>,
+    override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition3<P2, P3, P4>,
-) {
+) : TypedPrimarySecondaryKeyDefinition<P1> {
     init {
         validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
     }
 
-    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
-    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    override fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    override fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4): List<CacheArgs> = secondary.encodeParts(p2, p3, p4)
-    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
-    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third)
+    override fun secondaryPartNames(): List<String?> = secondary.partNames()
+    override fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
-    val primary: KeyPart<P1>,
+    override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition4<P2, P3, P4, P5>,
-) {
+) : TypedPrimarySecondaryKeyDefinition<P1> {
     init {
         validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
     }
 
-    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
-    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    override fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    override fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> = secondary.encodeParts(p2, p3, p4, p5)
-    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
-    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third, secondary.fourth)
+    override fun secondaryPartNames(): List<String?> = secondary.partNames()
+    override fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third, secondary.fourth)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
-    val primary: KeyPart<P1>,
+    override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition5<P2, P3, P4, P5, P6>,
-) {
+) : TypedPrimarySecondaryKeyDefinition<P1> {
     init {
         validateUniqueKeyPartNames(primaryPartNames() + secondaryPartNames())
     }
 
-    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
-    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    override fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    override fun primaryPartNames(): List<String?> = listOf(primary.name)
     internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): List<CacheArgs> =
         secondary.encodeParts(p2, p3, p4, p5, p6)
-    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
-    internal fun secondaryParts(): List<KeyPart<*>> =
+    override fun secondaryPartNames(): List<String?> = secondary.partNames()
+    override fun secondaryParts(): List<KeyPart<*>> =
         listOf(secondary.first, secondary.second, secondary.third, secondary.fourth, secondary.fifth)
 }
 
