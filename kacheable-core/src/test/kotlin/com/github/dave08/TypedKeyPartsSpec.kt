@@ -6,16 +6,23 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheStorageLayout.HashValue
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.argsOf
+import com.github.dave08.kacheable.entryKey
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
 import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.rawKeyPart
+import com.github.dave08.kacheable.times
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+
+private data class DelegatedParts(
+    val songId: com.github.dave08.kacheable.KeyPart<Int>,
+    val locale: com.github.dave08.kacheable.KeyPart<String>,
+)
 
 val TypedKeyPartsSpec by testSuite {
     testFixture {
@@ -50,14 +57,96 @@ val TypedKeyPartsSpec by testSuite {
             assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
             assertEquals(listOf(0, 10, "en"), entryRef.cacheArgs.secondary?.toList())
             assertEquals(listOf(7, 0, 10, "en"), entryRef.cacheArgs.flattened.toList())
-            assertEquals(listOf("7", "*", "*", "*"), partRef.args.toList().map(Any::toString))
+            assertEquals(listOf("7"), partRef.args.toList().map(Any::toString))
             assertEquals(listOf(7), partRef.cacheArgs.primary.toList())
-            assertEquals(listOf("*", "*", "*"), partRef.cacheArgs.secondary?.toList()?.map(Any::toString))
-            assertEquals(listOf("7", "*", "*", "*"), partRef.cacheArgs.flattened.toList().map(Any::toString))
+            assertNull(partRef.cacheArgs.secondary)
+            assertEquals(listOf("7"), partRef.cacheArgs.flattened.toList().map(Any::toString))
+            assertEquals(listOf(listOf(7)), entryRef.cacheArgs.primaryPartArgs.map { it.toList() })
+            assertEquals(listOf(null), entryRef.cacheArgs.primaryPartNames)
+            assertEquals(listOf(listOf(0, 10), listOf("en")), entryRef.cacheArgs.secondaryPartArgs.map { it.toList() })
+            assertEquals(listOf(null, null), entryRef.cacheArgs.secondaryPartNames)
+        }
+
+        test("named key parts keep per-part low-level structure") {
+            val entryRef = namedSongPageCache.key(7, PageWindow(0, 10), "en")
+
+            assertEquals(listOf(listOf(7)), entryRef.cacheArgs.primaryPartArgs.map { it.toList() })
+            assertEquals(listOf("artist"), entryRef.cacheArgs.primaryPartNames)
+            assertEquals(listOf(listOf(0, 10), listOf("en")), entryRef.cacheArgs.secondaryPartArgs.map { it.toList() })
+            assertEquals(listOf("paging", "locale"), entryRef.cacheArgs.secondaryPartNames)
+        }
+
+        test("partial invalidation keeps user-facing part selections separate from low-level cache args") {
+            val partRef = namedSongPageCache.keyPart(7, namedLocaleKey("en"))
+
+            assertEquals(listOf(listOf(7)), partRef.cacheArgs.primaryPartArgs.map { it.toList() })
+            assertNull(partRef.cacheArgs.secondary)
+            assertEquals(
+                listOf(listOf("*", "*"), listOf("en")),
+                partRef.secondaryPatternPartArgs!!.map { args -> args.toList().map(Any::toString) },
+            )
+        }
+
+        test("partial invalidation can target one secondary key part without leaking into other entries") {
+            val artistId = 7
+
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page EN")
+            }
+            cache(namedSongPageCache.key(artistId, PageWindow(10, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Next EN")
+            }
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "he"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page HE")
+            }
+
+            cache.invalidate(namedSongPageCache.keyPart(artistId, namedLocaleKey("en")))
+
+            assertEquals("""{"id":7,"title":"Page HE"}""", store.hashMap["named-song-page-cache:7"]?.get("0,10,he"))
+            assertNull(store.hashMap["named-song-page-cache:7"]?.get("0,10,en"))
+            assertNull(store.hashMap["named-song-page-cache:7"]?.get("10,10,en"))
+        }
+
+        test("partial invalidation can match a named secondary key part without reusing its original instance") {
+            val artistId = 7
+
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page EN")
+            }
+            cache(namedSongPageCache.key(artistId, PageWindow(0, 10), "he"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page HE")
+            }
+
+            cache.invalidate(namedSongPageCache.keyPart(artistId, keyPart<String>("locale")("en")))
+
+            assertEquals("""{"id":7,"title":"Page HE"}""", store.hashMap["named-song-page-cache:7"]?.get("0,10,he"))
+            assertNull(store.hashMap["named-song-page-cache:7"]?.get("0,10,en"))
+        }
+
+        test("partial invalidation can match a reusable unnamed secondary key part by identity") {
+            val artistId = 7
+
+            cache(typedSongPageCache.key(artistId, PageWindow(0, 10), "en"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page EN")
+            }
+            cache(typedSongPageCache.key(artistId, PageWindow(0, 10), "he"), returnsAs = value<TestSong>()) {
+                TestSong(artistId, "Page HE")
+            }
+
+            cache.invalidate(typedSongPageCache.keyPart(artistId, typedLocaleKey("en")))
+
+            assertEquals("""{"id":7,"title":"Page HE"}""", store.hashMap["song-page-cache:7"]?.get("0,10,he"))
+            assertNull(store.hashMap["song-page-cache:7"]?.get("0,10,en"))
+        }
+
+        test("partial invalidation rejects anonymous ad hoc secondary key parts") {
+            assertFailsWith<IllegalArgumentException> {
+                typedSongPageCache.keyPart(7, keyPart<String>()("en"))
+            }
         }
 
         test("primary keys can use explicit mappers for value classes") {
-            val songByIdCache = mainKey("song-cache", songIdKey, storedAs = CacheStorage.HashMap)
+            val songByIdCache = entryKey("song-cache", songIdKey, storedAs = CacheStorage.HashMap)
             val songId = SongId(13)
 
             cache(songByIdCache.key(songId), returnsAs = value<TestSong>()) {
@@ -70,7 +159,7 @@ val TypedKeyPartsSpec by testSuite {
         }
 
         test("primary keys can compose multiple key parts without forcing a wrapper type") {
-            val songByArtistAndLocale = mainKey(
+            val songByArtistAndLocale = entryKey(
                 "song-cache",
                 keyPart<Int>() + keyPart<String>(),
                 storedAs = CacheStorage.HashMap,
@@ -86,9 +175,9 @@ val TypedKeyPartsSpec by testSuite {
         }
 
         test("raw key parts provide an escape hatch for untyped key segments") {
-            val rawSongsCache = mainKey(
+            val rawSongsCache = entryKey(
                 "raw-song-cache",
-                rawKeyPart(segmentCount = 2),
+                rawKeyPart(),
                 storedAs = CacheStorage.HashMap,
             )
 
@@ -97,6 +186,31 @@ val TypedKeyPartsSpec by testSuite {
             }
 
             assertEquals("""{"id":7,"title":"Raw"}""", store.get("raw-song-cache:7,en"))
+        }
+
+        test("delegated key parts pick up property names without pushing naming into low-level cache args") {
+            val delegated = DelegatedParts(
+                songId = run {
+                    val songId by keyPart<Int>()
+                    songId
+                },
+                locale = run {
+                    val locale by keyPart<String>()
+                    locale
+                },
+            )
+            val delegatedCache = entryKey(
+                "delegated-song-cache",
+                delegated.songId * delegated.locale,
+                storedAs = CacheStorage.HashMap,
+            )
+
+            val entryRef = delegatedCache.key(7, "en")
+
+            assertEquals(listOf("songId"), entryRef.cacheArgs.primaryPartNames)
+            assertEquals(listOf("locale"), entryRef.cacheArgs.secondaryPartNames)
+            assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
+            assertEquals(listOf("en"), entryRef.cacheArgs.secondary?.toList())
         }
 
         test("secondary mappers can encode multiple fields from one parameter") {

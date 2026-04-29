@@ -1,5 +1,6 @@
 package com.github.dave08.kacheable.blocking
 
+import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
@@ -15,6 +16,7 @@ interface BlockingKacheable {
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
+        secondaryPatternPartArgs: List<CacheArgs>? = null,
         block: () -> R,
     ): R
 

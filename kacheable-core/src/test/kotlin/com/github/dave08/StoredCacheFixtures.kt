@@ -4,8 +4,8 @@ package com.github.dave08
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.entryKey
 import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import kotlin.test.assertEquals
@@ -22,8 +22,8 @@ internal data class CachedImageVariant(val url: String, val width: Int, val heig
 
 internal data class ImageVariantRequest(val format: String, val width: Int)
 
-internal val artistCache = mainKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
-internal val imageCache = mainKey<String>("image-cache", storedAs = CacheStorage.HashMap)
+internal val artistCache = entryKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
+internal val imageCache = entryKey<String>("image-cache", storedAs = CacheStorage.HashMap)
 internal val songKey = keyPart<Int>()
 internal val pageKey = keyPart<ResultPage>(ResultPage::offset, ResultPage::limit)
 internal val imageVariantKey = keyPart<ImageVariantRequest>(ImageVariantRequest::format, ImageVariantRequest::width)

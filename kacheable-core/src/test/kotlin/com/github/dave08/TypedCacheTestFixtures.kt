@@ -7,9 +7,10 @@ import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.entryKey
 import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.times
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -124,10 +125,23 @@ val typedSortKey = keyPart<String>()
 val typedPageSizeKey = keyPart<Int>()
 val typedMarketKey = keyPart<String>()
 
-val typedSongPageCache = mainKey<Int>("song-page-cache", storedAs = CacheStorage.HashMap) + (typedPagingKey + typedLocaleKey)
-val typedSongSectionCache = mainKey("song-section-cache", songIdKey, storedAs = CacheStorage.HashMap) + songSectionKey
-val typedWideSongCache = mainKey<Int>("wide-cache", storedAs = CacheStorage.HashMap) +
-    (typedFilterKey + typedSortKey + typedPageSizeKey + typedMarketKey + typedLocaleKey)
+val typedSongPagePrimary = keyPart<Int>()
+val typedSongPageCache = entryKey("song-page-cache", typedSongPagePrimary * (typedPagingKey + typedLocaleKey), storedAs = CacheStorage.HashMap)
+val typedSongSectionCache = entryKey("song-section-cache", songIdKey * songSectionKey, storedAs = CacheStorage.HashMap)
+val typedWidePrimary = keyPart<Int>()
+val typedWideSongCache = entryKey(
+    "wide-cache",
+    typedWidePrimary * (typedFilterKey + typedSortKey + typedPageSizeKey + typedMarketKey + typedLocaleKey),
+    storedAs = CacheStorage.HashMap,
+)
+val namedPagingKey = keyPart<PageWindow>("paging", PageWindow::offset, PageWindow::limit)
+val namedLocaleKey = keyPart<String>("locale")
+val namedSongPagePrimary = keyPart<Int>("artist")
+val namedSongPageCache = entryKey(
+    "named-song-page-cache",
+    namedSongPagePrimary * (namedPagingKey + namedLocaleKey),
+    storedAs = CacheStorage.HashMap,
+)
 
 fun CacheArgs.toList(): List<Any> = toParamsArray().toList()
 

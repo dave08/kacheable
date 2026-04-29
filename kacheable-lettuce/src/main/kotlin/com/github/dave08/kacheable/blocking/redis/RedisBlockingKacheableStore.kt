@@ -6,6 +6,7 @@ import com.github.dave08.kacheable.redis.RedisDeleteMode
 import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
+import io.lettuce.core.ScanCursor
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.ScriptOutputType
 import io.lettuce.core.api.StatefulRedisConnection
@@ -62,6 +63,19 @@ class RedisBlockingKacheableStore(
 
     override fun deleteHashValue(key: String, field: String) {
         conn.sync().hdel(key, field)
+    }
+
+    override fun deleteHashValuesMatching(key: String, fieldPattern: String) {
+        val commands = conn.sync()
+        var cursor: ScanCursor = ScanCursor.INITIAL
+        do {
+            val result = commands.hscan(key, cursor, ScanArgs().match(fieldPattern).limit(deleteScanCount))
+            val fields = result.map.keys.toList()
+            if (fields.isNotEmpty()) {
+                commands.hdel(key, *fields.toTypedArray())
+            }
+            cursor = result
+        } while (!cursor.isFinished)
     }
 
     override fun deleteSetMember(key: String, member: String) {

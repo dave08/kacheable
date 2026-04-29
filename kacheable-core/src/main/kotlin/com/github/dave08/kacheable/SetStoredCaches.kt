@@ -8,7 +8,13 @@ data class SetPrimaryKey<P1 : Any>(
     val key: KeyPart<P1>,
 ) {
     fun keyPart(value: P1): SetMembershipCachePartRef =
-        SetMembershipCachePartRef(name, PrimarySecondaryCacheArgs(primary = key.encode(value)))
+        SetMembershipCachePartRef(
+            name,
+            cacheArgs(
+                primaryPartArgs = listOf(key.encodePart(value)),
+                primaryPartNames = listOf(key.name),
+            ),
+        )
 }
 
 @ExperimentalKacheableApi
@@ -19,12 +25,20 @@ data class SetStoredCache2<P1 : Any, P2 : Any>(
     fun key(p1: P1, p2: P2): SetMembershipCacheEntryRef =
         SetMembershipCacheEntryRef(
             name = name,
-            cacheArgs = PrimarySecondaryCacheArgs(
-                primary = key.primary.encode(p1),
-                secondary = key.secondary.encode(p2),
+            cacheArgs = cacheArgs(
+                primaryPartArgs = key.encodePrimaryParts(p1),
+                primaryPartNames = key.primaryPartNames(),
+                secondaryPartArgs = key.encodeSecondaryParts(p2),
+                secondaryPartNames = key.secondaryPartNames(),
             ),
         )
 
     fun keyPart(value: P1): SetMembershipCachePartRef =
-        SetMembershipCachePartRef(name, PrimarySecondaryCacheArgs(primary = key.primary.encode(value)))
+        SetMembershipCachePartRef(
+            name,
+            cacheArgs(
+                primaryPartArgs = key.encodePrimaryParts(value),
+                primaryPartNames = key.primaryPartNames(),
+            ),
+        )
 }

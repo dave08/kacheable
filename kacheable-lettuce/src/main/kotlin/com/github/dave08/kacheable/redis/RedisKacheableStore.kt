@@ -6,6 +6,7 @@ import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
+import io.lettuce.core.ScanCursor
 import io.lettuce.core.ScanIterator
 import io.lettuce.core.ScriptOutputType
 import io.lettuce.core.api.StatefulRedisConnection
@@ -66,6 +67,21 @@ class RedisKacheableStore(
 
     override suspend fun deleteHashValue(key: String, field: String) {
         conn.coroutines().hdel(key, field)
+    }
+
+    override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) {
+        withContext(Dispatchers.IO) {
+            val commands = conn.sync()
+            var cursor: ScanCursor = ScanCursor.INITIAL
+            do {
+                val result = commands.hscan(key, cursor, ScanArgs().match(fieldPattern).limit(deleteScanCount))
+                val fields = result.map.keys.toList()
+                if (fields.isNotEmpty()) {
+                    commands.hdel(key, *fields.toTypedArray())
+                }
+                cursor = result
+            } while (!cursor.isFinished)
+        }
     }
 
     override suspend fun deleteSetMember(key: String, member: String) {

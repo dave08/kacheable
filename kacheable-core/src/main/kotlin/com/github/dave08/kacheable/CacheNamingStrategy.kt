@@ -124,6 +124,9 @@ fun combineCacheKey(name: String, params: Array<out Any>): String =
 
 fun combineSecondaryEntryParts(params: Array<out Any>): String = params.joinToString(",")
 
+internal fun combineSecondaryEntryPatternParts(parts: List<CacheArgs>): Array<out Any> =
+    parts.flatMap { it.toParamsArray().asList() }.toTypedArray()
+
 private fun combineParams(
     primaryParams: Array<out Any>,
     secondaryParams: Array<out Any>,

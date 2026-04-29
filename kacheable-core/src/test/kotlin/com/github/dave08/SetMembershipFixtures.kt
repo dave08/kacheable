@@ -4,18 +4,18 @@ package com.github.dave08
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.entryKey
 import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-internal val artistFollowersCache = mainKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
+internal val artistFollowersCache = entryKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
 internal val followerAccountKey = keyPart<Int>()
 internal val artistFollowerCache = artistFollowersCache + followerAccountKey
-internal val songLikesCache = mainKey<Int>("song-like-cache", storedAs = CacheStorage.Set)
+internal val songLikesCache = entryKey<Int>("song-like-cache", storedAs = CacheStorage.Set)
 internal val listenerAccountKey = keyPart<Int>()
 internal val songLikeCache = songLikesCache + listenerAccountKey
 

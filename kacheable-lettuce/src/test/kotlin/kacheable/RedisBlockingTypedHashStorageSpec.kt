@@ -61,5 +61,28 @@ val RedisBlockingTypedHashStorageSpec by testSuite {
 
             expectThat(commands.exists(redisBlockingArtistCacheKey(artistId))).isEqualTo(0)
         }
+
+        test("partially invalidates layered hash fields by selected secondary key part") {
+            val artistId = 13
+
+            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 1, "en"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page EN 1")
+            }
+            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 2, "en"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page EN 2")
+            }
+            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 1, "he"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page HE 1")
+            }
+
+            cache.invalidate(redisBlockingArtistSongsByLocaleCache.keyPart(artistId, redisBlockingLocaleKey("en")))
+
+            expect {
+                that(commands.hget("blocking-artist-page-cache:$artistId", "1,he"))
+                    .isEqualTo("""{"id":13,"name":"Page HE 1"}""")
+                that(commands.hget("blocking-artist-page-cache:$artistId", "1,en")).isEqualTo(null)
+                that(commands.hget("blocking-artist-page-cache:$artistId", "2,en")).isEqualTo(null)
+            }
+        }
     }
 }

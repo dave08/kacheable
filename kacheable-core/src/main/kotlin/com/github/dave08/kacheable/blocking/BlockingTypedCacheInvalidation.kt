@@ -53,7 +53,7 @@ fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
         if (storageLayout == null) {
             invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
         } else {
-            invalidate(partRef.name, partRef.cacheArgs, storageLayout) {}
+            invalidate(partRef.name, partRef.cacheArgs, storageLayout, partRef.secondaryPatternPartArgs) {}
         }
     }
 }

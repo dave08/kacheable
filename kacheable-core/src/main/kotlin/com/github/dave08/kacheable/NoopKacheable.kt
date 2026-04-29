@@ -12,6 +12,7 @@ internal object NoopKacheable : Kacheable {
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
+        secondaryPatternPartArgs: List<CacheArgs>?,
         block: suspend () -> R,
     ): R = block()
 

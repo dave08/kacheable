@@ -8,7 +8,8 @@ data class KeyPartComposition2<P1 : Any, P2 : Any>(
     val second: KeyPart<P2>,
 ) {
     fun encode(p1: P1, p2: P2): CacheArgs = joinArgs(first.encode(p1), second.encode(p2))
-    val wildcardArgs: CacheArgs = joinArgs(first.wildcardArgs, second.wildcardArgs)
+    internal fun encodeParts(p1: P1, p2: P2): List<CacheArgs> = listOf(first.encodePart(p1), second.encodePart(p2))
+    internal fun partNames(): List<String?> = listOf(first.name, second.name)
 }
 
 @ExperimentalKacheableApi
@@ -18,7 +19,9 @@ data class KeyPartComposition3<P1 : Any, P2 : Any, P3 : Any>(
     val third: KeyPart<P3>,
 ) {
     fun encode(p1: P1, p2: P2, p3: P3): CacheArgs = joinArgs(first.encode(p1), second.encode(p2), third.encode(p3))
-    val wildcardArgs: CacheArgs = joinArgs(first.wildcardArgs, second.wildcardArgs, third.wildcardArgs)
+    internal fun encodeParts(p1: P1, p2: P2, p3: P3): List<CacheArgs> =
+        listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3))
+    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name)
 }
 
 @ExperimentalKacheableApi
@@ -30,9 +33,9 @@ data class KeyPartComposition4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
 ) {
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4))
-
-    val wildcardArgs: CacheArgs =
-        joinArgs(first.wildcardArgs, second.wildcardArgs, third.wildcardArgs, fourth.wildcardArgs)
+    internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4): List<CacheArgs> =
+        listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3), fourth.encodePart(p4))
+    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name)
 }
 
 @ExperimentalKacheableApi
@@ -45,9 +48,9 @@ data class KeyPartComposition5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>
 ) {
     fun encode(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): CacheArgs =
         joinArgs(first.encode(p1), second.encode(p2), third.encode(p3), fourth.encode(p4), fifth.encode(p5))
-
-    val wildcardArgs: CacheArgs =
-        joinArgs(first.wildcardArgs, second.wildcardArgs, third.wildcardArgs, fourth.wildcardArgs, fifth.wildcardArgs)
+    internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> =
+        listOf(first.encodePart(p1), second.encodePart(p2), third.encodePart(p3), fourth.encodePart(p4), fifth.encodePart(p5))
+    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name)
 }
 
 @ExperimentalKacheableApi
@@ -68,47 +71,79 @@ data class KeyPartComposition6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
             fifth.encode(p5),
             sixth.encode(p6),
         )
-
-    val wildcardArgs: CacheArgs =
-        joinArgs(
-            first.wildcardArgs,
-            second.wildcardArgs,
-            third.wildcardArgs,
-            fourth.wildcardArgs,
-            fifth.wildcardArgs,
-            sixth.wildcardArgs,
+    internal fun encodeParts(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): List<CacheArgs> =
+        listOf(
+            first.encodePart(p1),
+            second.encodePart(p2),
+            third.encodePart(p3),
+            fourth.encodePart(p4),
+            fifth.encodePart(p5),
+            sixth.encodePart(p6),
         )
+    internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name, sixth.name)
 }
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup2<P1 : Any, P2 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPart<P2>,
-)
+) {
+    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    internal fun encodeSecondaryParts(p2: P2): List<CacheArgs> = listOf(secondary.encodePart(p2))
+    internal fun secondaryPartNames(): List<String?> = listOf(secondary.name)
+    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary)
+}
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup3<P1 : Any, P2 : Any, P3 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition2<P2, P3>,
-)
+) {
+    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    internal fun encodeSecondaryParts(p2: P2, p3: P3): List<CacheArgs> = secondary.encodeParts(p2, p3)
+    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
+    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second)
+}
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition3<P2, P3, P4>,
-)
+) {
+    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4): List<CacheArgs> = secondary.encodeParts(p2, p3, p4)
+    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
+    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third)
+}
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition4<P2, P3, P4, P5>,
-)
+) {
+    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5): List<CacheArgs> = secondary.encodeParts(p2, p3, p4, p5)
+    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
+    internal fun secondaryParts(): List<KeyPart<*>> = listOf(secondary.first, secondary.second, secondary.third, secondary.fourth)
+}
 
 @ExperimentalKacheableApi
 data class KeyPartCompositionGroup6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
     val primary: KeyPart<P1>,
     val secondary: KeyPartComposition5<P2, P3, P4, P5, P6>,
-)
+) {
+    internal fun encodePrimaryParts(p1: P1): List<CacheArgs> = listOf(primary.encodePart(p1))
+    internal fun primaryPartNames(): List<String?> = listOf(primary.name)
+    internal fun encodeSecondaryParts(p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): List<CacheArgs> =
+        secondary.encodeParts(p2, p3, p4, p5, p6)
+    internal fun secondaryPartNames(): List<String?> = secondary.partNames()
+    internal fun secondaryParts(): List<KeyPart<*>> =
+        listOf(secondary.first, secondary.second, secondary.third, secondary.fourth, secondary.fifth)
+}
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any> KeyPart<P1>.plus(

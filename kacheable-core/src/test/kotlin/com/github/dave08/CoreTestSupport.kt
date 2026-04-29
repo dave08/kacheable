@@ -40,6 +40,20 @@ class InMemoryBlockingKacheableStore(
         hashMap[key]?.remove(field)
     }
 
+    override fun deleteHashValuesMatching(key: String, fieldPattern: String) {
+        val fields = hashMap[key] ?: return
+        if (!fieldPattern.contains("*")) {
+            fields.remove(fieldPattern)
+        } else {
+            val regex = Regex("^${fieldPattern.split("*").joinToString(".*") { Regex.escape(it) }}$")
+            fields.keys.filter(regex::matches).toList().forEach(fields::remove)
+        }
+
+        if (fields.isEmpty()) {
+            hashMap.remove(key)
+        }
+    }
+
     override fun deleteSetMember(key: String, member: String) {
         sets[key]?.remove(member)
     }

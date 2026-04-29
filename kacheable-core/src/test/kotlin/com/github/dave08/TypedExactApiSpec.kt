@@ -5,8 +5,8 @@ package com.github.dave08
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.cache
+import com.github.dave08.kacheable.entryKey
 import com.github.dave08.kacheable.invoke
-import com.github.dave08.kacheable.mainKey
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
@@ -43,7 +43,7 @@ val TypedExactApiSpec by testSuite {
         }
 
         test("stored exact refs can still use typed return views") {
-            val songCache = mainKey<Int>("song-cache", storedAs = CacheStorage.HashMap)
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.HashMap)
             val songId = 21
 
             val result = cache(songCache.key(songId), returnsAs = value<TestSong>()) {
@@ -55,7 +55,7 @@ val TypedExactApiSpec by testSuite {
         }
 
         test("cacheIf can skip saving a typed cache result") {
-            val songCache = mainKey<Int>("song-cache", storedAs = CacheStorage.HashMap)
+            val songCache = entryKey<Int>("song-cache", storedAs = CacheStorage.HashMap)
 
             val result = cache(songCache.key(9), returnsAs = value<TestSong>(), cacheIf = { false }) {
                 TestSong(9, "Live")

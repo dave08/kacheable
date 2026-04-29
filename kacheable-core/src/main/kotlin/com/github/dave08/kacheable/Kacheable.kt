@@ -13,6 +13,7 @@ interface Kacheable {
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
+        secondaryPatternPartArgs: List<CacheArgs>? = null,
         block: suspend () -> R,
     ): R
 

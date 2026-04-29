@@ -7,6 +7,13 @@ interface BlockingKacheableStore {
 
     fun deleteHashValue(key: String, field: String)
 
+    fun deleteHashValuesMatching(key: String, fieldPattern: String) {
+        if (fieldPattern.contains("*")) {
+            throw UnsupportedOperationException("This BlockingKacheableStore does not support partial hash invalidation.")
+        }
+        deleteHashValue(key, fieldPattern)
+    }
+
     fun deleteSetMember(key: String, member: String) {
         unsupportedSetMembership()
     }

@@ -61,5 +61,27 @@ val RedisTypedHashStorageSpec by testSuite {
 
             expectThat(commands.exists(redisArtistCacheKey(artistId))).isEqualTo(0)
         }
+
+        test("partially invalidates layered hash fields by selected secondary key part") {
+            val artistId = 13
+
+            cache(redisArtistSongsByLocaleCache.key(artistId, 1, "en"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page EN 1")
+            }
+            cache(redisArtistSongsByLocaleCache.key(artistId, 2, "en"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page EN 2")
+            }
+            cache(redisArtistSongsByLocaleCache.key(artistId, 1, "he"), returnsAs = value<Bar>()) {
+                Bar(artistId, "Page HE 1")
+            }
+
+            cache.invalidate(redisArtistSongsByLocaleCache.keyPart(artistId, redisLocaleKey("en")))
+
+            expect {
+                that(commands.hget("artist-page-cache:$artistId", "1,he")).isEqualTo("""{"id":13,"name":"Page HE 1"}""")
+                that(commands.hget("artist-page-cache:$artistId", "1,en")).isEqualTo(null)
+                that(commands.hget("artist-page-cache:$artistId", "2,en")).isEqualTo(null)
+            }
+        }
     }
 }

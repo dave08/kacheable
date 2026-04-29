@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
@@ -40,10 +41,18 @@ internal class KacheableImpl(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
         storageLayout: CacheStorageLayout,
+        secondaryPatternPartArgs: List<CacheArgs>?,
         block: suspend () -> R,
     ): R {
-        store.mutate {
-            delete(entryNameResolver.resolve(name, cacheArgs, storageLayout))
+        if (secondaryPatternPartArgs != null) {
+            store.deleteMatching(
+                entryNameResolver.resolvePattern(name, cacheArgs.primary, secondaryPatternPartArgs, storageLayout) as
+                    CacheEntryName.Layered,
+            )
+        } else {
+            store.mutate {
+                delete(entryNameResolver.resolve(name, cacheArgs, storageLayout))
+            }
         }
         return block()
     }

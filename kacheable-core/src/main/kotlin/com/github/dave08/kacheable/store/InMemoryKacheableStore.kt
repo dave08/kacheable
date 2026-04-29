@@ -27,6 +27,20 @@ class InMemoryKacheableStore(
         hashMap[key]?.remove(field)
     }
 
+    override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) {
+        val fields = hashMap[key] ?: return
+        if (!fieldPattern.contains("*")) {
+            fields.remove(fieldPattern)
+        } else {
+            val regex = wildcardRegex(fieldPattern)
+            fields.keys.filter(regex::matches).toList().forEach(fields::remove)
+        }
+
+        if (fields.isEmpty()) {
+            hashMap.remove(key)
+        }
+    }
+
     override suspend fun deleteSetMember(key: String, member: String) {
         sets[key]?.remove(member)
     }

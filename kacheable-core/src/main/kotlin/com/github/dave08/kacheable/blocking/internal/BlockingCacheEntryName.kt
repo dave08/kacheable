@@ -39,6 +39,11 @@ internal fun BlockingKacheableStore.delete(entryName: CacheEntryName) {
 }
 
 @OptIn(ExperimentalKacheableApi::class)
+internal fun BlockingKacheableStore.deleteMatching(entryName: CacheEntryName.Layered) {
+    deleteHashValuesMatching(entryName.cacheKey, entryName.requireSecondaryEntry())
+}
+
+@OptIn(ExperimentalKacheableApi::class)
 internal fun BlockingStoreMutationScope.delete(entryName: CacheEntryName) {
     when (entryName) {
         is CacheEntryName.Flat -> delete(entryName.cacheKey)
