@@ -3,52 +3,26 @@
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheEntryPartRef
+import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.HashMapCacheEntryRef
-import com.github.dave08.kacheable.SetMembershipCacheEntryRef
-import com.github.dave08.kacheable.SetMembershipCachePartRef
+import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
-import com.github.dave08.kacheable.StringCacheEntryRef
-
-@ExperimentalKacheableApi
-fun BlockingKacheable.invalidate(vararg entryRefs: StringCacheEntryRef) {
-    entryRefs.forEach { entryRef ->
-        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
-    }
-}
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
     entryRefs.forEach { entryRef ->
-        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
-    }
-}
-
-@ExperimentalKacheableApi
-fun BlockingKacheable.invalidate(vararg entryRefs: HashMapCacheEntryRef) {
-    entryRefs.forEach { entryRef ->
-        invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storageLayout) {}
-    }
-}
-
-@ExperimentalKacheableApi
-fun BlockingKacheable.invalidate(vararg entryRefs: SetMembershipCacheEntryRef) {
-    entryRefs.forEach { entryRef ->
-        invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
-    }
-}
-
-@ExperimentalKacheableApi
-fun BlockingKacheable.invalidate(vararg partRefs: SetMembershipCachePartRef) {
-    partRefs.forEach { partRef ->
-        invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
+        when (entryRef.storage) {
+            CacheStorage.Set -> invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
+            CacheStorage.String, CacheStorage.HashMap ->
+                invalidate(entryRef.name, entryRef.cacheArgs, requireNotNull(entryRef.storageLayout)) {}
+        }
     }
 }
 
 @ExperimentalKacheableApi
 fun <E : Enum<E>> BlockingKacheable.invalidate(
-    entryRef: SetMembershipCacheEntryRef,
+    entryRef: StoredCacheEntryRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
     invalidateSetClassification(entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
@@ -56,7 +30,7 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
 
 @ExperimentalKacheableApi
 fun <E : Enum<E>> BlockingKacheable.invalidate(
-    partRef: SetMembershipCachePartRef,
+    partRef: StoredCachePartRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
     invalidateSetClassification(partRef.name, partRef.cacheArgs, returnsAs.valueNames) {}
@@ -65,11 +39,12 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
     partRefs.forEach { partRef ->
-        val storageLayout = partRef.storageLayout
-        if (storageLayout == null) {
+        if (partRef is StoredCachePartRef<*> && partRef.storage == CacheStorage.Set) {
+            invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
+        } else if (partRef.storageLayout == null) {
             invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
         } else {
-            invalidate(partRef.name, partRef.cacheArgs, storageLayout, partRef.secondaryPatternPartArgs) {}
+            invalidate(partRef.name, partRef.cacheArgs, requireNotNull(partRef.storageLayout), partRef.secondaryPatternPartArgs) {}
         }
     }
 }

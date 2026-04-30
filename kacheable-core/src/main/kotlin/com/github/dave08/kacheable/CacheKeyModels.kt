@@ -90,13 +90,13 @@ internal data class ResolvedPrimaryKey(
 
     val primaryArgs: CacheArgs = cacheArgs.primary
 
-    fun stringEntryRef(name: String): StringCacheEntryRef = StringCacheEntryRef(name, cacheArgs)
+    fun stringEntryRef(name: String): StringCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.String)
 
-    fun hashEntryRef(name: String): HashMapCacheEntryRef = HashMapCacheEntryRef(name, cacheArgs)
+    fun hashEntryRef(name: String): HashMapCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): SetMembershipCacheEntryRef = SetMembershipCacheEntryRef(name, cacheArgs)
+    fun setEntryRef(name: String): SetMembershipCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
 
-    fun setPartRef(name: String): SetMembershipCachePartRef = SetMembershipCachePartRef(name, cacheArgs)
+    fun setPartRef(name: String): SetMembershipCachePartRef = CachePartRef(name, cacheArgs.primary, cacheArgs, CacheStorage.Set)
 
     fun partRef(
         name: String,
@@ -131,9 +131,9 @@ internal data class ResolvedPrimarySecondaryKey(
         primaryPartNames = primaryPartNames,
     )
 
-    fun hashEntryRef(name: String): HashMapCacheEntryRef = HashMapCacheEntryRef(name, cacheArgs)
+    fun hashEntryRef(name: String): HashMapCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): SetMembershipCacheEntryRef = SetMembershipCacheEntryRef(name, cacheArgs)
+    fun setEntryRef(name: String): SetMembershipCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
 }
 
 @PublishedApi

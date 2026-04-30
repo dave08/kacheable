@@ -42,7 +42,7 @@ fun defaultCacheNamingStrategy(
     secondaryEntryCombiner: (params: Array<out Any>) -> String = ::combineSecondaryEntryParts,
 ): CacheNamingStrategy = CacheNamingStrategy { cacheName, storage, primaryParams, secondaryParams ->
     when (storage) {
-        CacheStorage.String, CacheStorage.List, CacheStorage.Int -> flatEntry(
+        CacheStorage.String -> flatEntry(
             cacheName = cacheName,
             primaryParams = primaryParams,
             secondaryParams = secondaryParams,
@@ -77,7 +77,7 @@ val DefaultGetNameStrategy: GetNameStrategy = GetNameStrategy { name, params ->
 fun GetNameStrategy.asCacheNamingStrategy(): CacheNamingStrategy =
     CacheNamingStrategy { cacheName, storage, primaryParams, secondaryParams ->
         when (storage) {
-            CacheStorage.String, CacheStorage.List, CacheStorage.Int ->
+            CacheStorage.String ->
                 CacheEntryName.Flat(getName(cacheName, combineParams(primaryParams, secondaryParams)))
 
             CacheStorage.HashMap, CacheStorage.Set ->

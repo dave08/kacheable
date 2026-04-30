@@ -3,57 +3,46 @@
 package com.github.dave08.kacheable
 
 @ExperimentalKacheableApi
-suspend operator fun <R> Kacheable.invoke(
-    entryRef: StoredCacheEntryRef<*>,
-    returnsAs: CacheReturn<R>,
-    cacheIf: (R) -> Boolean = { true },
-    block: suspend () -> R,
-): R = invoke(
-    name = entryRef.name,
-    codec = returnsAs.codec,
-    cacheArgs = entryRef.cacheArgs,
-    storageLayout = entryRef.storageLayout,
-    saveResultIf = cacheIf,
-    block = block,
-)
-
-@ExperimentalKacheableApi
-suspend operator fun <R> Kacheable.invoke(
-    entryRef: StringCacheEntryRef,
+suspend operator fun <S, R> Kacheable.invoke(
+    entryRef: StoredCacheEntryRef<S>,
     returnsAs: ValueCacheReturn<R>,
     cacheIf: (R) -> Boolean = { true },
     block: suspend () -> R,
-): R = invoke(
+): R where S : CacheStorage, S : SupportsValueReturn = invoke(
     name = entryRef.name,
     codec = returnsAs.codec,
     cacheArgs = entryRef.cacheArgs,
-    storageLayout = entryRef.storageLayout,
+    storageLayout = requireNotNull(entryRef.storageLayout) {
+        "This storage does not support value-style cache returns."
+    },
     saveResultIf = cacheIf,
     block = block,
 )
 
 @ExperimentalKacheableApi
-suspend operator fun <R> Kacheable.invoke(
-    entryRef: HashMapCacheEntryRef,
-    returnsAs: HashMapCacheReturn<R>,
-    cacheIf: (R) -> Boolean = { true },
-    block: suspend () -> R,
-): R = invoke(
+suspend operator fun <S, K : Any, R> Kacheable.invoke(
+    entryRef: StoredCacheEntryRef<S>,
+    returnsAs: MapCacheReturn<K, R>,
+    cacheIf: (Map<K, R>) -> Boolean = { true },
+    block: suspend () -> Map<K, R>,
+): Map<K, R> where S : CacheStorage, S : SupportsMapReturn = invoke(
     name = entryRef.name,
     codec = returnsAs.codec,
     cacheArgs = entryRef.cacheArgs,
-    storageLayout = entryRef.storageLayout,
+    storageLayout = requireNotNull(entryRef.storageLayout) {
+        "This storage does not support map-style cache returns."
+    },
     saveResultIf = cacheIf,
     block = block,
 )
 
 @ExperimentalKacheableApi
-suspend operator fun Kacheable.invoke(
-    entryRef: SetMembershipCacheEntryRef,
+suspend operator fun <S> Kacheable.invoke(
+    entryRef: StoredCacheEntryRef<S>,
     returnsAs: IsMemberCacheReturn,
     cacheIf: (Boolean) -> Boolean = { true },
     block: suspend () -> Boolean,
-): Boolean = invokeSetMembership(
+): Boolean where S : CacheStorage, S : SupportsMembershipReturn = invokeSetMembership(
     name = entryRef.name,
     cacheArgs = entryRef.cacheArgs,
     cacheFalse = returnsAs.cacheFalse,
@@ -62,12 +51,12 @@ suspend operator fun Kacheable.invoke(
 )
 
 @ExperimentalKacheableApi
-suspend operator fun <E : Enum<E>> Kacheable.invoke(
-    entryRef: SetMembershipCacheEntryRef,
+suspend operator fun <S, E : Enum<E>> Kacheable.invoke(
+    entryRef: StoredCacheEntryRef<S>,
     returnsAs: EnumMemberCacheReturn<E>,
     cacheIf: (E) -> Boolean = { true },
     block: suspend () -> E,
-): E = invokeSetClassification(
+): E where S : CacheStorage, S : SupportsMembershipReturn = invokeSetClassification(
     name = entryRef.name,
     cacheArgs = entryRef.cacheArgs,
     values = returnsAs.values,

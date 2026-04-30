@@ -5,6 +5,7 @@ package kacheable
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
+import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect

@@ -40,148 +40,176 @@ fun <P1 : Any> entryKey(
     label: String,
     mapper: KeyPart<P1>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey<P1> = TypedPrimaryKey(label, mapper, storedAs)
+): TypedPrimaryKey<P1, CacheStorage.String> = TypedPrimaryKey(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> entryKey(
     label: String,
     mapper: KeyPart<P1>,
     storedAs: CacheStorage.Set,
-): SetPrimaryKey<P1> = SetPrimaryKey(label, mapper)
+): TypedPrimaryKey<P1, CacheStorage.Set> = TypedPrimaryKey(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> entryKey(
     label: String,
     mapper: KeyPart<P1>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey<P1> = TypedPrimaryKey(label, mapper, storedAs)
+): TypedPrimaryKey<P1, CacheStorage.HashMap> = TypedPrimaryKey(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> entryKey(
     label: String,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey<P1> = entryKey(label, keyPart(), storedAs)
+): TypedPrimaryKey<P1, CacheStorage.String> = entryKey(label, keyPart(), storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> entryKey(
     label: String,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey<P1> = entryKey(label, keyPart(), storedAs)
+): TypedPrimaryKey<P1, CacheStorage.HashMap> = entryKey(label, keyPart(), storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any> entryKey(
     label: String,
     storedAs: CacheStorage.Set,
-): SetPrimaryKey<P1> = entryKey(label, keyPart(), storedAs)
+): TypedPrimaryKey<P1, CacheStorage.Set> = entryKey(label, keyPart(), storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition2<P1, P2>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey2<P1, P2> = TypedPrimaryKey2(label, mapper, storedAs)
+): TypedPrimaryKey2<P1, P2, CacheStorage.String> = TypedPrimaryKey2(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition2<P1, P2>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey2<P1, P2> = TypedPrimaryKey2(label, mapper, storedAs)
+): TypedPrimaryKey2<P1, P2, CacheStorage.HashMap> = TypedPrimaryKey2(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup2<P1, P2>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimarySecondaryKey2<P1, P2> = TypedPrimarySecondaryKey2(label, mapper)
+): TypedPrimarySecondaryKey2<P1, P2, CacheStorage.HashMap> = TypedPrimarySecondaryKey2(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup2<P1, P2>,
     storedAs: CacheStorage.Set,
-): SetStoredCache2<P1, P2> = SetStoredCache2(label, mapper)
+): TypedPrimarySecondaryKey2<P1, P2, CacheStorage.Set> = TypedPrimarySecondaryKey2(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition3<P1, P2, P3>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey3<P1, P2, P3> = TypedPrimaryKey3(label, mapper, storedAs)
+): TypedPrimaryKey3<P1, P2, P3, CacheStorage.String> = TypedPrimaryKey3(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition3<P1, P2, P3>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey3<P1, P2, P3> = TypedPrimaryKey3(label, mapper, storedAs)
+): TypedPrimaryKey3<P1, P2, P3, CacheStorage.HashMap> = TypedPrimaryKey3(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup3<P1, P2, P3>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimarySecondaryKey3<P1, P2, P3> = TypedPrimarySecondaryKey3(label, mapper)
+): TypedPrimarySecondaryKey3<P1, P2, P3, CacheStorage.HashMap> = TypedPrimarySecondaryKey3(label, mapper, storedAs)
+
+@ExperimentalKacheableApi
+fun <P1 : Any, P2 : Any, P3 : Any> entryKey(
+    label: String,
+    mapper: KeyPartCompositionGroup3<P1, P2, P3>,
+    storedAs: CacheStorage.Set,
+): TypedPrimarySecondaryKey3<P1, P2, P3, CacheStorage.Set> = TypedPrimarySecondaryKey3(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition4<P1, P2, P3, P4>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey4<P1, P2, P3, P4> = TypedPrimaryKey4(label, mapper, storedAs)
+): TypedPrimaryKey4<P1, P2, P3, P4, CacheStorage.String> = TypedPrimaryKey4(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition4<P1, P2, P3, P4>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey4<P1, P2, P3, P4> = TypedPrimaryKey4(label, mapper, storedAs)
+): TypedPrimaryKey4<P1, P2, P3, P4, CacheStorage.HashMap> = TypedPrimaryKey4(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup4<P1, P2, P3, P4>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimarySecondaryKey4<P1, P2, P3, P4> = TypedPrimarySecondaryKey4(label, mapper)
+): TypedPrimarySecondaryKey4<P1, P2, P3, P4, CacheStorage.HashMap> = TypedPrimarySecondaryKey4(label, mapper, storedAs)
+
+@ExperimentalKacheableApi
+fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> entryKey(
+    label: String,
+    mapper: KeyPartCompositionGroup4<P1, P2, P3, P4>,
+    storedAs: CacheStorage.Set,
+): TypedPrimarySecondaryKey4<P1, P2, P3, P4, CacheStorage.Set> = TypedPrimarySecondaryKey4(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition5<P1, P2, P3, P4, P5>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey5<P1, P2, P3, P4, P5> = TypedPrimaryKey5(label, mapper, storedAs)
+): TypedPrimaryKey5<P1, P2, P3, P4, P5, CacheStorage.String> = TypedPrimaryKey5(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition5<P1, P2, P3, P4, P5>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey5<P1, P2, P3, P4, P5> = TypedPrimaryKey5(label, mapper, storedAs)
+): TypedPrimaryKey5<P1, P2, P3, P4, P5, CacheStorage.HashMap> = TypedPrimaryKey5(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup5<P1, P2, P3, P4, P5>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5> = TypedPrimarySecondaryKey5(label, mapper)
+): TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, CacheStorage.HashMap> = TypedPrimarySecondaryKey5(label, mapper, storedAs)
+
+@ExperimentalKacheableApi
+fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> entryKey(
+    label: String,
+    mapper: KeyPartCompositionGroup5<P1, P2, P3, P4, P5>,
+    storedAs: CacheStorage.Set,
+): TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, CacheStorage.Set> = TypedPrimarySecondaryKey5(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
     storedAs: CacheStorage.String,
-): TypedPrimaryKey6<P1, P2, P3, P4, P5, P6> = TypedPrimaryKey6(label, mapper, storedAs)
+): TypedPrimaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.String> = TypedPrimaryKey6(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> entryKey(
     label: String,
     mapper: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimaryKey6<P1, P2, P3, P4, P5, P6> = TypedPrimaryKey6(label, mapper, storedAs)
+): TypedPrimaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.HashMap> = TypedPrimaryKey6(label, mapper, storedAs)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> entryKey(
     label: String,
     mapper: KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6>,
     storedAs: CacheStorage.HashMap,
-): TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6> = TypedPrimarySecondaryKey6(label, mapper)
+): TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.HashMap> = TypedPrimarySecondaryKey6(label, mapper, storedAs)
+
+@ExperimentalKacheableApi
+fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> entryKey(
+    label: String,
+    mapper: KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6>,
+    storedAs: CacheStorage.Set,
+): TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.Set> = TypedPrimarySecondaryKey6(label, mapper, storedAs)
