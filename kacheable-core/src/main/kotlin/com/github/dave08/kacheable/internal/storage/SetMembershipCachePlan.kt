@@ -1,9 +1,9 @@
-package com.github.dave08.kacheable.internal
+package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.asFlat
 import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.requireSecondaryEntry

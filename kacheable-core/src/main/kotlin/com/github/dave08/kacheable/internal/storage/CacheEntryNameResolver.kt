@@ -1,12 +1,11 @@
-package com.github.dave08.kacheable.internal
+package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.combineSecondaryEntryPatternParts
+import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.requireSecondaryEntry
 import com.github.dave08.kacheable.store.KacheableStore
@@ -61,7 +60,7 @@ internal class CacheEntryNameResolver(
             cacheName = name,
             storage = CacheStorage.HashMap,
             primaryParams = primaryArgs.toParamsArray(),
-            secondaryParams = combineSecondaryEntryPatternParts(secondaryPatternPartArgs),
+            secondaryParams = secondaryPatternPartArgs.flatMap { it.toParamsArray().asList() }.toTypedArray(),
         )
     }
 }

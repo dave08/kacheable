@@ -2,19 +2,9 @@
 
 package com.github.dave08.kacheable
 
-@PublishedApi
-internal interface TypedPrimaryKeyDefinition {
-    fun partNames(): List<String?>
-}
-
-@PublishedApi
-internal interface TypedPrimarySecondaryKeyDefinition<P1 : Any> {
-    val primary: KeyPart<P1>
-    fun encodePrimaryParts(p1: P1): List<CacheArgs>
-    fun primaryPartNames(): List<String?>
-    fun secondaryPartNames(): List<String?>
-    fun secondaryParts(): List<KeyPart<*>>
-}
+import com.github.dave08.kacheable.internal.keys.TypedPrimaryKeyDefinition
+import com.github.dave08.kacheable.internal.keys.TypedPrimarySecondaryKeyDefinition
+import com.github.dave08.kacheable.internal.keys.validateUniqueKeyPartNames
 
 @ExperimentalKacheableApi
 data class KeyPartComposition2<P1 : Any, P2 : Any>(
@@ -118,7 +108,7 @@ data class KeyPartComposition6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any,
 }
 
 @ExperimentalKacheableApi
-data class KeyPartCompositionGroup2<P1 : Any, P2 : Any>(
+data class KeyPartPrimarySecondary2<P1 : Any, P2 : Any>(
     override val primary: KeyPart<P1>,
     val secondary: KeyPart<P2>,
 ) : TypedPrimarySecondaryKeyDefinition<P1> {
@@ -134,7 +124,7 @@ data class KeyPartCompositionGroup2<P1 : Any, P2 : Any>(
 }
 
 @ExperimentalKacheableApi
-data class KeyPartCompositionGroup3<P1 : Any, P2 : Any, P3 : Any>(
+data class KeyPartPrimarySecondary3<P1 : Any, P2 : Any, P3 : Any>(
     override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition2<P2, P3>,
 ) : TypedPrimarySecondaryKeyDefinition<P1> {
@@ -150,7 +140,7 @@ data class KeyPartCompositionGroup3<P1 : Any, P2 : Any, P3 : Any>(
 }
 
 @ExperimentalKacheableApi
-data class KeyPartCompositionGroup4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
+data class KeyPartPrimarySecondary4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
     override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition3<P2, P3, P4>,
 ) : TypedPrimarySecondaryKeyDefinition<P1> {
@@ -166,7 +156,7 @@ data class KeyPartCompositionGroup4<P1 : Any, P2 : Any, P3 : Any, P4 : Any>(
 }
 
 @ExperimentalKacheableApi
-data class KeyPartCompositionGroup5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
+data class KeyPartPrimarySecondary5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any>(
     override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition4<P2, P3, P4, P5>,
 ) : TypedPrimarySecondaryKeyDefinition<P1> {
@@ -182,7 +172,7 @@ data class KeyPartCompositionGroup5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 :
 }
 
 @ExperimentalKacheableApi
-data class KeyPartCompositionGroup6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
+data class KeyPartPrimarySecondary6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any>(
     override val primary: KeyPart<P1>,
     val secondary: KeyPartComposition5<P2, P3, P4, P5, P6>,
 ) : TypedPrimarySecondaryKeyDefinition<P1> {
@@ -215,24 +205,24 @@ operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> KeyPartComposition3<P1, P2
 ): KeyPartComposition4<P1, P2, P3, P4> = KeyPartComposition4(first, second, third, other)
 
 @ExperimentalKacheableApi
-operator fun <P1 : Any, P2 : Any, P3 : Any> KeyPartCompositionGroup2<P1, P2>.plus(
+operator fun <P1 : Any, P2 : Any, P3 : Any> KeyPartPrimarySecondary2<P1, P2>.plus(
     other: KeyPart<P3>,
-): KeyPartCompositionGroup3<P1, P2, P3> = KeyPartCompositionGroup3(primary, secondary + other)
+): KeyPartPrimarySecondary3<P1, P2, P3> = KeyPartPrimarySecondary3(primary, secondary + other)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any> KeyPart<P1>.times(
     secondary: KeyPartComposition2<P2, P3>,
-): KeyPartCompositionGroup3<P1, P2, P3> = KeyPartCompositionGroup3(this, secondary)
+): KeyPartPrimarySecondary3<P1, P2, P3> = KeyPartPrimarySecondary3(this, secondary)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any> KeyPart<P1>.times(
     secondary: KeyPart<P2>,
-): KeyPartCompositionGroup2<P1, P2> = KeyPartCompositionGroup2(this, secondary)
+): KeyPartPrimarySecondary2<P1, P2> = KeyPartPrimarySecondary2(this, secondary)
 
 @ExperimentalKacheableApi
-operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> KeyPartCompositionGroup3<P1, P2, P3>.plus(
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> KeyPartPrimarySecondary3<P1, P2, P3>.plus(
     other: KeyPart<P4>,
-): KeyPartCompositionGroup4<P1, P2, P3, P4> = KeyPartCompositionGroup4(primary, secondary + other)
+): KeyPartPrimarySecondary4<P1, P2, P3, P4> = KeyPartPrimarySecondary4(primary, secondary + other)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> KeyPartComposition4<P1, P2, P3, P4>.plus(
@@ -242,17 +232,17 @@ operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> KeyPartCompositi
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any> KeyPart<P1>.times(
     secondary: KeyPartComposition3<P2, P3, P4>,
-): KeyPartCompositionGroup4<P1, P2, P3, P4> = KeyPartCompositionGroup4(this, secondary)
+): KeyPartPrimarySecondary4<P1, P2, P3, P4> = KeyPartPrimarySecondary4(this, secondary)
 
 @ExperimentalKacheableApi
-operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> KeyPartCompositionGroup4<P1, P2, P3, P4>.plus(
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> KeyPartPrimarySecondary4<P1, P2, P3, P4>.plus(
     other: KeyPart<P5>,
-): KeyPartCompositionGroup5<P1, P2, P3, P4, P5> = KeyPartCompositionGroup5(primary, secondary + other)
+): KeyPartPrimarySecondary5<P1, P2, P3, P4, P5> = KeyPartPrimarySecondary5(primary, secondary + other)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any> KeyPart<P1>.times(
     secondary: KeyPartComposition4<P2, P3, P4, P5>,
-): KeyPartCompositionGroup5<P1, P2, P3, P4, P5> = KeyPartCompositionGroup5(this, secondary)
+): KeyPartPrimarySecondary5<P1, P2, P3, P4, P5> = KeyPartPrimarySecondary5(this, secondary)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> KeyPartComposition5<P1, P2, P3, P4, P5>.plus(
@@ -261,11 +251,11 @@ operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> KeyPar
     KeyPartComposition6(first, second, third, fourth, fifth, other)
 
 @ExperimentalKacheableApi
-operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> KeyPartCompositionGroup5<P1, P2, P3, P4, P5>.plus(
+operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> KeyPartPrimarySecondary5<P1, P2, P3, P4, P5>.plus(
     other: KeyPart<P6>,
-): KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6> = KeyPartCompositionGroup6(primary, secondary + other)
+): KeyPartPrimarySecondary6<P1, P2, P3, P4, P5, P6> = KeyPartPrimarySecondary6(primary, secondary + other)
 
 @ExperimentalKacheableApi
 operator fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any> KeyPart<P1>.times(
     secondary: KeyPartComposition5<P2, P3, P4, P5, P6>,
-): KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6> = KeyPartCompositionGroup6(this, secondary)
+): KeyPartPrimarySecondary6<P1, P2, P3, P4, P5, P6> = KeyPartPrimarySecondary6(this, secondary)

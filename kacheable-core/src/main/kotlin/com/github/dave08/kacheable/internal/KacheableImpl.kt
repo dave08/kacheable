@@ -10,6 +10,16 @@ import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.cacheKey
+import com.github.dave08.kacheable.internal.storage.CacheEntryNameResolver
+import com.github.dave08.kacheable.internal.storage.classificationInvalidationPlan
+import com.github.dave08.kacheable.internal.storage.delete
+import com.github.dave08.kacheable.internal.storage.deleteMatching
+import com.github.dave08.kacheable.internal.storage.get
+import com.github.dave08.kacheable.internal.storage.invalidationPlan
+import com.github.dave08.kacheable.internal.storage.keyForClassificationResult
+import com.github.dave08.kacheable.internal.storage.set
+import com.github.dave08.kacheable.internal.storage.setMembershipEntry
+import com.github.dave08.kacheable.internal.storage.shouldWriteSetMembershipResult
 import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.cacheValueCodec
