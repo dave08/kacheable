@@ -4,8 +4,7 @@ import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
-import com.github.dave08.kacheable.asFlat
-import com.github.dave08.kacheable.cacheKey
+import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.requireSecondaryEntry
 import com.github.dave08.kacheable.withInternalSuffix
 
@@ -39,14 +38,12 @@ internal fun setMembershipEntry(
 ): SetMembershipEntry {
     val entryName = namingStrategy.getEntryName(
         cacheName = name,
-        storage = CacheStorage.Set,
         primaryParams = cacheArgs.primary.toParamsArray(),
         secondaryParams = cacheArgs.secondary?.toParamsArray() ?: emptyArray(),
     )
-    val groupName = entryName.asFlat()
     return SetMembershipEntry(
-        membersKey = groupName.cacheKey,
-        nonMembersKey = groupName.withInternalSuffix(NON_MEMBERS_SUFFIX),
+        membersKey = entryName.primaryKey,
+        nonMembersKey = entryName.withInternalSuffix(NON_MEMBERS_SUFFIX),
         member = when {
             cacheArgs.secondary == null -> null
             else -> entryName.requireSecondaryEntry()

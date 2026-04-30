@@ -1,36 +1,52 @@
 package com.github.dave08.kacheable
 
 sealed interface CacheEntryName {
-    data class Flat(val key: String) : CacheEntryName
+    data class Primary(
+        val primary: String,
+        val combined: String = primary,
+    ) : CacheEntryName
 
-    data class Layered(val key: String, val entry: String) : CacheEntryName
+    data class PrimarySecondary(
+        val primary: String,
+        val secondary: String,
+        val combine: (String, String) -> String,
+    ) : CacheEntryName {
+        val combined: String
+            get() = combine(primary, secondary)
+    }
 }
 
-val CacheEntryName.cacheKey: String
+val CacheEntryName.primaryKey: String
     get() =
         when (this) {
-            is CacheEntryName.Flat -> key
-            is CacheEntryName.Layered -> key
+            is CacheEntryName.Primary -> primary
+            is CacheEntryName.PrimarySecondary -> primary
+        }
+
+val CacheEntryName.combinedKey: String
+    get() =
+        when (this) {
+            is CacheEntryName.Primary -> combined
+            is CacheEntryName.PrimarySecondary -> combined
         }
 
 val CacheEntryName.secondaryEntryOrNull: String?
     get() =
         when (this) {
-            is CacheEntryName.Flat -> null
-            is CacheEntryName.Layered -> entry
+            is CacheEntryName.Primary -> null
+            is CacheEntryName.PrimarySecondary -> secondary
         }
 
 fun CacheEntryName.requireSecondaryEntry(): String =
-    requireNotNull(secondaryEntryOrNull) { "Layered cache entries require a secondary entry name." }
+    requireNotNull(secondaryEntryOrNull) { "Primary-secondary cache entries require a secondary entry name." }
 
-fun CacheEntryName.withInternalSuffix(suffix: String): String = "$cacheKey:$suffix"
+fun CacheEntryName.withInternalSuffix(suffix: String): String = "$primaryKey:$suffix"
 
-fun CacheEntryName.asFlat(): CacheEntryName.Flat = CacheEntryName.Flat(cacheKey)
+fun CacheEntryName.asCombined(): CacheEntryName.Primary = CacheEntryName.Primary(primaryKey, combinedKey)
 
 fun interface CacheNamingStrategy {
     fun getEntryName(
         cacheName: String,
-        storage: CacheStorage,
         primaryParams: Array<out Any>,
         secondaryParams: Array<out Any>,
     ): CacheEntryName
@@ -40,20 +56,19 @@ fun defaultCacheNamingStrategy(
     flatKeyCombiner: (cacheName: String, params: Array<out Any>) -> String = ::combineCacheKey,
     primaryKeyCombiner: (cacheName: String, params: Array<out Any>) -> String = ::combineCacheKey,
     secondaryEntryCombiner: (params: Array<out Any>) -> String = ::combineSecondaryEntryParts,
-): CacheNamingStrategy = CacheNamingStrategy { cacheName, storage, primaryParams, secondaryParams ->
-    when (storage) {
-        CacheStorage.String -> flatEntry(
-            cacheName = cacheName,
-            primaryParams = primaryParams,
-            secondaryParams = secondaryParams,
-            keyCombiner = flatKeyCombiner,
+): CacheNamingStrategy = CacheNamingStrategy { cacheName, primaryParams, secondaryParams ->
+    if (secondaryParams.isEmpty()) {
+        CacheEntryName.Primary(
+            primary = primaryKeyCombiner(cacheName, primaryParams),
+            combined = flatKeyCombiner(cacheName, primaryParams),
         )
-        CacheStorage.HashMap, CacheStorage.Set -> layeredEntry(
-            cacheName = cacheName,
-            primaryParams = primaryParams,
-            secondaryParams = secondaryParams,
-            primaryKeyCombiner = primaryKeyCombiner,
-            secondaryEntryCombiner = secondaryEntryCombiner,
+    } else {
+        val primaryKey = primaryKeyCombiner(cacheName, primaryParams)
+        val secondaryEntry = secondaryEntryCombiner(secondaryParams)
+        CacheEntryName.PrimarySecondary(
+            primary = primaryKey,
+            secondary = secondaryEntry,
+            combine = { _, _ -> flatKeyCombiner(cacheName, combineParams(primaryParams, secondaryParams)) },
         )
     }
 }
@@ -75,44 +90,17 @@ val DefaultGetNameStrategy: GetNameStrategy = GetNameStrategy { name, params ->
 }
 
 fun GetNameStrategy.asCacheNamingStrategy(): CacheNamingStrategy =
-    CacheNamingStrategy { cacheName, storage, primaryParams, secondaryParams ->
-        when (storage) {
-            CacheStorage.String ->
-                CacheEntryName.Flat(getName(cacheName, combineParams(primaryParams, secondaryParams)))
-
-            CacheStorage.HashMap, CacheStorage.Set ->
-                if (secondaryParams.isEmpty()) {
-                    CacheEntryName.Flat(getName(cacheName, primaryParams))
-                } else {
-                    CacheEntryName.Layered(
-                        key = getName(cacheName, primaryParams),
-                        entry = combineSecondaryEntryParts(secondaryParams),
-                    )
-                }
+    CacheNamingStrategy { cacheName, primaryParams, secondaryParams ->
+        if (secondaryParams.isEmpty()) {
+            val primaryName = getName(cacheName, primaryParams)
+            CacheEntryName.Primary(primaryName, primaryName)
+        } else {
+            CacheEntryName.PrimarySecondary(
+                primary = getName(cacheName, primaryParams),
+                secondary = combineSecondaryEntryParts(secondaryParams),
+                combine = { _, _ -> getName(cacheName, combineParams(primaryParams, secondaryParams)) },
+            )
         }
-    }
-
-private fun flatEntry(
-    cacheName: String,
-    primaryParams: Array<out Any>,
-    secondaryParams: Array<out Any>,
-    keyCombiner: (cacheName: String, params: Array<out Any>) -> String,
-): CacheEntryName.Flat = CacheEntryName.Flat(keyCombiner(cacheName, combineParams(primaryParams, secondaryParams)))
-
-private fun layeredEntry(
-    cacheName: String,
-    primaryParams: Array<out Any>,
-    secondaryParams: Array<out Any>,
-    primaryKeyCombiner: (cacheName: String, params: Array<out Any>) -> String,
-    secondaryEntryCombiner: (params: Array<out Any>) -> String,
-): CacheEntryName =
-    if (secondaryParams.isEmpty()) {
-        CacheEntryName.Flat(primaryKeyCombiner(cacheName, primaryParams))
-    } else {
-        CacheEntryName.Layered(
-            key = primaryKeyCombiner(cacheName, primaryParams),
-            entry = secondaryEntryCombiner(secondaryParams),
-        )
     }
 
 fun combineCacheKey(name: String, params: Array<out Any>): String =

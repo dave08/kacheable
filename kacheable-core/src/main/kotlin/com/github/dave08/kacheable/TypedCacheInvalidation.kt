@@ -2,15 +2,12 @@
 
 package com.github.dave08.kacheable
 
+import com.github.dave08.kacheable.internal.TypedCacheRuntime
+
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
-    entryRefs.forEach { entryRef ->
-        when (entryRef.storage) {
-            CacheStorage.Set -> invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
-            CacheStorage.String, CacheStorage.HashMap ->
-                invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storage) {}
-        }
-    }
+    val runtime = this as TypedCacheRuntime
+    entryRefs.forEach { runtime.invalidate(it) }
 }
 
 @ExperimentalKacheableApi
@@ -18,7 +15,7 @@ suspend fun <E : Enum<E>> Kacheable.invalidate(
     entryRef: StoredCacheEntryRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
+    (this as TypedCacheRuntime).invalidate(entryRef, returnsAs)
 }
 
 @ExperimentalKacheableApi
@@ -26,18 +23,13 @@ suspend fun <E : Enum<E>> Kacheable.invalidate(
     partRef: StoredCachePartRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(partRef.name, partRef.cacheArgs, returnsAs.valueNames) {}
+    (this as TypedCacheRuntime).invalidate(partRef, returnsAs)
 }
 
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
-    partRefs.forEach { partRef ->
-        if (partRef.storage == CacheStorage.Set) {
-            invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
-        } else {
-            invalidate(partRef.name, partRef.cacheArgs, partRef.storage, partRef.secondaryPatternPartArgs) {}
-        }
-    }
+    val runtime = this as TypedCacheRuntime
+    partRefs.forEach { runtime.invalidate(it) }
 }
 
 @ExperimentalKacheableApi

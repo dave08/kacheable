@@ -1,35 +1,26 @@
 package com.github.dave08.kacheable
 
+import com.github.dave08.kacheable.internal.TypedCacheRuntime
 import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 
-internal object NoopKacheable : Kacheable {
+internal object NoopKacheable : Kacheable, TypedCacheRuntime {
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
         block()
 
-    @ExperimentalKacheableApi
-    override suspend fun <R> invalidate(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        storage: CacheStorage,
-        secondaryPatternPartArgs: List<CacheArgs>?,
-        block: suspend () -> R,
-    ): R = block()
+    override suspend fun invalidate(entryRef: StoredCacheEntryRef<*>) = Unit
 
-    @ExperimentalKacheableApi
-    override suspend fun <R> invalidateSetMembership(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        block: suspend () -> R,
-    ): R = block()
+    override suspend fun invalidate(partRef: CacheEntryPartRef) = Unit
 
-    @ExperimentalKacheableApi
-    override suspend fun <R> invalidateSetClassification(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        valueNames: List<String>,
-        block: suspend () -> R,
-    ): R = block()
+    override suspend fun <E : Enum<E>> invalidate(
+        entryRef: StoredCacheEntryRef<CacheStorage.Set>,
+        returnsAs: EnumMemberCacheReturn<E>,
+    ) = Unit
+
+    override suspend fun <E : Enum<E>> invalidate(
+        partRef: StoredCachePartRef<CacheStorage.Set>,
+        returnsAs: EnumMemberCacheReturn<E>,
+    ) = Unit
 
     override suspend fun <R> invoke(
         name: String,
@@ -39,31 +30,9 @@ internal object NoopKacheable : Kacheable {
         block: suspend () -> R
     ): R = block()
 
-    @ExperimentalKacheableApi
-    override suspend fun <R> invoke(
-        name: String,
-        codec: CacheValueCodec<R>,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        storage: CacheStorage,
-        saveResultIf: (R) -> Boolean,
-        block: suspend () -> R
-    ): R = block()
-
-    @ExperimentalKacheableApi
-    override suspend fun invokeSetMembership(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        cacheFalse: Boolean,
-        saveResultIf: (Boolean) -> Boolean,
-        block: suspend () -> Boolean,
-    ): Boolean = block()
-
-    @ExperimentalKacheableApi
-    override suspend fun <R : Any> invokeSetClassification(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        values: List<R>,
-        valueName: (R) -> String,
+    override suspend fun <S : CacheStorage, R> invoke(
+        entryRef: StoredCacheEntryRef<S>,
+        returnsAs: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = block()

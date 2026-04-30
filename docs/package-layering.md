@@ -18,6 +18,8 @@ This is the current direction for the typed cache API after the shape-first refa
 `com.github.dave08.kacheable.internal.storage`
 - Internal storage-facing planning and adaptation.
 - Owns storage-specific ref resolution, entry-name resolution, and set membership planning.
+- Prefer subpackages such as `internal.storage.string`, `internal.storage.hash`, and `internal.storage.set`
+  when behavior is truly storage-owned.
 - May depend on public API contracts and `internal.keys`.
 - Should be the main home for `when (storage)` branching.
 

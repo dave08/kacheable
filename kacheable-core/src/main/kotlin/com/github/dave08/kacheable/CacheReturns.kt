@@ -9,15 +9,15 @@ import kotlinx.serialization.serializer
 
 @ExperimentalKacheableApi
 sealed interface CacheStorage {
-    data object String : CacheStorage, SupportsValueReturn, SupportsPrimaryKeyStorage
+    data object String : CacheStorage, SupportsValueView, SupportsPrimaryKeyStorage
     data object HashMap : CacheStorage,
-        SupportsValueReturn,
-        SupportsMapReturn,
+        SupportsValueView,
+        SupportsMapView,
         SupportsPrimaryKeyStorage,
         SupportsPrimarySecondaryKeyStorage
 
     data object Set : CacheStorage,
-        SupportsMembershipReturn,
+        SupportsMembershipView,
         SupportsPrimaryKeyStorage,
         SupportsPrimarySecondaryKeyStorage
 }
@@ -26,13 +26,13 @@ sealed interface CacheStorage {
 sealed interface CacheStorageCapability
 
 @ExperimentalKacheableApi
-sealed interface SupportsValueReturn : CacheStorageCapability
+sealed interface SupportsValueView : CacheStorageCapability
 
 @ExperimentalKacheableApi
-sealed interface SupportsMapReturn : CacheStorageCapability
+sealed interface SupportsMapView : CacheStorageCapability
 
 @ExperimentalKacheableApi
-sealed interface SupportsMembershipReturn : CacheStorageCapability
+sealed interface SupportsMembershipView : CacheStorageCapability
 
 @ExperimentalKacheableApi
 sealed interface SupportsPrimaryKeyStorage : CacheStorageCapability
@@ -47,16 +47,16 @@ interface CacheReturn<R, C : CacheStorageCapability> {
 }
 
 @ExperimentalKacheableApi
-interface HashMapCacheReturn<R> : CacheReturn<R, SupportsMapReturn>
+interface HashMapCacheReturn<R> : CacheReturn<R, SupportsMapView>
 
 @ExperimentalKacheableApi
-interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipReturn>
+interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
 
 @ExperimentalKacheableApi
 data class ValueCacheReturn<R>(
     override val serializer: KSerializer<R>,
     override val codec: CacheValueCodec<R> = cacheValueCodec(serializer),
-) : CacheReturn<R, SupportsValueReturn>
+) : CacheReturn<R, SupportsValueView>
 
 @ExperimentalKacheableApi
 data class MapCacheReturn<K : Any, R>(

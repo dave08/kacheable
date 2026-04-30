@@ -8,16 +8,12 @@ import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
-    entryRefs.forEach { entryRef ->
-        when (entryRef.storage) {
-            CacheStorage.Set -> invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
-            CacheStorage.String, CacheStorage.HashMap ->
-                invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storage) {}
-        }
-    }
+    val runtime = this as BlockingTypedCacheRuntime
+    entryRefs.forEach { runtime.invalidate(it) }
 }
 
 @ExperimentalKacheableApi
@@ -25,7 +21,7 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
     entryRef: StoredCacheEntryRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
+    (this as BlockingTypedCacheRuntime).invalidate(entryRef, returnsAs)
 }
 
 @ExperimentalKacheableApi
@@ -33,18 +29,13 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
     partRef: StoredCachePartRef<CacheStorage.Set>,
     returnsAs: EnumMemberCacheReturn<E>,
 ) {
-    invalidateSetClassification(partRef.name, partRef.cacheArgs, returnsAs.valueNames) {}
+    (this as BlockingTypedCacheRuntime).invalidate(partRef, returnsAs)
 }
 
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
-    partRefs.forEach { partRef ->
-        if (partRef.storage == CacheStorage.Set) {
-            invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
-        } else {
-            invalidate(partRef.name, partRef.cacheArgs, partRef.storage, partRef.secondaryPatternPartArgs) {}
-        }
-    }
+    val runtime = this as BlockingTypedCacheRuntime
+    partRefs.forEach { runtime.invalidate(it) }
 }
 
 @ExperimentalKacheableApi

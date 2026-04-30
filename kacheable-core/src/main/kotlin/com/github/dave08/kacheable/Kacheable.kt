@@ -8,65 +8,12 @@ import kotlinx.serialization.serializer
 interface Kacheable {
     suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R
 
-    @ExperimentalKacheableApi
-    suspend fun <R> invalidate(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        storage: CacheStorage,
-        secondaryPatternPartArgs: List<CacheArgs>? = null,
-        block: suspend () -> R,
-    ): R
-
-    @ExperimentalKacheableApi
-    suspend fun <R> invalidateSetMembership(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        block: suspend () -> R,
-    ): R
-
-    @ExperimentalKacheableApi
-    suspend fun <R> invalidateSetClassification(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        valueNames: List<String>,
-        block: suspend () -> R,
-    ): R
-
     suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
         saveResultIf: (R) -> Boolean = { true },
         block: suspend () -> R
-    ): R
-
-    @ExperimentalKacheableApi
-    suspend fun <R> invoke(
-        name: String,
-        codec: CacheValueCodec<R>,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        storage: CacheStorage,
-        saveResultIf: (R) -> Boolean = { true },
-        block: suspend () -> R
-    ): R
-
-    @ExperimentalKacheableApi
-    suspend fun invokeSetMembership(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        cacheFalse: Boolean = true,
-        saveResultIf: (Boolean) -> Boolean = { true },
-        block: suspend () -> Boolean,
-    ): Boolean
-
-    @ExperimentalKacheableApi
-    suspend fun <R : Any> invokeSetClassification(
-        name: String,
-        cacheArgs: PrimarySecondaryCacheArgs,
-        values: List<R>,
-        valueName: (R) -> String,
-        saveResultIf: (R) -> Boolean = { true },
-        block: suspend () -> R,
     ): R
 
     suspend fun <R> invoke(

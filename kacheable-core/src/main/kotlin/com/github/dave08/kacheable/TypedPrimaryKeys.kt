@@ -25,7 +25,7 @@ data class TypedPrimaryKey2<P1 : Any, P2 : Any, S>(
     val name: String,
     val key: KeyPartComposition2<P1, P2>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsValueReturn {
+) where S : CacheStorage, S : SupportsValueView {
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1, p2: P2): StoredCacheEntryRef<S> =
         resolveStoredPrimaryEntryRef(name, storedAs, key.encodeParts(p1, p2), key.partNames()) as StoredCacheEntryRef<S>
@@ -40,7 +40,7 @@ data class TypedPrimaryKey3<P1 : Any, P2 : Any, P3 : Any, S>(
     val name: String,
     val key: KeyPartComposition3<P1, P2, P3>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsValueReturn {
+) where S : CacheStorage, S : SupportsValueView {
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1, p2: P2, p3: P3): StoredCacheEntryRef<S> =
         resolveStoredPrimaryEntryRef(name, storedAs, key.encodeParts(p1, p2, p3), key.partNames()) as StoredCacheEntryRef<S>
@@ -55,7 +55,7 @@ data class TypedPrimaryKey4<P1 : Any, P2 : Any, P3 : Any, P4 : Any, S>(
     val name: String,
     val key: KeyPartComposition4<P1, P2, P3, P4>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsValueReturn {
+) where S : CacheStorage, S : SupportsValueView {
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1, p2: P2, p3: P3, p4: P4): StoredCacheEntryRef<S> =
         resolveStoredPrimaryEntryRef(name, storedAs, key.encodeParts(p1, p2, p3, p4), key.partNames()) as StoredCacheEntryRef<S>
@@ -70,7 +70,7 @@ data class TypedPrimaryKey5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S>
     val name: String,
     val key: KeyPartComposition5<P1, P2, P3, P4, P5>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsValueReturn {
+) where S : CacheStorage, S : SupportsValueView {
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5): StoredCacheEntryRef<S> =
         resolveStoredPrimaryEntryRef(name, storedAs, key.encodeParts(p1, p2, p3, p4, p5), key.partNames()) as StoredCacheEntryRef<S>
@@ -85,7 +85,7 @@ data class TypedPrimaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6
     val name: String,
     val key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsValueReturn {
+) where S : CacheStorage, S : SupportsValueView {
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1, p2: P2, p3: P3, p4: P4, p5: P5, p6: P6): StoredCacheEntryRef<S> =
         resolveStoredPrimaryEntryRef(name, storedAs, key.encodeParts(p1, p2, p3, p4, p5, p6), key.partNames()) as StoredCacheEntryRef<S>
