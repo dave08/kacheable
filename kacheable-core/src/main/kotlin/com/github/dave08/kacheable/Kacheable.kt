@@ -12,7 +12,7 @@ interface Kacheable {
     suspend fun <R> invalidate(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         secondaryPatternPartArgs: List<CacheArgs>? = null,
         block: suspend () -> R,
     ): R
@@ -45,7 +45,7 @@ interface Kacheable {
         name: String,
         codec: CacheValueCodec<R>,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         saveResultIf: (R) -> Boolean = { true },
         block: suspend () -> R
     ): R

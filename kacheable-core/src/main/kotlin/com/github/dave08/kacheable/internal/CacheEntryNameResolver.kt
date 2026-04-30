@@ -5,7 +5,6 @@ import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.combineSecondaryEntryPatternParts
 import com.github.dave08.kacheable.cacheKey
@@ -23,16 +22,17 @@ internal class CacheEntryNameResolver(
     fun resolve(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
     ): CacheEntryName {
-        return when (storageLayout) {
-            CacheStorageLayout.StringValue -> namingStrategy.getEntryName(
+        return when (storage) {
+            CacheStorage.String -> namingStrategy.getEntryName(
                 cacheName = name,
                 storage = CacheStorage.String,
                 primaryParams = cacheArgs.primary.toParamsArray(),
                 secondaryParams = cacheArgs.secondary?.toParamsArray() ?: emptyArray(),
             )
-            CacheStorageLayout.HashValue -> resolveHashValue(name, cacheArgs)
+            CacheStorage.HashMap -> resolveHashValue(name, cacheArgs)
+            CacheStorage.Set -> error("Set storage should be handled through the set membership path.")
         }
     }
 
@@ -51,9 +51,9 @@ internal class CacheEntryNameResolver(
         name: String,
         primaryArgs: CacheArgs,
         secondaryPatternPartArgs: List<CacheArgs>,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
     ): CacheEntryName {
-        require(storageLayout == CacheStorageLayout.HashValue) {
+        require(storage == CacheStorage.HashMap) {
             "Secondary-pattern invalidation is currently only supported for layered hash storage."
         }
 

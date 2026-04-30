@@ -8,7 +8,7 @@ suspend fun Kacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
         when (entryRef.storage) {
             CacheStorage.Set -> invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
             CacheStorage.String, CacheStorage.HashMap ->
-                invalidate(entryRef.name, entryRef.cacheArgs, requireNotNull(entryRef.storageLayout)) {}
+                invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storage) {}
         }
     }
 }
@@ -32,12 +32,10 @@ suspend fun <E : Enum<E>> Kacheable.invalidate(
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
     partRefs.forEach { partRef ->
-        if (partRef is StoredCachePartRef<*> && partRef.storage == CacheStorage.Set) {
+        if (partRef.storage == CacheStorage.Set) {
             invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
-        } else if (partRef.storageLayout == null) {
-            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
         } else {
-            invalidate(partRef.name, partRef.cacheArgs, requireNotNull(partRef.storageLayout), partRef.secondaryPatternPartArgs) {}
+            invalidate(partRef.name, partRef.cacheArgs, partRef.storage, partRef.secondaryPatternPartArgs) {}
         }
     }
 }

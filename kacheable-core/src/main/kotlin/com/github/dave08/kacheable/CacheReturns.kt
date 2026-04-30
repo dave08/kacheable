@@ -8,25 +8,18 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 
 @ExperimentalKacheableApi
-sealed interface CacheStorageLayout {
-    data object StringValue : CacheStorageLayout
-    data object HashValue : CacheStorageLayout
-}
-
-@ExperimentalKacheableApi
 sealed interface CacheStorage {
     data object String : CacheStorage, SupportsValueReturn, SupportsPrimaryKeyStorage
     data object HashMap : CacheStorage,
         SupportsValueReturn,
         SupportsMapReturn,
         SupportsPrimaryKeyStorage,
-        SupportsGroupedKeyStorage,
-        SupportsSecondaryPatternInvalidation
+        SupportsPrimarySecondaryKeyStorage
 
     data object Set : CacheStorage,
         SupportsMembershipReturn,
         SupportsPrimaryKeyStorage,
-        SupportsGroupedKeyStorage
+        SupportsPrimarySecondaryKeyStorage
 }
 
 @ExperimentalKacheableApi
@@ -45,10 +38,7 @@ sealed interface SupportsMembershipReturn : CacheStorageCapability
 sealed interface SupportsPrimaryKeyStorage : CacheStorageCapability
 
 @ExperimentalKacheableApi
-sealed interface SupportsGroupedKeyStorage : CacheStorageCapability
-
-@ExperimentalKacheableApi
-sealed interface SupportsSecondaryPatternInvalidation : CacheStorageCapability
+sealed interface SupportsPrimarySecondaryKeyStorage : CacheStorageCapability
 
 @ExperimentalKacheableApi
 interface CacheReturn<R, C : CacheStorageCapability> {

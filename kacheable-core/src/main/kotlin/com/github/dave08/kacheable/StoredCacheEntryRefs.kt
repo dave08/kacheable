@@ -3,27 +3,15 @@
 package com.github.dave08.kacheable
 
 @ExperimentalKacheableApi
-fun CacheStorage.storageLayoutOrNull(): CacheStorageLayout? =
-    when (this) {
-        CacheStorage.String -> CacheStorageLayout.StringValue
-        CacheStorage.HashMap -> CacheStorageLayout.HashValue
-        CacheStorage.Set -> null
-    }
-
-@ExperimentalKacheableApi
 interface StoredCacheEntryRef<S : CacheStorage> {
     val name: String
     val cacheArgs: PrimarySecondaryCacheArgs
     val storage: S
-    val storageLayout: CacheStorageLayout?
-        get() = storage.storageLayoutOrNull()
 }
 
 @ExperimentalKacheableApi
 interface StoredCachePartRef<S : CacheStorage> : CacheEntryPartRef {
-    val storage: S
-    override val storageLayout: CacheStorageLayout?
-        get() = storage.storageLayoutOrNull()
+    override val storage: S
 }
 
 @ExperimentalKacheableApi
@@ -43,19 +31,43 @@ data class CachePartRef<S : CacheStorage>(
 ) : StoredCachePartRef<S>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CacheEntryRef<CacheStorage.String> instead.",
+    replaceWith = ReplaceWith("CacheEntryRef<CacheStorage.String>", imports = ["com.github.dave08.kacheable.CacheEntryRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias StringCacheEntryRef = CacheEntryRef<CacheStorage.String>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CacheEntryRef<CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("CacheEntryRef<CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.CacheEntryRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapCacheEntryRef = CacheEntryRef<CacheStorage.HashMap>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CacheEntryRef<CacheStorage.Set> instead.",
+    replaceWith = ReplaceWith("CacheEntryRef<CacheStorage.Set>", imports = ["com.github.dave08.kacheable.CacheEntryRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias SetMembershipCacheEntryRef = CacheEntryRef<CacheStorage.Set>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CachePartRef<CacheStorage.String> instead.",
+    replaceWith = ReplaceWith("CachePartRef<CacheStorage.String>", imports = ["com.github.dave08.kacheable.CachePartRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias StringCachePartRef = CachePartRef<CacheStorage.String>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CachePartRef<CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("CachePartRef<CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.CachePartRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapCachePartRef = CachePartRef<CacheStorage.HashMap>
 
 @ExperimentalKacheableApi
+@Deprecated(
+    message = "Use CachePartRef<CacheStorage.Set> instead.",
+    replaceWith = ReplaceWith("CachePartRef<CacheStorage.Set>", imports = ["com.github.dave08.kacheable.CachePartRef", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias SetMembershipCachePartRef = CachePartRef<CacheStorage.Set>

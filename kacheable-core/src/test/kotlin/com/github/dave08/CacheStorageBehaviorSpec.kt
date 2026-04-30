@@ -26,7 +26,7 @@ private val artistSongIdKey = keyPart<Int>()
 private val songsByPageCache = entryKey<Int>("songs-by-page-cache", storedAs = CacheStorage.HashMap) + pageSliceKey
 private val songsByArtistCache = entryKey<Int>("songs-by-artist-cache", storedAs = CacheStorage.HashMap) + artistSongIdKey
 
-val CacheStorageLayoutSpec by testSuite {
+val CacheStorageBehaviorSpec by testSuite {
     testFixture {
         SuspendCacheFixture()
     } asContextForEach {

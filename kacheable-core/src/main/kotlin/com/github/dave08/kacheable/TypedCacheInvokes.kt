@@ -12,9 +12,7 @@ suspend operator fun <S, R> Kacheable.invoke(
     name = entryRef.name,
     codec = returnsAs.codec,
     cacheArgs = entryRef.cacheArgs,
-    storageLayout = requireNotNull(entryRef.storageLayout) {
-        "This storage does not support value-style cache returns."
-    },
+    storage = entryRef.storage,
     saveResultIf = cacheIf,
     block = block,
 )
@@ -29,9 +27,7 @@ suspend operator fun <S, K : Any, R> Kacheable.invoke(
     name = entryRef.name,
     codec = returnsAs.codec,
     cacheArgs = entryRef.cacheArgs,
-    storageLayout = requireNotNull(entryRef.storageLayout) {
-        "This storage does not support map-style cache returns."
-    },
+    storage = entryRef.storage,
     saveResultIf = cacheIf,
     block = block,
 )

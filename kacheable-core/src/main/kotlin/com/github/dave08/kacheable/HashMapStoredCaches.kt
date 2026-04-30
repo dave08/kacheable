@@ -47,7 +47,7 @@ private fun buildLayeredHashPartRef(
     primaryParts: List<KeyPart<*>>,
     secondaryParts: List<KeyPart<*>>,
     selections: Array<out KeyPartValue>,
-): CacheEntryPartRef {
+): CachePartRef<CacheStorage.HashMap> {
     require(selections.isNotEmpty()) { "Partial invalidation requires at least one selected key part." }
 
     val selectionsByName = selections.associateByName()
@@ -71,17 +71,17 @@ private fun buildLayeredHashPartRef(
         selection
     }.toTypedArray()
 
-    return SimpleCacheEntryPartRef(
+    return CachePartRef(
         name = name,
         args = joinArgs(*primaryPartArgs.toTypedArray()),
-        storageLayout = CacheStorageLayout.HashValue,
-        secondaryPatternPartArgs = secondarySelections
-            .takeIf { it.isNotEmpty() }
-            ?.let { buildSecondaryPatternPartArgs(secondaryParts, it) },
         cacheArgs = cacheArgs(
             primaryPartArgs = primaryPartArgs,
             primaryPartNames = primaryParts.map { it.name },
         ),
+        storage = CacheStorage.HashMap,
+        secondaryPatternPartArgs = secondarySelections
+            .takeIf { it.isNotEmpty() }
+            ?.let { buildSecondaryPatternPartArgs(secondaryParts, it) },
     )
 }
 
@@ -105,54 +105,39 @@ private fun typedHashPrimarySecondaryKey(
     secondaryPartNames = secondaryPartNames,
 )
 
-private fun hashEntryRef(
+private fun groupedHashEntryRef(
     name: String,
     primaryPartArgs: List<CacheArgs>,
     primaryPartNames: List<String?>,
-): HashMapCacheEntryRef = typedHashPrimaryKey(
+): CacheEntryRef<CacheStorage.HashMap> = typedHashPrimaryKey(
     primaryPartArgs = primaryPartArgs,
     primaryPartNames = primaryPartNames,
 ).hashEntryRef(name)
 
-private fun hashPartRef(
-    name: String,
-    args: CacheArgs,
-    primaryPartArgs: List<CacheArgs>,
-    primaryPartNames: List<String?>,
-): HashMapCachePartRef = CachePartRef(
-    name = name,
-    args = args,
-    cacheArgs = cacheArgs(
-        primaryPartArgs = primaryPartArgs,
-        primaryPartNames = primaryPartNames,
-    ),
-    storage = CacheStorage.HashMap,
-)
-
-private fun <P1 : Any> hashEntryRef(
+private fun <P1 : Any> groupedHashEntryRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     primaryValue: P1,
-): HashMapCacheEntryRef = typedHashPrimaryKey(
+): CacheEntryRef<CacheStorage.HashMap> = typedHashPrimaryKey(
     primaryPartArgs = key.encodePrimaryParts(primaryValue),
     primaryPartNames = key.primaryPartNames(),
 ).hashEntryRef(name)
 
-private fun <P1 : Any> setPrimaryEntryRef(
+private fun <P1 : Any> groupedSetEntryRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     primaryValue: P1,
-): SetMembershipCacheEntryRef = typedPrimaryKey(
+): CacheEntryRef<CacheStorage.Set> = typedPrimaryKey(
     primaryPartArgs = key.encodePrimaryParts(primaryValue),
     primaryPartNames = key.primaryPartNames(),
 ).setEntryRef(name)
 
-private fun <P1 : Any> hashPrimaryPartRef(
+private fun <P1 : Any> groupedHashPrimaryPartRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     primaryValue: P1,
     secondaryPatternPartArgs: List<CacheArgs>? = null,
-): HashMapCachePartRef = CachePartRef(
+): CachePartRef<CacheStorage.HashMap> = CachePartRef(
     name = name,
     args = key.primary.encode(primaryValue),
     cacheArgs = cacheArgs(
@@ -163,11 +148,11 @@ private fun <P1 : Any> hashPrimaryPartRef(
     secondaryPatternPartArgs = secondaryPatternPartArgs,
 )
 
-private fun <P1 : Any> setPrimaryPartRef(
+private fun <P1 : Any> groupedSetPrimaryPartRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     primaryValue: P1,
-): SetMembershipCachePartRef = CachePartRef(
+): CachePartRef<CacheStorage.Set> = CachePartRef(
     name = name,
     args = key.primary.encode(primaryValue),
     cacheArgs = cacheArgs(
@@ -177,19 +162,12 @@ private fun <P1 : Any> setPrimaryPartRef(
     storage = CacheStorage.Set,
 )
 
-private fun <P1 : Any> groupedHashPartRef(
+private fun <P1 : Any> selectedGroupedHashPartRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     selections: Array<out KeyPartValue>,
-): HashMapCachePartRef {
-    val partRef = buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
-    return CachePartRef(
-        name = partRef.name,
-        args = partRef.args,
-        cacheArgs = partRef.cacheArgs,
-        storage = CacheStorage.HashMap,
-        secondaryPatternPartArgs = partRef.secondaryPatternPartArgs,
-    )
+): CachePartRef<CacheStorage.HashMap> {
+    return buildLayeredHashPartRef(name, listOf(key.primary), key.secondaryParts(), selections)
 }
 
 private fun Array<out KeyPartValue>.associateByName(): MutableMap<String, KeyPartValue> {
@@ -212,12 +190,12 @@ data class TypedPrimarySecondaryKey2<P1 : Any, P2 : Any, S>(
     val name: String,
     val key: KeyPartCompositionGroup2<P1, P2>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsGroupedKeyStorage {
+) where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage {
 
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1): StoredCacheEntryRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashEntryRef(name, key, p1)
-        CacheStorage.Set -> setPrimaryEntryRef(name, key, p1)
+        CacheStorage.HashMap -> groupedHashEntryRef(name, key, p1)
+        CacheStorage.Set -> groupedSetEntryRef(name, key, p1)
     } as StoredCacheEntryRef<S>
 
     @Suppress("UNCHECKED_CAST")
@@ -238,8 +216,8 @@ data class TypedPrimarySecondaryKey2<P1 : Any, P2 : Any, S>(
 
     @Suppress("UNCHECKED_CAST")
     fun keyPart(value: P1): StoredCachePartRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashPrimaryPartRef(name, key, value)
-        CacheStorage.Set -> setPrimaryPartRef(name, key, value)
+        CacheStorage.HashMap -> groupedHashPrimaryPartRef(name, key, value)
+        CacheStorage.Set -> groupedSetPrimaryPartRef(name, key, value)
     } as StoredCachePartRef<S>
 }
 
@@ -248,12 +226,12 @@ data class TypedPrimarySecondaryKey3<P1 : Any, P2 : Any, P3 : Any, S>(
     val name: String,
     val key: KeyPartCompositionGroup3<P1, P2, P3>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsGroupedKeyStorage {
+) where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage {
 
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1): StoredCacheEntryRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashEntryRef(name, key, p1)
-        CacheStorage.Set -> setPrimaryEntryRef(name, key, p1)
+        CacheStorage.HashMap -> groupedHashEntryRef(name, key, p1)
+        CacheStorage.Set -> groupedSetEntryRef(name, key, p1)
     } as StoredCacheEntryRef<S>
 
     @Suppress("UNCHECKED_CAST")
@@ -274,8 +252,8 @@ data class TypedPrimarySecondaryKey3<P1 : Any, P2 : Any, P3 : Any, S>(
 
     @Suppress("UNCHECKED_CAST")
     fun keyPart(value: P1): StoredCachePartRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashPrimaryPartRef(name, key, value)
-        CacheStorage.Set -> setPrimaryPartRef(name, key, value)
+        CacheStorage.HashMap -> groupedHashPrimaryPartRef(name, key, value)
+        CacheStorage.Set -> groupedSetPrimaryPartRef(name, key, value)
     } as StoredCachePartRef<S>
 }
 
@@ -284,12 +262,12 @@ data class TypedPrimarySecondaryKey4<P1 : Any, P2 : Any, P3 : Any, P4 : Any, S>(
     val name: String,
     val key: KeyPartCompositionGroup4<P1, P2, P3, P4>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsGroupedKeyStorage {
+) where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage {
 
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1): StoredCacheEntryRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashEntryRef(name, key, p1)
-        CacheStorage.Set -> setPrimaryEntryRef(name, key, p1)
+        CacheStorage.HashMap -> groupedHashEntryRef(name, key, p1)
+        CacheStorage.Set -> groupedSetEntryRef(name, key, p1)
     } as StoredCacheEntryRef<S>
 
     @Suppress("UNCHECKED_CAST")
@@ -310,8 +288,8 @@ data class TypedPrimarySecondaryKey4<P1 : Any, P2 : Any, P3 : Any, P4 : Any, S>(
 
     @Suppress("UNCHECKED_CAST")
     fun keyPart(value: P1): StoredCachePartRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashPrimaryPartRef(name, key, value)
-        CacheStorage.Set -> setPrimaryPartRef(name, key, value)
+        CacheStorage.HashMap -> groupedHashPrimaryPartRef(name, key, value)
+        CacheStorage.Set -> groupedSetPrimaryPartRef(name, key, value)
     } as StoredCachePartRef<S>
 }
 
@@ -320,12 +298,12 @@ data class TypedPrimarySecondaryKey5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
     val name: String,
     val key: KeyPartCompositionGroup5<P1, P2, P3, P4, P5>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsGroupedKeyStorage {
+) where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage {
 
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1): StoredCacheEntryRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashEntryRef(name, key, p1)
-        CacheStorage.Set -> setPrimaryEntryRef(name, key, p1)
+        CacheStorage.HashMap -> groupedHashEntryRef(name, key, p1)
+        CacheStorage.Set -> groupedSetEntryRef(name, key, p1)
     } as StoredCacheEntryRef<S>
 
     @Suppress("UNCHECKED_CAST")
@@ -346,8 +324,8 @@ data class TypedPrimarySecondaryKey5<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
 
     @Suppress("UNCHECKED_CAST")
     fun keyPart(value: P1): StoredCachePartRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashPrimaryPartRef(name, key, value)
-        CacheStorage.Set -> setPrimaryPartRef(name, key, value)
+        CacheStorage.HashMap -> groupedHashPrimaryPartRef(name, key, value)
+        CacheStorage.Set -> groupedSetPrimaryPartRef(name, key, value)
     } as StoredCachePartRef<S>
 }
 
@@ -356,12 +334,12 @@ data class TypedPrimarySecondaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
     val name: String,
     val key: KeyPartCompositionGroup6<P1, P2, P3, P4, P5, P6>,
     val storedAs: S,
-) where S : CacheStorage, S : SupportsGroupedKeyStorage {
+) where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage {
 
     @Suppress("UNCHECKED_CAST")
     fun key(p1: P1): StoredCacheEntryRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashEntryRef(name, key, p1)
-        CacheStorage.Set -> setPrimaryEntryRef(name, key, p1)
+        CacheStorage.HashMap -> groupedHashEntryRef(name, key, p1)
+        CacheStorage.Set -> groupedSetEntryRef(name, key, p1)
     } as StoredCacheEntryRef<S>
 
     @Suppress("UNCHECKED_CAST")
@@ -382,8 +360,8 @@ data class TypedPrimarySecondaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
 
     @Suppress("UNCHECKED_CAST")
     fun keyPart(value: P1): StoredCachePartRef<S> = when (storedAs) {
-        CacheStorage.HashMap -> hashPrimaryPartRef(name, key, value)
-        CacheStorage.Set -> setPrimaryPartRef(name, key, value)
+        CacheStorage.HashMap -> groupedHashPrimaryPartRef(name, key, value)
+        CacheStorage.Set -> groupedSetPrimaryPartRef(name, key, value)
     } as StoredCachePartRef<S>
 }
 
@@ -391,11 +369,11 @@ data class TypedPrimarySecondaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
 fun <P1 : Any, P2 : Any, S> TypedPrimarySecondaryKey2<P1, P2, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     if (secondaryParts.isEmpty()) {
-        hashPrimaryPartRef(name, key, value)
+        groupedHashPrimaryPartRef(name, key, value)
     } else {
-        hashPrimaryPartRef(
+        groupedHashPrimaryPartRef(
             name = name,
             key = key,
             primaryValue = value,
@@ -406,18 +384,18 @@ fun <P1 : Any, P2 : Any, S> TypedPrimarySecondaryKey2<P1, P2, S>.keyPart(
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, S> TypedPrimarySecondaryKey2<P1, P2, S>.keyPart(
     vararg selections: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
-    groupedHashPartRef(name, key, selections)
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+    selectedGroupedHashPartRef(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, S> TypedPrimarySecondaryKey3<P1, P2, P3, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     if (secondaryParts.isEmpty()) {
-        hashPrimaryPartRef(name, key, value)
+        groupedHashPrimaryPartRef(name, key, value)
     } else {
-        hashPrimaryPartRef(
+        groupedHashPrimaryPartRef(
             name = name,
             key = key,
             primaryValue = value,
@@ -428,18 +406,18 @@ fun <P1 : Any, P2 : Any, P3 : Any, S> TypedPrimarySecondaryKey3<P1, P2, P3, S>.k
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, S> TypedPrimarySecondaryKey3<P1, P2, P3, S>.keyPart(
     vararg selections: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
-    groupedHashPartRef(name, key, selections)
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+    selectedGroupedHashPartRef(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, S> TypedPrimarySecondaryKey4<P1, P2, P3, P4, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     if (secondaryParts.isEmpty()) {
-        hashPrimaryPartRef(name, key, value)
+        groupedHashPrimaryPartRef(name, key, value)
     } else {
-        hashPrimaryPartRef(
+        groupedHashPrimaryPartRef(
             name = name,
             key = key,
             primaryValue = value,
@@ -450,18 +428,18 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, S> TypedPrimarySecondaryKey4<P1, P2
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, S> TypedPrimarySecondaryKey4<P1, P2, P3, P4, S>.keyPart(
     vararg selections: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
-    groupedHashPartRef(name, key, selections)
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+    selectedGroupedHashPartRef(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S> TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     if (secondaryParts.isEmpty()) {
-        hashPrimaryPartRef(name, key, value)
+        groupedHashPrimaryPartRef(name, key, value)
     } else {
-        hashPrimaryPartRef(
+        groupedHashPrimaryPartRef(
             name = name,
             key = key,
             primaryValue = value,
@@ -472,18 +450,18 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S> TypedPrimarySecondaryK
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S> TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, S>.keyPart(
     vararg selections: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
-    groupedHashPartRef(name, key, selections)
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+    selectedGroupedHashPartRef(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, S> TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     if (secondaryParts.isEmpty()) {
-        hashPrimaryPartRef(name, key, value)
+        groupedHashPrimaryPartRef(name, key, value)
     } else {
-        hashPrimaryPartRef(
+        groupedHashPrimaryPartRef(
             name = name,
             key = key,
             primaryValue = value,
@@ -494,24 +472,42 @@ fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, S> TypedPrimary
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, S> TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, S>.keyPart(
     vararg selections: KeyPartValue,
-): HashMapCachePartRef where S : CacheStorage, S : SupportsGroupedKeyStorage, S : SupportsSecondaryPatternInvalidation =
-    groupedHashPartRef(name, key, selections)
+): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+    selectedGroupedHashPartRef(name, key, selections)
 
-@Deprecated("Use TypedPrimarySecondaryKey2 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey2<P1, P2, CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey2<P1, P2, CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey2", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapStoredCache2<P1, P2> = TypedPrimarySecondaryKey2<P1, P2, CacheStorage.HashMap>
 
-@Deprecated("Use TypedPrimarySecondaryKey2 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey2<P1, P2, CacheStorage.Set> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey2<P1, P2, CacheStorage.Set>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey2", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias SetStoredCache2<P1, P2> = TypedPrimarySecondaryKey2<P1, P2, CacheStorage.Set>
 
-@Deprecated("Use TypedPrimarySecondaryKey3 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey3<P1, P2, P3, CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey3<P1, P2, P3, CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey3", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapStoredCache3<P1, P2, P3> = TypedPrimarySecondaryKey3<P1, P2, P3, CacheStorage.HashMap>
 
-@Deprecated("Use TypedPrimarySecondaryKey4 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey4<P1, P2, P3, P4, CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey4<P1, P2, P3, P4, CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey4", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapStoredCache4<P1, P2, P3, P4> = TypedPrimarySecondaryKey4<P1, P2, P3, P4, CacheStorage.HashMap>
 
-@Deprecated("Use TypedPrimarySecondaryKey5 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey5", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapStoredCache5<P1, P2, P3, P4, P5> = TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, CacheStorage.HashMap>
 
-@Deprecated("Use TypedPrimarySecondaryKey6 instead.")
+@Deprecated(
+    message = "Use TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.HashMap> instead.",
+    replaceWith = ReplaceWith("TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.HashMap>", imports = ["com.github.dave08.kacheable.TypedPrimarySecondaryKey6", "com.github.dave08.kacheable.CacheStorage"]),
+)
 typealias HashMapStoredCache6<P1, P2, P3, P4, P5, P6> =
     TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, CacheStorage.HashMap>

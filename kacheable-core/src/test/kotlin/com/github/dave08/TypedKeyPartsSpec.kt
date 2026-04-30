@@ -3,7 +3,6 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.CacheStorageLayout.HashValue
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.argsOf
 import com.github.dave08.kacheable.entryKey
@@ -53,7 +52,7 @@ val TypedKeyPartsSpec by testSuite {
             val entryRef = typedSongPageCache.key(artistId, PageWindow(0, 10), "en")
             val partRef = typedSongPageCache.keyPart(artistId)
 
-            assertEquals(HashValue, entryRef.storageLayout)
+            assertEquals(CacheStorage.HashMap, entryRef.storage)
             assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
             assertEquals(listOf(0, 10, "en"), entryRef.cacheArgs.secondary?.toList())
             assertEquals(listOf(7, 0, 10, "en"), entryRef.cacheArgs.flattened.toList())

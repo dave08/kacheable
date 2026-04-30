@@ -15,7 +15,7 @@ fun BlockingKacheable.invalidate(vararg entryRefs: StoredCacheEntryRef<*>) {
         when (entryRef.storage) {
             CacheStorage.Set -> invalidateSetMembership(entryRef.name, entryRef.cacheArgs) {}
             CacheStorage.String, CacheStorage.HashMap ->
-                invalidate(entryRef.name, entryRef.cacheArgs, requireNotNull(entryRef.storageLayout)) {}
+                invalidate(entryRef.name, entryRef.cacheArgs, entryRef.storage) {}
         }
     }
 }
@@ -39,12 +39,10 @@ fun <E : Enum<E>> BlockingKacheable.invalidate(
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: CacheEntryPartRef) {
     partRefs.forEach { partRef ->
-        if (partRef is StoredCachePartRef<*> && partRef.storage == CacheStorage.Set) {
+        if (partRef.storage == CacheStorage.Set) {
             invalidateSetMembership(partRef.name, partRef.cacheArgs) {}
-        } else if (partRef.storageLayout == null) {
-            invalidate(partRef.name to partRef.args.toParamsArray().toList()) {}
         } else {
-            invalidate(partRef.name, partRef.cacheArgs, requireNotNull(partRef.storageLayout), partRef.secondaryPatternPartArgs) {}
+            invalidate(partRef.name, partRef.cacheArgs, partRef.storage, partRef.secondaryPatternPartArgs) {}
         }
     }
 }

@@ -11,7 +11,7 @@ internal object NoopKacheable : Kacheable {
     override suspend fun <R> invalidate(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         secondaryPatternPartArgs: List<CacheArgs>?,
         block: suspend () -> R,
     ): R = block()
@@ -44,7 +44,7 @@ internal object NoopKacheable : Kacheable {
         name: String,
         codec: CacheValueCodec<R>,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R
     ): R = block()

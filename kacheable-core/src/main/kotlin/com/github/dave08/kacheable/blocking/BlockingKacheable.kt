@@ -1,8 +1,8 @@
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheArgs
+import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
-import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
@@ -15,7 +15,7 @@ interface BlockingKacheable {
     fun <R> invalidate(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         secondaryPatternPartArgs: List<CacheArgs>? = null,
         block: () -> R,
     ): R
@@ -48,7 +48,7 @@ interface BlockingKacheable {
         name: String,
         codec: CacheValueCodec<R>,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         saveResultIf: (R) -> Boolean = { true },
         block: () -> R
     ): R

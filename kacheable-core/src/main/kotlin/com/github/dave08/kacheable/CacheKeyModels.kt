@@ -43,7 +43,7 @@ internal fun validateUniqueKeyPartNames(names: List<String?>) {
 interface CacheEntryPartRef {
     val name: String
     val args: CacheArgs
-    val storageLayout: CacheStorageLayout?
+    val storage: CacheStorage
     val secondaryPatternPartArgs: List<CacheArgs>?
         get() = null
     val cacheArgs: PrimarySecondaryCacheArgs
@@ -69,15 +69,6 @@ data class KeyPartValue(
     val name: String? = keyPart.name
 }
 
-@ExperimentalKacheableApi
-internal data class SimpleCacheEntryPartRef(
-    override val name: String,
-    override val args: CacheArgs,
-    override val storageLayout: CacheStorageLayout? = null,
-    override val secondaryPatternPartArgs: List<CacheArgs>? = null,
-    override val cacheArgs: PrimarySecondaryCacheArgs = PrimarySecondaryCacheArgs(args),
-) : CacheEntryPartRef
-
 @PublishedApi
 internal data class ResolvedPrimaryKey(
     val primaryPartArgs: List<CacheArgs>,
@@ -90,26 +81,13 @@ internal data class ResolvedPrimaryKey(
 
     val primaryArgs: CacheArgs = cacheArgs.primary
 
-    fun stringEntryRef(name: String): StringCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.String)
+    fun stringEntryRef(name: String): CacheEntryRef<CacheStorage.String> = CacheEntryRef(name, cacheArgs, CacheStorage.String)
 
-    fun hashEntryRef(name: String): HashMapCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
+    fun hashEntryRef(name: String): CacheEntryRef<CacheStorage.HashMap> = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): SetMembershipCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
+    fun setEntryRef(name: String): CacheEntryRef<CacheStorage.Set> = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
 
-    fun setPartRef(name: String): SetMembershipCachePartRef = CachePartRef(name, cacheArgs.primary, cacheArgs, CacheStorage.Set)
-
-    fun partRef(
-        name: String,
-        storageLayout: CacheStorageLayout,
-        args: CacheArgs = primaryArgs,
-        secondaryPatternPartArgs: List<CacheArgs>? = null,
-    ): CacheEntryPartRef = SimpleCacheEntryPartRef(
-        name = name,
-        args = args,
-        storageLayout = storageLayout,
-        secondaryPatternPartArgs = secondaryPatternPartArgs,
-        cacheArgs = cacheArgs,
-    )
+    fun setPartRef(name: String): CachePartRef<CacheStorage.Set> = CachePartRef(name, cacheArgs.primary, cacheArgs, CacheStorage.Set)
 }
 
 @PublishedApi
@@ -131,9 +109,9 @@ internal data class ResolvedPrimarySecondaryKey(
         primaryPartNames = primaryPartNames,
     )
 
-    fun hashEntryRef(name: String): HashMapCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
+    fun hashEntryRef(name: String): CacheEntryRef<CacheStorage.HashMap> = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): SetMembershipCacheEntryRef = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
+    fun setEntryRef(name: String): CacheEntryRef<CacheStorage.Set> = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
 }
 
 @PublishedApi

@@ -5,7 +5,6 @@ import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.CacheStorageLayout
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.Kacheable
@@ -40,18 +39,18 @@ internal class KacheableImpl(
     override suspend fun <R> invalidate(
         name: String,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         secondaryPatternPartArgs: List<CacheArgs>?,
         block: suspend () -> R,
     ): R {
         if (secondaryPatternPartArgs != null) {
             store.deleteMatching(
-                entryNameResolver.resolvePattern(name, cacheArgs.primary, secondaryPatternPartArgs, storageLayout) as
+                entryNameResolver.resolvePattern(name, cacheArgs.primary, secondaryPatternPartArgs, storage) as
                     CacheEntryName.Layered,
             )
         } else {
             store.mutate {
-                delete(entryNameResolver.resolve(name, cacheArgs, storageLayout))
+                delete(entryNameResolver.resolve(name, cacheArgs, storage))
             }
         }
         return block()
@@ -110,12 +109,12 @@ internal class KacheableImpl(
         name: String,
         codec: CacheValueCodec<R>,
         cacheArgs: PrimarySecondaryCacheArgs,
-        storageLayout: CacheStorageLayout,
+        storage: CacheStorage,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R {
         return invokeAtAddress(
-            entryName = entryNameResolver.resolve(name, cacheArgs, storageLayout),
+            entryName = entryNameResolver.resolve(name, cacheArgs, storage),
             cacheName = name,
             codec = codec,
             saveResultIf = saveResultIf,
