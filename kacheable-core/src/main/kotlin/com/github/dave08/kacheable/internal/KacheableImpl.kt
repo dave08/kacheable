@@ -9,6 +9,7 @@ import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.TypedStorages
@@ -51,6 +52,11 @@ internal class KacheableImpl(
     override suspend fun invalidate(partRef: CacheEntryPartRef) {
         @Suppress("UNCHECKED_CAST")
         (storages.any(partRef.storage) as TypedStorage<CacheStorage>).invalidate(partRef as StoredCachePartRef<CacheStorage>)
+    }
+
+    override suspend fun invalidate(allRef: StoredCacheAllRef<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (storages.any(allRef.storage) as TypedStorage<CacheStorage>).invalidate(allRef as StoredCacheAllRef<CacheStorage>)
     }
 
     override suspend fun <E : Any> invalidate(

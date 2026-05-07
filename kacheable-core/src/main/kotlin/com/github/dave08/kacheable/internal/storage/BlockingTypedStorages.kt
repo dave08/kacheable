@@ -4,6 +4,7 @@ import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.storage.hash.BlockingHashMapTypedStorage
 import com.github.dave08.kacheable.internal.storage.set.BlockingSetTypedStorage
@@ -16,6 +17,8 @@ internal interface BlockingTypedStorage<S : CacheStorage> {
     fun invalidate(entryRef: StoredCacheEntryRef<S>)
 
     fun invalidate(partRef: StoredCachePartRef<S>)
+
+    fun invalidate(allRef: StoredCacheAllRef<S>)
 
     fun <R> invoke(
         entryRef: StoredCacheEntryRef<S>,

@@ -80,3 +80,11 @@ internal fun InMemoryBlockingKacheableStore.assertHashField(
 ) {
     assertEquals(expectedValue, hashMap[key]?.get(field.toString()))
 }
+
+internal fun InMemoryBlockingKacheableStore.assertHashMissing(key: String) {
+    assertNull(hashMap[key])
+}
+
+internal fun InMemoryBlockingKacheableStore.assertStringValueMissing(key: String) {
+    assertNull(map[key])
+}

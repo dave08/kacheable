@@ -5,6 +5,7 @@ import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
@@ -29,6 +30,10 @@ internal class BlockingStringTypedStorage(
 
     override fun invalidate(partRef: StoredCachePartRef<CacheStorage.String>) {
         StringStorageStrategy.invalidate(store, entryNamer, partRef.name, partRef.cacheArgs, partRef.secondaryPatternPartArgs) {}
+    }
+
+    override fun invalidate(allRef: StoredCacheAllRef<CacheStorage.String>) {
+        StringStorageStrategy.invalidateAll(store, entryNamer, allRef)
     }
 
     override fun <R> invoke(

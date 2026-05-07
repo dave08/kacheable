@@ -5,6 +5,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.StoreEntryName
+import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.internal.storage.delete as blockingDelete
 import com.github.dave08.kacheable.internal.storage.delete
 import com.github.dave08.kacheable.internal.storage.deleteMatching
@@ -21,6 +22,24 @@ internal object HashMapStorageStrategy {
 
     fun patternEntryName(entryName: CacheEntryName.PrimarySecondary): StoreEntryName.Layered =
         StoreEntryName.Layered(entryName.primary, entryName.secondary)
+
+    suspend fun invalidateAll(
+        store: com.github.dave08.kacheable.store.KacheableStore,
+        entryNamer: CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.HashMap>,
+    ) {
+        val entryName = entryNamer.nameAllEntries(allRef.name)
+        store.delete(entryName.primaryKey)
+    }
+
+    fun invalidateAll(
+        store: com.github.dave08.kacheable.blocking.store.BlockingKacheableStore,
+        entryNamer: CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.HashMap>,
+    ) {
+        val entryName = entryNamer.nameAllEntries(allRef.name)
+        store.delete(entryName.primaryKey)
+    }
 
     suspend fun <R> invalidate(
         store: com.github.dave08.kacheable.store.KacheableStore,

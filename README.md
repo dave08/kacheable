@@ -96,7 +96,7 @@ It is **not** trying to be:
 
 - Raw cache API for simple exact keys
 - Typed `entryKey(...)` API for structured cache definitions
-- Experimental logical `cacheKey(...)` prototype for result-first cache definitions
+- Experimental `cacheKey(...)` prototype for result-first cache definitions
 - Hash-backed grouped caches
 - Set-backed membership and classified membership caches
 - Exact invalidation, grouped invalidation, and partial layered hash invalidation
@@ -105,9 +105,9 @@ It is **not** trying to be:
 - Per-cache expiry configuration
 - Custom cache naming strategies
 
-## Experimental logical cache keys
+## Experimental cache keys
 
-The `cacheKey` prototype lets you define the logical cached result first and leave storage as an optimization plan:
+The `cacheKey` prototype lets you define the cached result first and leave storage as an optimization plan:
 
 ```kotlin
 val songCache = cacheKey(
@@ -131,9 +131,11 @@ Calls do not need `returnsAs`:
 ```kotlin
 cache(songCache(songIdValue)) { loadSong(songIdValue) }
 cache(artistSongCache(artistIdValue, songIdValue)) { loadArtistSong() }
+cache.invalidate(artistSongCache.partition(artistIdValue))
+cache.invalidate(artistSongCache.all())
 ```
 
-See [docs/logical-cache-key-prototype.md](docs/logical-cache-key-prototype.md) for the prototype terminology, storage inference rules, collection examples, and power-user storage overrides.
+See [docs/cache-key-prototype.md](docs/cache-key-prototype.md) for the prototype terminology, storage inference rules, collection examples, invalidation scope, and power-user storage overrides.
 
 ## Storage layouts in practice
 

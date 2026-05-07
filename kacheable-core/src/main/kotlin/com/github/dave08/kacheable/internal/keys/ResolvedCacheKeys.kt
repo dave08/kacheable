@@ -3,10 +3,12 @@
 package com.github.dave08.kacheable.internal.keys
 
 import com.github.dave08.kacheable.CacheArgs
-import com.github.dave08.kacheable.CachePartRef
-import com.github.dave08.kacheable.CacheEntryRef
+import com.github.dave08.kacheable.StoredPartRef
+import com.github.dave08.kacheable.StoredEntryRef
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
+import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.joinArgs
 
 @PublishedApi
@@ -34,13 +36,13 @@ internal data class ResolvedPrimaryKey(
         primaryPartNames = primaryPartNames,
     )
 
-    fun stringEntryRef(name: String): CacheEntryRef<CacheStorage.String> = CacheEntryRef(name, cacheArgs, CacheStorage.String)
+    fun stringEntryRef(name: String): StoredCacheEntryRef<CacheStorage.String> = StoredEntryRef(name, cacheArgs, CacheStorage.String)
 
-    fun hashEntryRef(name: String): CacheEntryRef<CacheStorage.HashMap> = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
+    fun hashEntryRef(name: String): StoredCacheEntryRef<CacheStorage.HashMap> = StoredEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): CacheEntryRef<CacheStorage.Set> = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
+    fun setEntryRef(name: String): StoredCacheEntryRef<CacheStorage.Set> = StoredEntryRef(name, cacheArgs, CacheStorage.Set)
 
-    fun setPartRef(name: String): CachePartRef<CacheStorage.Set> = CachePartRef(name, cacheArgs.primary, cacheArgs, CacheStorage.Set)
+    fun setPartRef(name: String): StoredCachePartRef<CacheStorage.Set> = StoredPartRef(name, cacheArgs.primary, cacheArgs, CacheStorage.Set)
 }
 
 @PublishedApi
@@ -57,9 +59,9 @@ internal data class ResolvedPrimarySecondaryKey(
         secondaryPartNames = secondaryPartNames,
     )
 
-    fun hashEntryRef(name: String): CacheEntryRef<CacheStorage.HashMap> = CacheEntryRef(name, cacheArgs, CacheStorage.HashMap)
+    fun hashEntryRef(name: String): StoredCacheEntryRef<CacheStorage.HashMap> = StoredEntryRef(name, cacheArgs, CacheStorage.HashMap)
 
-    fun setEntryRef(name: String): CacheEntryRef<CacheStorage.Set> = CacheEntryRef(name, cacheArgs, CacheStorage.Set)
+    fun setEntryRef(name: String): StoredCacheEntryRef<CacheStorage.Set> = StoredEntryRef(name, cacheArgs, CacheStorage.Set)
 }
 
 @PublishedApi

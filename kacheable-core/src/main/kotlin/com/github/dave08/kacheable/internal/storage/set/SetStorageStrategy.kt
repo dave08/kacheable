@@ -8,16 +8,36 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
+import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.classificationInvalidationPlan
 import com.github.dave08.kacheable.internal.storage.invalidationPlan
 import com.github.dave08.kacheable.internal.storage.keyForClassificationResult
 import com.github.dave08.kacheable.internal.storage.setMembershipEntry
 import com.github.dave08.kacheable.internal.storage.shouldWriteSetMembershipResult
+import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.store.KacheableStore
 
 @OptIn(ExperimentalKacheableApi::class)
 internal object SetStorageStrategy {
     val storage: CacheStorage.Set = CacheStorage.Set
+
+    suspend fun invalidateAll(
+        store: KacheableStore,
+        entryNamer: CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.Set>,
+    ) {
+        val entryName = entryNamer.nameAllEntries(allRef.name)
+        store.delete(entryName.primaryKey)
+    }
+
+    fun invalidateAll(
+        store: BlockingKacheableStore,
+        entryNamer: CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.Set>,
+    ) {
+        val entryName = entryNamer.nameAllEntries(allRef.name)
+        store.delete(entryName.primaryKey)
+    }
 
     suspend fun <R> invalidateMembership(
         store: KacheableStore,

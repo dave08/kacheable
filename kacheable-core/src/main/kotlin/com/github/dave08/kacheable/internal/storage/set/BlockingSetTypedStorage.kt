@@ -7,6 +7,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.IsMemberCacheReturn
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
@@ -19,6 +20,7 @@ internal class BlockingSetTypedStorage(
     private val namingStrategy: CacheNamingStrategy,
 ) : BlockingTypedStorage<CacheStorage.Set> {
     override val storage: CacheStorage.Set = CacheStorage.Set
+    private val entryNamer = com.github.dave08.kacheable.internal.storage.CacheEntryNamer(namingStrategy)
 
     override fun invalidate(entryRef: StoredCacheEntryRef<CacheStorage.Set>) {
         SetStorageStrategy.invalidateMembership(store, namingStrategy, entryRef.name, entryRef.cacheArgs) {}
@@ -26,6 +28,10 @@ internal class BlockingSetTypedStorage(
 
     override fun invalidate(partRef: StoredCachePartRef<CacheStorage.Set>) {
         SetStorageStrategy.invalidateMembership(store, namingStrategy, partRef.name, partRef.cacheArgs) {}
+    }
+
+    override fun invalidate(allRef: StoredCacheAllRef<CacheStorage.Set>) {
+        SetStorageStrategy.invalidateAll(store, entryNamer, allRef)
     }
 
     fun <E : Any> invalidate(

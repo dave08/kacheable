@@ -15,6 +15,22 @@ internal object StringStorageStrategy {
     fun storeEntryName(entryName: CacheEntryName): StoreEntryName.Flat =
         StoreEntryName.Flat(entryName.combinedKey)
 
+    suspend fun invalidateAll(
+        store: com.github.dave08.kacheable.store.KacheableStore,
+        entryNamer: com.github.dave08.kacheable.internal.storage.CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.String>,
+    ) {
+        store.delete(storeEntryName(entryNamer.nameAllEntries(allRef.name)).key)
+    }
+
+    fun invalidateAll(
+        store: com.github.dave08.kacheable.blocking.store.BlockingKacheableStore,
+        entryNamer: com.github.dave08.kacheable.internal.storage.CacheEntryNamer,
+        allRef: com.github.dave08.kacheable.StoredCacheAllRef<CacheStorage.String>,
+    ) {
+        store.delete(storeEntryName(entryNamer.nameAllEntries(allRef.name)).key)
+    }
+
     suspend fun <R> invalidate(
         store: com.github.dave08.kacheable.store.KacheableStore,
         entryNamer: com.github.dave08.kacheable.internal.storage.CacheEntryNamer,

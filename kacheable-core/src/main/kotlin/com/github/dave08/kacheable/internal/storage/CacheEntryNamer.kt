@@ -3,6 +3,7 @@ package com.github.dave08.kacheable.internal.storage
 import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CachePatternWildcard
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.store.KacheableStore
@@ -20,6 +21,9 @@ internal class CacheEntryNamer(
 ) {
     fun nameEntry(name: String, params: Array<out Any?>): CacheEntryName =
         namingStrategy.getEntryName(name, params, emptyArray())
+
+    fun nameAllEntries(name: String): CacheEntryName =
+        namingStrategy.getEntryName(name, arrayOf(CachePatternWildcard), emptyArray())
 
     fun nameEntry(
         name: String,

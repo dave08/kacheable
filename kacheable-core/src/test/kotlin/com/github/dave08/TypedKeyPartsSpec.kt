@@ -47,7 +47,7 @@ val TypedKeyPartsSpec by testSuite {
             assertEquals("""{"id":8,"title":"Other Song"}""", store.hashMap["song-page-cache:8"]?.get("0,10,en"))
         }
 
-        test("entry refs expose logical key parts") {
+        test("entry refs expose named key parts") {
             val artistId = 7
             val entryRef = typedSongPageCache.key(artistId, PageWindow(0, 10), "en")
             val partRef = typedSongPageCache.keyPart(artistId)

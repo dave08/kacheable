@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalKacheableApi::class)
+
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.TypedCacheRuntime
@@ -11,6 +13,8 @@ internal object NoopKacheable : Kacheable, TypedCacheRuntime {
     override suspend fun invalidate(entryRef: StoredCacheEntryRef<*>) = Unit
 
     override suspend fun invalidate(partRef: CacheEntryPartRef) = Unit
+
+    override suspend fun invalidate(allRef: StoredCacheAllRef<*>) = Unit
 
     override suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,

@@ -3,8 +3,8 @@
 package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheArgs
-import com.github.dave08.kacheable.CacheEntryRef
-import com.github.dave08.kacheable.CachePartRef
+import com.github.dave08.kacheable.StoredEntryRef
+import com.github.dave08.kacheable.StoredPartRef
 import com.github.dave08.kacheable.CachePatternWildcard
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.KeyPart
@@ -36,7 +36,7 @@ internal fun resolveStoredPrimaryPartRef(
     primaryPartArgs: List<CacheArgs>,
     primaryPartNames: List<String?>,
 ) : StoredCachePartRef<*> = when (storedAs) {
-    CacheStorage.String -> CachePartRef(
+    CacheStorage.String -> StoredPartRef(
         name = name,
         args = args,
         cacheArgs = cacheArgs(
@@ -45,7 +45,7 @@ internal fun resolveStoredPrimaryPartRef(
         ),
         storage = CacheStorage.String,
     )
-    CacheStorage.HashMap -> CachePartRef(
+    CacheStorage.HashMap -> StoredPartRef(
         name = name,
         args = args,
         cacheArgs = cacheArgs(
@@ -105,7 +105,7 @@ private fun buildHashPrimarySecondarySelectionPartRef(
     primaryParts: List<KeyPart<*>>,
     secondaryParts: List<KeyPart<*>>,
     selections: Array<out KeyPartValue>,
-): CachePartRef<CacheStorage.HashMap> {
+): StoredCachePartRef<CacheStorage.HashMap> {
     require(selections.isNotEmpty()) { "Partial invalidation requires at least one selected key part." }
 
     val selectionsByName = selections.associateByName()
@@ -129,7 +129,7 @@ private fun buildHashPrimarySecondarySelectionPartRef(
         selection
     }.toTypedArray()
 
-    return CachePartRef(
+    return StoredPartRef(
         name = name,
         args = joinArgs(*primaryPartArgs.toTypedArray()),
         cacheArgs = cacheArgs(
@@ -167,7 +167,7 @@ internal fun <S> resolveStoredPrimarySecondaryPrimaryEntryRef(
 ): StoredCacheEntryRef<S> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     when (storedAs) {
         CacheStorage.HashMap -> typedPrimaryKey(primaryPartArgs, primaryPartNames).hashEntryRef(name)
-        CacheStorage.Set -> CacheEntryRef(
+        CacheStorage.Set -> StoredEntryRef(
             name = name,
             cacheArgs = cacheArgs(
                 primaryPartArgs = primaryPartArgs,
@@ -209,7 +209,7 @@ internal fun <P1 : Any, S> resolveStoredPrimarySecondaryPrimaryPartRef(
     primaryValue: P1,
 ): StoredCachePartRef<S> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     when (storedAs) {
-        CacheStorage.HashMap -> CachePartRef(
+        CacheStorage.HashMap -> StoredPartRef(
             name = name,
             args = key.primary.encode(primaryValue),
             cacheArgs = cacheArgs(
@@ -218,7 +218,7 @@ internal fun <P1 : Any, S> resolveStoredPrimarySecondaryPrimaryPartRef(
             ),
             storage = CacheStorage.HashMap,
         )
-        CacheStorage.Set -> CachePartRef(
+        CacheStorage.Set -> StoredPartRef(
             name = name,
             args = key.primary.encode(primaryValue),
             cacheArgs = cacheArgs(
@@ -234,7 +234,7 @@ internal fun <P1 : Any> resolveHashPrimarySecondaryPrimaryPartRef(
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     primaryValue: P1,
     secondarySelections: Array<out KeyPartValue>,
-): CachePartRef<CacheStorage.HashMap> = CachePartRef(
+): StoredCachePartRef<CacheStorage.HashMap> = StoredPartRef(
     name = name,
     args = key.primary.encode(primaryValue),
     cacheArgs = cacheArgs(
@@ -251,5 +251,5 @@ internal fun <P1 : Any> resolveHashPrimarySecondarySelectedPartRef(
     name: String,
     key: TypedPrimarySecondaryKeyDefinition<P1>,
     selections: Array<out KeyPartValue>,
-): CachePartRef<CacheStorage.HashMap> =
+): StoredCachePartRef<CacheStorage.HashMap> =
     buildHashPrimarySecondarySelectionPartRef(name, listOf(key.primary), key.secondaryParts(), selections)

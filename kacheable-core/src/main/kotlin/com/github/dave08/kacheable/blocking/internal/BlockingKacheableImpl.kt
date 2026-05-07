@@ -8,6 +8,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
@@ -51,6 +52,11 @@ internal class BlockingKacheableImpl(
     override fun invalidate(partRef: CacheEntryPartRef) {
         @Suppress("UNCHECKED_CAST")
         (storages.any(partRef.storage) as BlockingTypedStorage<CacheStorage>).invalidate(partRef as StoredCachePartRef<CacheStorage>)
+    }
+
+    override fun invalidate(allRef: StoredCacheAllRef<*>) {
+        @Suppress("UNCHECKED_CAST")
+        (storages.any(allRef.storage) as BlockingTypedStorage<CacheStorage>).invalidate(allRef as StoredCacheAllRef<CacheStorage>)
     }
 
     override fun <E : Any> invalidate(

@@ -1,10 +1,10 @@
-# Logical Cache Key Prototype
+# Cache Key Prototype
 
 This prototype explores a different public model for typed caches:
 
-> One cache key describes one logical cached result. Storage is an optimization plan.
+> One cache key describes one cached result. Storage is an optimization plan.
 
-The existing `entryKey(...)` / `returnsAs = ...` API still works. The logical API sits next to it while we test whether this terminology is clearer.
+The existing `entryKey(...)` / `returnsAs = ...` API still works. The cache-key API sits next to it while we test whether this terminology is clearer.
 
 ## Defining A Cache
 
@@ -34,11 +34,11 @@ cache(songCache(songIdValue)) {
 cache.invalidate(songCache(songIdValue))
 ```
 
-The `returns<Result>()` token fixes the logical result type without forcing users to spell out key-part type parameters. `exact(...)` and `partitioned(...)` then infer key-part types normally, which keeps invocation type-safe.
+The `returns<Result>()` token fixes the cache result type without forcing users to spell out key-part type parameters. `exact(...)` and `partitioned(...)` then infer key-part types normally, which keeps invocation type-safe.
 
 ## Nullable Key Parts
 
-Nullable repository parameters can be modeled directly when `null` is part of the logical call identity.
+Nullable repository parameters can be modeled directly when `null` is part of the call identity.
 
 ```kotlin
 val filter = keyPart<ArtistFilter?>("filter")
@@ -104,7 +104,7 @@ Read this as:
 
 > Cache one `Song` for each `songId` key inside one `artistId` partition.
 
-Usage still asks for one logical result:
+Usage still asks for one cache result:
 
 ```kotlin
 cache(artistSongCache(artistIdValue, songIdValue)) {
@@ -120,6 +120,26 @@ cache.invalidate(artistSongCache.partition(artistIdValue))
 ```
 
 Under `storage = auto()`, partitioned non-Boolean and non-enum results use indexed value storage, currently backed by hash-map style storage.
+
+## Whole-Cache Invalidation
+
+Use `.all()` when a cache result depends on inputs that are not fully represented by the cache key, or when a broad domain change makes every cached result in that cache definition suspect.
+
+```kotlin
+val newestAlbumsCache = cacheKey(
+    "newest-albums",
+    returns<List<AlbumId>>(),
+    key = exact(page + albumType),
+)
+
+cache.invalidate(newestAlbumsCache.all())
+```
+
+Read this as:
+
+> Delete every cached `newest-albums` result, across every key.
+
+`.all()` is intentionally explicit because it can be expensive for storage backends that implement it with pattern scanning. Prefer exact refs, `partition(...)`, or `matching(...)` when the changed domain value maps to a narrower cache target.
 
 ## Matchable Key Parts
 
@@ -222,7 +242,7 @@ Read this as:
 
 > Cache one `Reaction` for each `accountId` key inside one `songId` partition.
 
-The public model is still a logical `Reaction` lookup. The classified set layout is an optimization.
+The public model is still a `Reaction` lookup. The classified set layout is an optimization.
 
 Power users can choose the enum universe or storage names:
 
@@ -266,9 +286,21 @@ val followCache = cacheKey(
 )
 ```
 
+## Hidden Dependencies
+
+A cache key should normally describe the inputs that decide one cached result. Some results also depend on hidden inputs: database views, ranking formulas, visibility rules, background counters, or other data read inside a query but not present at the call site.
+
+When a hidden input changes, broad invalidation can be the correct and honest choice:
+
+```kotlin
+cache.invalidate(homePageCache.all())
+```
+
+Longer term, Kacheable could grow dependency-aware caches so callers can say that one source change invalidates a set of derived caches. That should stay separate from the basic cache-key model unless it can be expressed without making ordinary exact and partitioned caches harder to understand.
+
 ## Prototype Limits
 
-- Exact logical keys cover arity 1 through 6.
-- Partitioned logical keys cover the shapes exercised by the prototype tests, including one-part and multi-part partitions plus matchable inner-key parts.
+- Exact cache keys cover arity 1 through 6.
+- Partitioned cache keys cover the shapes exercised by the prototype tests, including one-part and multi-part partitions plus matchable inner-key parts.
 - `matching(...)` accepts only `MatchableKeyPartValue`, so non-matchable key parts cannot be passed to it by accident. A compile-fail harness can make that guarantee explicit in tests later if this terminology survives.
 - The old typed API remains available while this model is evaluated.

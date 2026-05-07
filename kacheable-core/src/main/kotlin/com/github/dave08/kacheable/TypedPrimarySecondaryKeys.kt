@@ -167,63 +167,63 @@ data class TypedPrimarySecondaryKey6<P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 
 fun <P1 : Any, P2 : Any, S> TypedPrimarySecondaryKey2<P1, P2, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondaryPrimaryPartRef(name, key, value, secondaryParts)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, S> TypedPrimarySecondaryKey2<P1, P2, S>.keyPart(
     vararg selections: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondarySelectedPartRef<P1>(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, S> TypedPrimarySecondaryKey3<P1, P2, P3, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondaryPrimaryPartRef(name, key, value, secondaryParts)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, S> TypedPrimarySecondaryKey3<P1, P2, P3, S>.keyPart(
     vararg selections: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondarySelectedPartRef<P1>(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, S> TypedPrimarySecondaryKey4<P1, P2, P3, P4, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondaryPrimaryPartRef(name, key, value, secondaryParts)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, S> TypedPrimarySecondaryKey4<P1, P2, P3, P4, S>.keyPart(
     vararg selections: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondarySelectedPartRef<P1>(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S> TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondaryPrimaryPartRef(name, key, value, secondaryParts)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, S> TypedPrimarySecondaryKey5<P1, P2, P3, P4, P5, S>.keyPart(
     vararg selections: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondarySelectedPartRef<P1>(name, key, selections)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, S> TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, S>.keyPart(
     value: P1,
     vararg secondaryParts: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondaryPrimaryPartRef(name, key, value, secondaryParts)
 
 @ExperimentalKacheableApi
 fun <P1 : Any, P2 : Any, P3 : Any, P4 : Any, P5 : Any, P6 : Any, S> TypedPrimarySecondaryKey6<P1, P2, P3, P4, P5, P6, S>.keyPart(
     vararg selections: KeyPartValue,
-): CachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
+): StoredCachePartRef<CacheStorage.HashMap> where S : CacheStorage, S : SupportsPrimarySecondaryKeyStorage =
     resolveHashPrimarySecondarySelectedPartRef<P1>(name, key, selections)
