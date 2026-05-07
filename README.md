@@ -96,6 +96,7 @@ It is **not** trying to be:
 
 - Raw cache API for simple exact keys
 - Typed `entryKey(...)` API for structured cache definitions
+- Experimental logical `cacheKey(...)` prototype for result-first cache definitions
 - Hash-backed grouped caches
 - Set-backed membership and classified membership caches
 - Exact invalidation, grouped invalidation, and partial layered hash invalidation
@@ -103,6 +104,36 @@ It is **not** trying to be:
 - In-memory, Redis/Lettuce, and no-op stores
 - Per-cache expiry configuration
 - Custom cache naming strategies
+
+## Experimental logical cache keys
+
+The `cacheKey` prototype lets you define the logical cached result first and leave storage as an optimization plan:
+
+```kotlin
+val songCache = cacheKey(
+    "song",
+    returns<Song>(),
+    key = exact(songId),
+)
+
+val artistSongCache = cacheKey(
+    "artist-song",
+    returns<Song>(),
+    key = partitioned(
+        partition = artistId,
+        key = songId,
+    ),
+)
+```
+
+Calls do not need `returnsAs`:
+
+```kotlin
+cache(songCache(songIdValue)) { loadSong(songIdValue) }
+cache(artistSongCache(artistIdValue, songIdValue)) { loadArtistSong() }
+```
+
+See [docs/logical-cache-key-prototype.md](docs/logical-cache-key-prototype.md) for the prototype terminology, storage inference rules, collection examples, and power-user storage overrides.
 
 ## Storage layouts in practice
 

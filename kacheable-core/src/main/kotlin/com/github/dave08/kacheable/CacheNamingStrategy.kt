@@ -47,15 +47,22 @@ fun CacheEntryName.asCombined(): CacheEntryName.Primary = CacheEntryName.Primary
 fun interface CacheNamingStrategy {
     fun getEntryName(
         cacheName: String,
-        primaryParams: Array<out Any>,
-        secondaryParams: Array<out Any>,
+        primaryParams: Array<out Any?>,
+        secondaryParams: Array<out Any?>,
     ): CacheEntryName
 }
 
 fun defaultCacheNamingStrategy(
-    flatKeyCombiner: (cacheName: String, params: Array<out Any>) -> String = ::combineCacheKey,
-    primaryKeyCombiner: (cacheName: String, params: Array<out Any>) -> String = ::combineCacheKey,
-    secondaryEntryCombiner: (params: Array<out Any>) -> String = ::combineSecondaryEntryParts,
+    nullKeyPart: String = "<null>",
+    flatKeyCombiner: (cacheName: String, params: Array<out Any?>) -> String = { cacheName, params ->
+        combineCacheKey(cacheName, params, nullKeyPart)
+    },
+    primaryKeyCombiner: (cacheName: String, params: Array<out Any?>) -> String = { cacheName, params ->
+        combineCacheKey(cacheName, params, nullKeyPart)
+    },
+    secondaryEntryCombiner: (params: Array<out Any?>) -> String = { params ->
+        combineSecondaryEntryParts(params, nullKeyPart)
+    },
 ): CacheNamingStrategy = CacheNamingStrategy { cacheName, primaryParams, secondaryParams ->
     if (secondaryParams.isEmpty()) {
         CacheEntryName.Primary(
@@ -78,7 +85,7 @@ fun defaultCacheNamingStrategy(
     replaceWith = ReplaceWith("CacheNamingStrategy"),
 )
 fun interface GetNameStrategy {
-    fun getName(name: String, params: Array<out Any>): String
+    fun getName(name: String, params: Array<out Any?>): String
 }
 
 @Deprecated(
@@ -103,19 +110,35 @@ fun GetNameStrategy.asCacheNamingStrategy(): CacheNamingStrategy =
         }
     }
 
-fun combineCacheKey(name: String, params: Array<out Any>): String =
+fun combineCacheKey(name: String, params: Array<out Any?>): String =
+    combineCacheKey(name, params, nullKeyPart = "<null>")
+
+fun combineCacheKey(
+    name: String,
+    params: Array<out Any?>,
+    nullKeyPart: String,
+): String =
     if (params.isEmpty()) {
         name
     } else {
-        "$name:${params.joinToString(",")}"
+        "$name:${params.joinToString(",") { it.toCacheKeySegmentString(nullKeyPart) }}"
     }
 
-fun combineSecondaryEntryParts(params: Array<out Any>): String = params.joinToString(",")
+fun combineSecondaryEntryParts(params: Array<out Any?>): String =
+    combineSecondaryEntryParts(params, nullKeyPart = "<null>")
+
+fun combineSecondaryEntryParts(
+    params: Array<out Any?>,
+    nullKeyPart: String,
+): String = params.joinToString(",") { it.toCacheKeySegmentString(nullKeyPart) }
 
 private fun combineParams(
-    primaryParams: Array<out Any>,
-    secondaryParams: Array<out Any>,
-): Array<out Any> = buildList {
+    primaryParams: Array<out Any?>,
+    secondaryParams: Array<out Any?>,
+): Array<out Any?> = buildList {
     addAll(primaryParams.asList())
     addAll(secondaryParams.asList())
 }.toTypedArray()
+
+private fun Any?.toCacheKeySegmentString(nullKeyPart: String): String =
+    this?.toString() ?: nullKeyPart

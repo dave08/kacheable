@@ -53,14 +53,14 @@ internal class KacheableImpl(
         (storages.any(partRef.storage) as TypedStorage<CacheStorage>).invalidate(partRef as StoredCachePartRef<CacheStorage>)
     }
 
-    override suspend fun <E : Enum<E>> invalidate(
+    override suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {
         storages.set.invalidate(entryRef, returnsAs)
     }
 
-    override suspend fun <E : Enum<E>> invalidate(
+    override suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {

@@ -5,9 +5,9 @@ package com.github.dave08.kacheable
 import com.github.dave08.kacheable.internal.keys.typedPrimaryEntryKey
 import com.github.dave08.kacheable.internal.keys.typedPrimarySecondaryEntryKey
 
-private fun <P1 : Any> mappedKeyPart(
+private fun <P1> mappedKeyPart(
     name: String? = null,
-    values: List<(P1) -> Any>,
+    values: List<(P1) -> Any?>,
 ): KeyPart<P1> {
     require(values.isNotEmpty()) { "keyPart requires at least one value extractor" }
     return SimpleSecondaryKeyPart(
@@ -17,22 +17,22 @@ private fun <P1 : Any> mappedKeyPart(
 }
 
 @ExperimentalKacheableApi
-fun <P1 : Any> keyPart(): KeyPart<P1> = mappedKeyPart(values = listOf({ it }))
+fun <P1> keyPart(): KeyPart<P1> = mappedKeyPart(values = listOf({ it }))
 
 @ExperimentalKacheableApi
-fun <P1 : Any> keyPart(
-    vararg values: (P1) -> Any,
+fun <P1> keyPart(
+    vararg values: (P1) -> Any?,
 ): KeyPart<P1> = mappedKeyPart(values = values.toList())
 
 @ExperimentalKacheableApi
-fun <P1 : Any> keyPart(
+fun <P1> keyPart(
     name: String,
 ): KeyPart<P1> = mappedKeyPart(name = name, values = listOf({ it }))
 
 @ExperimentalKacheableApi
-fun <P1 : Any> keyPart(
+fun <P1> keyPart(
     name: String,
-    vararg values: (P1) -> Any,
+    vararg values: (P1) -> Any?,
 ): KeyPart<P1> = mappedKeyPart(name = name, values = values.toList())
 
 @ExperimentalKacheableApi

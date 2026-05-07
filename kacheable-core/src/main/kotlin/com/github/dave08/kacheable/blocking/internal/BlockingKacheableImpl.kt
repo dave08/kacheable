@@ -53,14 +53,14 @@ internal class BlockingKacheableImpl(
         (storages.any(partRef.storage) as BlockingTypedStorage<CacheStorage>).invalidate(partRef as StoredCachePartRef<CacheStorage>)
     }
 
-    override fun <E : Enum<E>> invalidate(
+    override fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {
         storages.set.invalidate(entryRef, returnsAs)
     }
 
-    override fun <E : Enum<E>> invalidate(
+    override fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {

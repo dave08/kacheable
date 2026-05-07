@@ -19,12 +19,12 @@ internal interface TypedCacheRuntime {
 
     suspend fun invalidate(partRef: CacheEntryPartRef)
 
-    suspend fun <E : Enum<E>> invalidate(
+    suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     )
 
-    suspend fun <E : Enum<E>> invalidate(
+    suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     )

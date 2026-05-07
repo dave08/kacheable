@@ -18,7 +18,7 @@ internal sealed interface StoreEntryName {
 internal class CacheEntryNamer(
     private val namingStrategy: CacheNamingStrategy,
 ) {
-    fun nameEntry(name: String, params: Array<out Any>): CacheEntryName =
+    fun nameEntry(name: String, params: Array<out Any?>): CacheEntryName =
         namingStrategy.getEntryName(name, params, emptyArray())
 
     fun nameEntry(

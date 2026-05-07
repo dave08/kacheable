@@ -21,12 +21,12 @@ internal object NoopBlockingKacheable : BlockingKacheable, BlockingTypedCacheRun
 
     override fun invalidate(partRef: CacheEntryPartRef) = Unit
 
-    override fun <E : Enum<E>> invalidate(
+    override fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) = Unit
 
-    override fun <E : Enum<E>> invalidate(
+    override fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) = Unit

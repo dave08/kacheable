@@ -12,12 +12,12 @@ internal object NoopKacheable : Kacheable, TypedCacheRuntime {
 
     override suspend fun invalidate(partRef: CacheEntryPartRef) = Unit
 
-    override suspend fun <E : Enum<E>> invalidate(
+    override suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) = Unit
 
-    override suspend fun <E : Enum<E>> invalidate(
+    override suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) = Unit

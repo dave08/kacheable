@@ -48,7 +48,7 @@ internal class BlockingStringTypedStorage(
     fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        params: Array<out Any>,
+        params: Array<out Any?>,
         saveResultIf: (R) -> Boolean,
         block: () -> R,
     ): R = store.invokeAtAddress(

@@ -56,10 +56,10 @@ val TypedKeyPartsSpec by testSuite {
             assertEquals(listOf(7), entryRef.cacheArgs.primary.toList())
             assertEquals(listOf(0, 10, "en"), entryRef.cacheArgs.secondary?.toList())
             assertEquals(listOf(7, 0, 10, "en"), entryRef.cacheArgs.flattened.toList())
-            assertEquals(listOf("7"), partRef.args.toList().map(Any::toString))
+            assertEquals(listOf("7"), partRef.args.toList().map { it.toString() })
             assertEquals(listOf(7), partRef.cacheArgs.primary.toList())
             assertNull(partRef.cacheArgs.secondary)
-            assertEquals(listOf("7"), partRef.cacheArgs.flattened.toList().map(Any::toString))
+            assertEquals(listOf("7"), partRef.cacheArgs.flattened.toList().map { it.toString() })
             assertEquals(listOf(listOf(7)), entryRef.cacheArgs.primaryPartArgs.map { it.toList() })
             assertEquals(listOf(null), entryRef.cacheArgs.primaryPartNames)
             assertEquals(listOf(listOf(0, 10), listOf("en")), entryRef.cacheArgs.secondaryPartArgs.map { it.toList() })
@@ -82,7 +82,7 @@ val TypedKeyPartsSpec by testSuite {
             assertNull(partRef.cacheArgs.secondary)
             assertEquals(
                 listOf(listOf("*", "*"), listOf("en")),
-                partRef.secondaryPatternPartArgs!!.map { args -> args.toList().map(Any::toString) },
+                partRef.secondaryPatternPartArgs!!.map { args -> args.toList().map { it.toString() } },
             )
         }
 

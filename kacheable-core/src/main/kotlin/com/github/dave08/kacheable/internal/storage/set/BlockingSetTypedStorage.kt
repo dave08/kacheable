@@ -28,14 +28,14 @@ internal class BlockingSetTypedStorage(
         SetStorageStrategy.invalidateMembership(store, namingStrategy, partRef.name, partRef.cacheArgs) {}
     }
 
-    fun <E : Enum<E>> invalidate(
+    fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {
         SetStorageStrategy.invalidateClassification(store, namingStrategy, entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
     }
 
-    fun <E : Enum<E>> invalidate(
+    fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     ) {
@@ -61,7 +61,7 @@ internal class BlockingSetTypedStorage(
         ) as R
 
         is EnumMemberCacheReturn<*> -> {
-            val typedReturn = returnsAs as EnumMemberCacheReturn<out Enum<*>>
+            val typedReturn = returnsAs as EnumMemberCacheReturn<Any>
             SetStorageStrategy.invokeClassification(
                 store = store,
                 configs = configs,
@@ -69,9 +69,9 @@ internal class BlockingSetTypedStorage(
                 name = entryRef.name,
                 cacheArgs = entryRef.cacheArgs,
                 values = typedReturn.values,
-                valueName = typedReturn.valueName as (Enum<*>) -> String,
-                saveResultIf = saveResultIf as (Enum<*>) -> Boolean,
-                block = block as () -> Enum<*>,
+                valueName = typedReturn.valueName,
+                saveResultIf = saveResultIf as (Any) -> Boolean,
+                block = block as () -> Any,
             ) as R
         }
 

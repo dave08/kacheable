@@ -54,7 +54,7 @@ internal class StringTypedStorage(
     suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
-        params: Array<out Any>,
+        params: Array<out Any?>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = store.invokeAtAddress(

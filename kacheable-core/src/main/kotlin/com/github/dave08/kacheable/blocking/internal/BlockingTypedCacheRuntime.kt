@@ -19,12 +19,12 @@ internal interface BlockingTypedCacheRuntime {
 
     fun invalidate(partRef: CacheEntryPartRef)
 
-    fun <E : Enum<E>> invalidate(
+    fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     )
 
-    fun <E : Enum<E>> invalidate(
+    fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnsAs: EnumMemberCacheReturn<E>,
     )

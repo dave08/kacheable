@@ -160,13 +160,13 @@ val namedSongPageCache = entryKey(
     storedAs = CacheStorage.HashMap,
 )
 
-fun CacheArgs.toList(): List<Any> = toParamsArray().toList()
+fun CacheArgs.toList(): List<Any?> = toParamsArray().toList()
 
 private fun combineForTests(
     name: String,
     separator: String,
-    mainParams: Array<out Any>,
-    secondaryParams: Array<out Any>,
+    mainParams: Array<out Any?>,
+    secondaryParams: Array<out Any?>,
     prefix: String = separator,
     suffix: String = "",
 ): String {

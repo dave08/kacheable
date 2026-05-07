@@ -72,9 +72,9 @@ data class IsMemberCacheReturn(
 ) : SetCacheReturn<Boolean>
 
 @ExperimentalKacheableApi
-data class EnumMemberCacheReturn<E : Enum<E>>(
+data class EnumMemberCacheReturn<E : Any>(
     val values: List<E>,
-    val valueName: (E) -> String = { it.name },
+    val valueName: (E) -> String,
     override val serializer: KSerializer<E>,
     override val codec: CacheValueCodec<E> = cacheValueCodec(serializer),
 ) : SetCacheReturn<E> {

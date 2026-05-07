@@ -37,7 +37,7 @@ interface CacheEntryPartRef {
 }
 
 @ExperimentalKacheableApi
-interface KeyPart<P1 : Any> {
+interface KeyPart<P1> {
     val name: String?
     val segmentCount: Int?
     fun encode(value: P1): CacheArgs
@@ -48,17 +48,18 @@ interface KeyPart<P1 : Any> {
 }
 
 @ExperimentalKacheableApi
-data class KeyPartValue(
-    val keyPart: KeyPart<*>,
-    val args: CacheArgs,
+open class KeyPartValue(
+    open val keyPart: KeyPart<*>,
+    open val args: CacheArgs,
 ) {
-    val name: String? = keyPart.name
+    val name: String?
+        get() = keyPart.name
 }
 
 @PublishedApi
-internal data class SimpleSecondaryKeyPart<P1 : Any>(
+internal data class SimpleSecondaryKeyPart<P1>(
     override val name: String? = null,
-    private val encoders: List<(P1) -> Any>,
+    private val encoders: List<(P1) -> Any?>,
 ) : KeyPart<P1> {
     override val segmentCount: Int = encoders.size
     override fun encode(value: P1): CacheArgs = argsOf(*encoders.map { it(value) }.toTypedArray())
@@ -77,7 +78,7 @@ internal data object CachePatternWildcard {
 }
 
 @PublishedApi
-internal data class NamedKeyPart<P1 : Any>(
+internal data class NamedKeyPart<P1>(
     override val name: String,
     private val delegate: KeyPart<P1>,
 ) : KeyPart<P1> {
@@ -86,10 +87,10 @@ internal data class NamedKeyPart<P1 : Any>(
 }
 
 @PublishedApi
-internal fun <P1 : Any> KeyPart<P1>.encodePart(value: P1): CacheArgs = encode(value)
+internal fun <P1> KeyPart<P1>.encodePart(value: P1): CacheArgs = encode(value)
 
 @PublishedApi
-internal fun <P1 : Any> KeyPart<P1>.withName(name: String): KeyPart<P1> =
+internal fun <P1> KeyPart<P1>.withName(name: String): KeyPart<P1> =
     when {
         this.name == name -> this
         this.name != null -> this
