@@ -17,6 +17,8 @@ internal data class CachedSong(val id: Int, val title: String)
 
 internal data class ResultPage(val offset: Int, val limit: Int)
 
+internal data class UnserializablePodcast(val id: Int, val title: String)
+
 @Serializable
 internal data class CachedImageVariant(val url: String, val width: Int, val height: Int)
 

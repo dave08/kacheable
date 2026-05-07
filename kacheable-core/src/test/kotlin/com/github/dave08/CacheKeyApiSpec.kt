@@ -54,6 +54,21 @@ val CacheKeyApiSpec by testSuite {
             store.assertStringValueMissing("cache-key-settings")
         }
 
+        test("cache key definitions and invalidation refs do not require result serializers") {
+            val podcastId = keyPart<Int>("podcastId")
+            val podcastCache = cacheKey(
+                "cache-key-unserializable-podcast",
+                returns<UnserializablePodcast>(),
+                key = exact(podcastId),
+            )
+
+            store.set("cache-key-unserializable-podcast:7", """{"id":7,"title":"Seven"}""")
+
+            cache.invalidate(podcastCache(7))
+
+            store.assertStringValueMissing("cache-key-unserializable-podcast:7")
+        }
+
         test("exact cache keys treat class list set and map results as one value") {
             val songId = keyPart<Int>("songId")
             val songCache = cacheKey("cache-key-song", returns<CachedSong>(), key = exact(songId))

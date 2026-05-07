@@ -90,12 +90,24 @@ internal inline fun <reified R> cacheResult(): CacheResult<R> =
     CacheResult(
         resultClass = typeOf<R>().classifier as KClass<*>,
         isNullable = typeOf<R>().isMarkedNullable,
-        valueReturn = value<R>(),
+        valueReturn = lazyValue<R>(),
         enumReturn = enumMemberReturnOrNull<R>(),
     )
 
 @ExperimentalKacheableApi
 inline fun <reified R> returns(): CacheResult<R> = cacheResult()
+
+@ExperimentalKacheableApi
+inline fun <reified E : Enum<E>> returnsEnum(
+    values: List<E> = enumValues<E>().toList(),
+    noinline valueName: (E) -> String = { it.name },
+): CacheResult<E> =
+    CacheResult(
+        resultClass = E::class,
+        isNullable = false,
+        valueReturn = lazyValue<E>(),
+        enumReturn = EnumMemberCacheReturn(values, valueName, { serializer<E>() }),
+    )
 
 @ExperimentalKacheableApi
 interface MatchableKeyPart<P> : KeyPart<P> {
@@ -309,7 +321,7 @@ internal inline fun <reified R : Any> enumMemberReturn(): EnumMemberCacheReturn<
     return EnumMemberCacheReturn(
         values = values,
         valueName = { value -> (value as Enum<*>).name },
-        serializer = serializer<R>(),
+        serializerProvider = { serializer<R>() },
     )
 }
 
@@ -323,7 +335,7 @@ internal inline fun <reified R> enumMemberReturnOrNull(): EnumMemberCacheReturn<
     return EnumMemberCacheReturn(
         values = values,
         valueName = { value -> (value as Enum<*>).name },
-        serializer = serializer<R>() as kotlinx.serialization.KSerializer<Any>,
+        serializerProvider = { serializer<R>() as kotlinx.serialization.KSerializer<Any> },
     )
 }
 

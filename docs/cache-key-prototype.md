@@ -254,6 +254,19 @@ val reactionCache = cacheKey(
 )
 ```
 
+`returns<Reaction>()` is enough for correctness and auto-planning. If you want to make the enum classification explicit and avoid enum discovery from the result type, use `returnsEnum<Reaction>()`:
+
+```kotlin
+val reactionCache = cacheKey(
+    "song-reaction",
+    returnsEnum<Reaction>(),
+    key = partitioned(
+        partition = songId,
+        key = accountId,
+    ),
+)
+```
+
 Read this as:
 
 > Cache one `Reaction` for each `accountId` key inside one `songId` partition.
@@ -316,7 +329,7 @@ Longer term, Kacheable could grow dependency-aware caches so callers can say tha
 
 ## Prototype Limits
 
-- Exact cache keys cover arity 1 through 6.
+- Exact cache keys cover no-argument values plus arity 1 through 6.
 - Partitioned cache keys cover the shapes exercised by the prototype tests, including one-part and multi-part partitions plus matchable inner-key parts.
 - `matching(...)` accepts only `MatchableKeyPartValue`, so non-matchable key parts cannot be passed to it by accident. A compile-fail harness can make that guarantee explicit in tests later if this terminology survives.
 - The old typed API remains available while this model is evaluated.
