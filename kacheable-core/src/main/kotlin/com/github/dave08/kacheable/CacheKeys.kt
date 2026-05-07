@@ -136,6 +136,9 @@ sealed interface PartitionedKeyShape {
 }
 
 @ExperimentalKacheableApi
+data object ExactKeyShape0 : ExactKeyShape
+
+@ExperimentalKacheableApi
 class ExactKeyShape1<P1> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPart<P1>,
 ) : ExactKeyShape
@@ -204,6 +207,9 @@ class PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> @PublishedApi internal cons
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = entryKey.parts().any { it.isMatchable() }
 }
+
+@ExperimentalKacheableApi
+fun exact(): ExactKeyShape0 = ExactKeyShape0
 
 @ExperimentalKacheableApi
 fun <P1> exact(
@@ -400,6 +406,14 @@ private fun <R> cacheAllRef(
 )
 
 @ExperimentalKacheableApi
+fun <R> cacheKey(
+    name: String,
+    returns: CacheResult<R>,
+    key: ExactKeyShape0,
+    storage: ExactStoragePlan<R> = auto(),
+): ExactCacheKey0<R> = ExactCacheKey0(name, planExact(returns, storage))
+
+@ExperimentalKacheableApi
 fun <R, P1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -491,6 +505,21 @@ fun <R, I1, I2, I3, K1, K2, K3> cacheKey(
     storage: IndexedStoragePlan<R> = auto(),
 ): PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> =
     PartitionedCacheKey3x3(name, key.partition, key.entryKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+
+@ExperimentalKacheableApi
+class ExactCacheKey0<R> @PublishedApi internal constructor(
+    private val name: String,
+    private val plannedStorage: PlannedStorage<R>,
+) {
+    fun all(): CacheEntryRef<R> = invoke()
+
+    operator fun invoke(): CacheEntryRef<R> = cacheEntryRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+    )
+}
 
 @ExperimentalKacheableApi
 class ExactCacheKey1<P1, R> @PublishedApi internal constructor(

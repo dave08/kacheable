@@ -32,6 +32,28 @@ val CacheKeyApiSpec by testSuite {
             configs = mapOf("cache-key-nullable-song" to CacheConfig("cache-key-nullable-song", nullPlaceholder = "__NULL__")),
         )
     } asContextForEach {
+        test("zero-argument exact cache keys cache one named value") {
+            val settingsCache = cacheKey("cache-key-settings", returns<CachedSong>(), key = exact())
+
+            var calls = 0
+            val first = cache(settingsCache()) {
+                calls += 1
+                CachedSong(1, "Settings")
+            }
+            val second = cache(settingsCache()) {
+                error("named value should already be cached")
+            }
+
+            assertEquals(CachedSong(1, "Settings"), first)
+            assertEquals(CachedSong(1, "Settings"), second)
+            assertEquals(1, calls)
+            store.assertStringValue("cache-key-settings", """{"id":1,"title":"Settings"}""")
+
+            cache.invalidate(settingsCache.all())
+
+            store.assertStringValueMissing("cache-key-settings")
+        }
+
         test("exact cache keys treat class list set and map results as one value") {
             val songId = keyPart<Int>("songId")
             val songCache = cacheKey("cache-key-song", returns<CachedSong>(), key = exact(songId))

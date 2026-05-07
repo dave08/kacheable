@@ -93,7 +93,12 @@ internal fun cacheArgs(
     secondaryPartArgs: List<CacheArgs> = emptyList(),
     secondaryPartNames: List<String?> = emptyList(),
 ): PrimarySecondaryCacheArgs {
-    require(primaryPartArgs.isNotEmpty()) { "Primary cache args must contain at least one key part." }
+    require(primaryPartArgs.size == primaryPartNames.size) {
+        "Primary cache arg names must match primary cache arg parts."
+    }
+    require(secondaryPartArgs.size == secondaryPartNames.size) {
+        "Secondary cache arg names must match secondary cache arg parts."
+    }
 
     return PrimarySecondaryCacheArgs(
         primary = joinArgs(*primaryPartArgs.toTypedArray()),

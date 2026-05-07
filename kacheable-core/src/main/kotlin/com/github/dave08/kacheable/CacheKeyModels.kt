@@ -15,7 +15,6 @@ data class PrimarySecondaryCacheArgs(
     val secondaryPartNames: List<String?> = List(secondaryPartArgs.size) { null },
 ) {
     init {
-        require(primaryPartArgs.isNotEmpty()) { "Primary cache args must contain at least one key part." }
         require(primaryPartArgs.size == primaryPartNames.size) { "Primary key-part args and names must align." }
         require(secondaryPartArgs.size == secondaryPartNames.size) { "Secondary key-part args and names must align." }
 

@@ -36,6 +36,22 @@ cache.invalidate(songCache(songIdValue))
 
 The `returns<Result>()` token fixes the cache result type without forcing users to spell out key-part type parameters. `exact(...)` and `partitioned(...)` then infer key-part types normally, which keeps invocation type-safe.
 
+For one named value with no parameters, use `exact()`:
+
+```kotlin
+val appSettingsCache = cacheKey(
+    "app-settings",
+    returns<AppSettings>(),
+    key = exact(),
+)
+
+cache(appSettingsCache()) {
+    repository.appSettings()
+}
+
+cache.invalidate(appSettingsCache.all())
+```
+
 ## Nullable Key Parts
 
 Nullable repository parameters can be modeled directly when `null` is part of the call identity.

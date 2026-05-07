@@ -116,6 +116,12 @@ val songCache = cacheKey(
     key = exact(songId),
 )
 
+val appSettingsCache = cacheKey(
+    "app-settings",
+    returns<AppSettings>(),
+    key = exact(),
+)
+
 val artistSongCache = cacheKey(
     "artist-song",
     returns<Song>(),
