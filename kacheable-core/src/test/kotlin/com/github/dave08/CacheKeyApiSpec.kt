@@ -258,6 +258,42 @@ val CacheKeyApiSpec by testSuite {
             store.assertHashField("cache-key-artist-song:4", 9, """{"id":9,"title":"Nine"}""")
         }
 
+        test("single-partition cache keys store entries under the cache name") {
+            val page = keyPart<ResultPage>("page", ResultPage::offset, ResultPage::limit)
+            val pagesCache = cacheKey("cache-key-home-pages", returns<List<CachedSong>>(), key = partitioned(key = page))
+
+            cache(pagesCache(ResultPage(0, 10))) { listOf(CachedSong(7, "Seven")) }
+            cache(pagesCache(ResultPage(10, 10))) { listOf(CachedSong(8, "Eight")) }
+
+            store.assertHashField("cache-key-home-pages", "0,10", """[{"id":7,"title":"Seven"}]""")
+            store.assertHashField("cache-key-home-pages", "10,10", """[{"id":8,"title":"Eight"}]""")
+
+            cache.invalidate(pagesCache(ResultPage(0, 10)))
+
+            assertNull(store.hashMap["cache-key-home-pages"]?.get("0,10"))
+            store.assertHashField("cache-key-home-pages", "10,10", """[{"id":8,"title":"Eight"}]""")
+
+            cache.invalidate(pagesCache.partition())
+
+            store.assertHashMissing("cache-key-home-pages")
+        }
+
+        test("single-partition cache keys can match named entry-key parts") {
+            val page = keyPart<ResultPage>("page", ResultPage::offset, ResultPage::limit)
+            val locale = matchableKeyPart<String>("locale")
+            val pagesCache = cacheKey("cache-key-global-pages", returns<List<CachedSong>>(), key = partitioned(key = page + locale))
+
+            cache(pagesCache(ResultPage(0, 10), "en")) { listOf(CachedSong(7, "Seven")) }
+            cache(pagesCache(ResultPage(10, 10), "en")) { listOf(CachedSong(8, "Eight")) }
+            cache(pagesCache(ResultPage(0, 10), "he")) { listOf(CachedSong(9, "Nine")) }
+
+            cache.invalidate(pagesCache.matching(locale("en")))
+
+            assertNull(store.hashMap["cache-key-global-pages"]?.get("0,10,en"))
+            assertNull(store.hashMap["cache-key-global-pages"]?.get("10,10,en"))
+            store.assertHashField("cache-key-global-pages", "0,10,he", """[{"id":9,"title":"Nine"}]""")
+        }
+
         test("mixed cache-key invalidation refs can be passed together") {
             val artistId = keyPart<Int>("artistId")
             val songId = keyPart<Int>("songId")

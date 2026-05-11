@@ -189,6 +189,20 @@ class PartitionedKeyShape1x1<I1, K1> @PublishedApi internal constructor(
 }
 
 @ExperimentalKacheableApi
+class SinglePartitionKeyShape1<K1> @PublishedApi internal constructor(
+    @PublishedApi internal val entryKey: KeyPart<K1>,
+) : PartitionedKeyShape {
+    override val hasMatchableEntryParts: Boolean = entryKey.isMatchable()
+}
+
+@ExperimentalKacheableApi
+class SinglePartitionKeyShape2<K1, K2> @PublishedApi internal constructor(
+    @PublishedApi internal val entryKey: KeyPartComposition2<K1, K2>,
+) : PartitionedKeyShape {
+    override val hasMatchableEntryParts: Boolean = entryKey.parts().any { it.isMatchable() }
+}
+
+@ExperimentalKacheableApi
 class PartitionedKeyShape1x2<I1, K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val entryKey: KeyPartComposition2<K1, K2>,
@@ -258,6 +272,16 @@ fun <I1, K1> partitioned(
     partition: KeyPart<I1>,
     key: KeyPart<K1>,
 ): PartitionedKeyShape1x1<I1, K1> = PartitionedKeyShape1x1(partition, key)
+
+@ExperimentalKacheableApi
+fun <K1> partitioned(
+    key: KeyPart<K1>,
+): SinglePartitionKeyShape1<K1> = SinglePartitionKeyShape1(key)
+
+@ExperimentalKacheableApi
+fun <K1, K2> partitioned(
+    key: KeyPartComposition2<K1, K2>,
+): SinglePartitionKeyShape2<K1, K2> = SinglePartitionKeyShape2(key)
 
 @ExperimentalKacheableApi
 fun <I1, K1, K2> partitioned(
@@ -483,6 +507,24 @@ fun <R, I1, K1> cacheKey(
     PartitionedCacheKey1x1(name, key.partition, key.entryKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
 @ExperimentalKacheableApi
+fun <R, K1> cacheKey(
+    name: String,
+    returns: CacheResult<R>,
+    key: SinglePartitionKeyShape1<K1>,
+    storage: IndexedStoragePlan<R> = auto(),
+): SinglePartitionCacheKey1<K1, R> =
+    SinglePartitionCacheKey1(name, key.entryKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+
+@ExperimentalKacheableApi
+fun <R, K1, K2> cacheKey(
+    name: String,
+    returns: CacheResult<R>,
+    key: SinglePartitionKeyShape2<K1, K2>,
+    storage: IndexedStoragePlan<R> = auto(),
+): SinglePartitionCacheKey2<K1, K2, R> =
+    SinglePartitionCacheKey2(name, key.entryKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+
+@ExperimentalKacheableApi
 fun <R, I1, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -626,6 +668,74 @@ class ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> @PublishedApi internal construct
         plannedStorage = plannedStorage,
         partitionPartArgs = key.encodeParts(p1, p2, p3, p4, p5, p6),
         partitionPartNames = key.partNames(),
+    )
+}
+
+@ExperimentalKacheableApi
+class SinglePartitionCacheKey1<K1, R> @PublishedApi internal constructor(
+    private val name: String,
+    private val entryKey: KeyPart<K1>,
+    private val plannedStorage: PlannedStorage<R>,
+) {
+    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+
+    operator fun invoke(k1: K1): CacheEntryRef<R> = cacheEntryRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+        entryKeyPartArgs = listOf(entryKey.encodePart(k1)),
+        entryKeyPartNames = listOf(entryKey.name),
+    )
+
+    fun partition(): CachePartRef<R> = cachePartRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+    )
+
+    fun matching(vararg entryKeyParts: MatchableKeyPartValue): CachePartRef<R> = matchingEntryParts(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+        entryKeyParts = listOf(entryKey),
+        selections = entryKeyParts,
+    )
+}
+
+@ExperimentalKacheableApi
+class SinglePartitionCacheKey2<K1, K2, R> @PublishedApi internal constructor(
+    private val name: String,
+    private val entryKey: KeyPartComposition2<K1, K2>,
+    private val plannedStorage: PlannedStorage<R>,
+) {
+    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+
+    operator fun invoke(k1: K1, k2: K2): CacheEntryRef<R> = cacheEntryRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+        entryKeyPartArgs = entryKey.encodeParts(k1, k2),
+        entryKeyPartNames = entryKey.partNames(),
+    )
+
+    fun partition(): CachePartRef<R> = cachePartRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+    )
+
+    fun matching(vararg entryKeyParts: MatchableKeyPartValue): CachePartRef<R> = matchingEntryParts(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = emptyList(),
+        partitionPartNames = emptyList(),
+        entryKeyParts = entryKey.parts(),
+        selections = entryKeyParts,
     )
 }
 
