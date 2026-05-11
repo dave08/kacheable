@@ -275,6 +275,8 @@ Use `rawCacheEntry(...)` for one known flat legacy key. Use `rawCache(...)` only
 cache.invalidate(appSettingsCache())
 ```
 
+Invalidation refs also expose a concise diagnostic `toString()` for logging, such as `artist-songs.partition(3)` or `song-cache(7)`. Treat it as a human-readable label, not as a storage key contract.
+
 ## Membership Optimization
 
 Boolean partitioned caches default to membership storage when the inner key has no matchable parts.

@@ -96,6 +96,24 @@ val CacheKeyApiSpec by testSuite {
             store.assertStringValue("cache-key-raw-family-extra:7", """{"id":70,"title":"Still here"}""")
         }
 
+        test("cache invalidation refs expose diagnostic toString labels") {
+            val artistId = keyPart<Int>("artistId")
+            val songId = keyPart<Int>("songId")
+            val songCache = cacheKey("cache-key-debug-song", returns<CachedSong>(), key = exact(songId))
+            val artistSongsCache = cacheKey(
+                "cache-key-debug-artist-songs",
+                returns<CachedSong>(),
+                key = partitioned(partition = artistId, key = songId),
+            )
+
+            assertEquals("cache-key-debug-song(7)", songCache(7).toString())
+            assertEquals("cache-key-debug-song.all()", songCache.all().toString())
+            assertEquals("cache-key-debug-artist-songs(3, 7)", artistSongsCache(3, 7).toString())
+            assertEquals("cache-key-debug-artist-songs.partition(3)", artistSongsCache.partition(3).toString())
+            assertEquals("cache-key-raw(7)", rawCacheEntry("cache-key-raw", 7).toString())
+            assertEquals("cache-key-raw.all()", rawCache("cache-key-raw").toString())
+        }
+
         test("exact cache keys treat class list set and map results as one value") {
             val songId = keyPart<Int>("songId")
             val songCache = cacheKey("cache-key-song", returns<CachedSong>(), key = exact(songId))

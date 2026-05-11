@@ -57,29 +57,58 @@ sealed interface CacheInvalidationRef
 @ExperimentalKacheableApi
 class RawCacheEntryRef internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage.String>,
-) : CacheInvalidationRef
+) : CacheInvalidationRef {
+    override fun toString(): String = entryRef.toDebugString()
+}
 
 @ExperimentalKacheableApi
 class RawCacheRef internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage.String>,
-) : CacheInvalidationRef
+) : CacheInvalidationRef {
+    override fun toString(): String = allRef.toDebugString()
+}
 
 @ExperimentalKacheableApi
 class CacheEntryRef<R> internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage>,
     internal val returnsAs: CacheReturn<R, *>,
-) : CacheInvalidationRef
+) : CacheInvalidationRef {
+    override fun toString(): String = entryRef.toDebugString()
+}
 
 @ExperimentalKacheableApi
 class CachePartRef<R> internal constructor(
     internal val partRef: StoredCachePartRef<CacheStorage>,
     internal val returnsAs: CacheReturn<R, *>,
-) : CacheInvalidationRef
+) : CacheInvalidationRef {
+    override fun toString(): String = partRef.toDebugString()
+}
 
 @ExperimentalKacheableApi
 class CacheAllRef<R> internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage>,
-) : CacheInvalidationRef
+) : CacheInvalidationRef {
+    override fun toString(): String = allRef.toDebugString()
+}
+
+private fun StoredCacheEntryRef<*>.toDebugString(): String =
+    "${name}${cacheArgs.debugParams()}"
+
+private fun StoredCachePartRef<*>.toDebugString(): String =
+    if (secondaryPatternPartArgs == null) {
+        "${name}.partition${cacheArgs.primaryPartArgs.debugParams()}"
+    } else {
+        "${name}.matching${(cacheArgs.primaryPartArgs + secondaryPatternPartArgs.orEmpty()).debugParams()}"
+    }
+
+private fun StoredCacheAllRef<*>.toDebugString(): String = "${name}.all()"
+
+private fun PrimarySecondaryCacheArgs.debugParams(): String =
+    (primaryPartArgs + secondaryPartArgs).debugParams()
+
+private fun List<CacheArgs>.debugParams(): String =
+    flatMap { it.toParamsArray().asList() }
+        .joinToString(prefix = "(", postfix = ")") { it?.toString() ?: "<null>" }
 
 @ExperimentalKacheableApi
 fun rawCacheEntry(
