@@ -5,10 +5,14 @@ package com.github.dave08
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.ExperimentalKacheableApi
+import com.github.dave08.kacheable.GetNameStrategy
+import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.argsOf
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
+import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.cacheKey
+import com.github.dave08.kacheable.defaultCacheNamingStrategy
 import com.github.dave08.kacheable.exact
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
@@ -18,6 +22,7 @@ import com.github.dave08.kacheable.partitioned
 import com.github.dave08.kacheable.plus
 import com.github.dave08.kacheable.rawKeyPart
 import com.github.dave08.kacheable.returns
+import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -81,6 +86,65 @@ val CacheKeyRegressionCoverageSpec by testSuite {
 
             store.assertHashMissing("regression-song-section:4")
             store.assertHashField("regression-song-section:5", "5,lyrics", """{"id":5,"title":"Other"}""")
+        }
+
+        test("partitioned mapped key parts can group and invalidate image variants") {
+            val imageId = keyPart<String>("imageId")
+            val variant = keyPart<ImageVariantRequest>("variant", ImageVariantRequest::format, ImageVariantRequest::width)
+            val imageVariantsCache = cacheKey(
+                "regression-image-variants",
+                returns<CachedImageVariant>(),
+                key = partitioned(partition = imageId, key = variant),
+            )
+
+            cache(imageVariantsCache("cover-7", ImageVariantRequest(format = "webp", width = 320))) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-7-320.webp",
+                    width = 320,
+                    height = 320,
+                )
+            }
+            cache(imageVariantsCache("cover-7", ImageVariantRequest(format = "jpg", width = 1280))) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-7-1280.jpg",
+                    width = 1280,
+                    height = 1280,
+                )
+            }
+            cache(imageVariantsCache("cover-8", ImageVariantRequest(format = "webp", width = 320))) {
+                CachedImageVariant(
+                    url = "https://cdn.example.test/images/cover-8-320.webp",
+                    width = 320,
+                    height = 320,
+                )
+            }
+
+            store.assertHashField(
+                "regression-image-variants:cover-7",
+                "webp,320",
+                """{"url":"https://cdn.example.test/images/cover-7-320.webp","width":320,"height":320}""",
+            )
+
+            cache.invalidate(imageVariantsCache.partition("cover-7"))
+
+            store.assertHashMissing("regression-image-variants:cover-7")
+            store.assertHashField(
+                "regression-image-variants:cover-8",
+                "webp,320",
+                """{"url":"https://cdn.example.test/images/cover-8-320.webp","width":320,"height":320}""",
+            )
+        }
+
+        test("cacheIf can skip saving a cache-key result") {
+            val songId = keyPart<Int>("songId")
+            val songCache = cacheKey("regression-cache-if", returns<TestSong>(), key = exact(songId))
+
+            val result = cache(songCache(9), cacheIf = { false }) {
+                TestSong(9, "Live")
+            }
+
+            assertEquals(TestSong(9, "Live"), result)
+            store.assertStringValueMissing("regression-cache-if:9")
         }
 
         test("matchable key parts can be selected by name without reusing the original instance") {
@@ -176,6 +240,15 @@ val CacheKeyRegressionCoverageSpec by testSuite {
     testFixture {
         SuspendCacheFixture(namingStrategy = bracketedKeyStrategy)
     } asContextForEach {
+        test("raw cache calls use the configured key naming strategy") {
+            val result = cache<TestSong>("regression-raw-named", 7, "en") {
+                TestSong(7, "Raw Named")
+            }
+
+            assertEquals(TestSong(7, "Raw Named"), result)
+            store.assertStringValue("regression-raw-named[7][en]", """{"id":7,"title":"Raw Named"}""")
+        }
+
         test("custom naming strategy applies to exact cache keys") {
             val songId = keyPart<Int>("songId")
             val locale = keyPart<String>("locale")
@@ -257,6 +330,51 @@ val CacheKeyRegressionCoverageSpec by testSuite {
                 store.getHashValue("regression-verbose-page|7", "part0=0|part1=10|part2=en"),
             )
         }
+    }
+
+    testFixture {
+        SuspendCacheFixture(
+            namingStrategy = defaultCacheNamingStrategy(
+                secondaryEntryCombiner = { params -> params.joinToString("|") },
+            ),
+        )
+    } asContextForEach {
+        test("default naming strategy can customize only the layered entry combiner") {
+            val artistId = keyPart<Int>("artistId")
+            val page = keyPart<ResultPage>("page", ResultPage::offset, ResultPage::limit)
+            val locale = keyPart<String>("locale")
+            val pageCache = cacheKey(
+                "regression-default-combiner",
+                returns<TestSong>(),
+                key = partitioned(partition = artistId, key = page + locale),
+            )
+
+            cache(pageCache(7, ResultPage(0, 10), "en")) {
+                TestSong(7, "Default Combiner")
+            }
+
+            assertEquals(
+                """{"id":7,"title":"Default Combiner"}""",
+                store.getHashValue("regression-default-combiner:7", "0|10|en"),
+            )
+        }
+    }
+
+    test("deprecated GetNameStrategy factory still routes raw cache naming through the new strategy") {
+        val store = InMemoryKacheableStore()
+        val cache = Kacheable(
+            store = store,
+            getNameStrategy = GetNameStrategy { name, params ->
+                if (params.isEmpty()) name else "$name<${params.joinToString("|")}>"
+            },
+        )
+
+        val result = cache<TestSong>("regression-get-name-strategy", 7, "en") {
+            TestSong(7, "Deprecated")
+        }
+
+        assertEquals(TestSong(7, "Deprecated"), result)
+        assertEquals("""{"id":7,"title":"Deprecated"}""", store.get("regression-get-name-strategy<7|en>"))
     }
 
     testFixture {
