@@ -1,9 +1,14 @@
+@file:Suppress("DEPRECATION")
+
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.KacheableImpl
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.serialization.json.Json
 
+/**
+ * Creates a suspended cache runtime over [store].
+ */
 fun Kacheable(
     store: KacheableStore,
     configs: Map<String, CacheConfig> = emptyMap(),

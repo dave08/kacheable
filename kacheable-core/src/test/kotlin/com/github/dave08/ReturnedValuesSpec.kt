@@ -10,7 +10,7 @@ val ReturnedValuesSpec by testSuite {
         SuspendCacheFixture()
     } asContextForEach {
         test("returns the cached value when a new result should not be saved") {
-            var result: Boolean? = cache("some-cache", 1, saveResultIf = { false }) {
+            var result: Boolean? = cache("some-cache", 1, cacheIf = { false }) {
                 null
             }
 
@@ -20,7 +20,7 @@ val ReturnedValuesSpec by testSuite {
                 true
             }
 
-            result = cache("some-cache", 1, saveResultIf = { false }) {
+            result = cache("some-cache", 1, cacheIf = { false }) {
                 null
             }
 

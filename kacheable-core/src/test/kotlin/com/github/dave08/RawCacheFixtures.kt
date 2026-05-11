@@ -26,7 +26,7 @@ class RawFoo(private val cache: Kacheable) {
     suspend fun setOfInts(): Set<Int> = cache("foo") { setOf(1, 2, 3) }
 
     suspend fun dontSaveBar(shouldSave: Boolean = false): TestSong =
-        cache("foo", saveResultIf = { shouldSave }) {
+        cache("foo", cacheIf = { shouldSave }) {
             TestSong(32, "something")
         }
 
@@ -58,7 +58,7 @@ class BlockingRawFoo(private val cache: BlockingKacheable) {
     fun setOfInts(): Set<Int> = cache("BlockingFoo") { setOf(1, 2, 3) }
 
     fun dontSaveBar(shouldSave: Boolean = false): TestSong =
-        cache("BlockingFoo", saveResultIf = { shouldSave }) {
+        cache("BlockingFoo", cacheIf = { shouldSave }) {
             TestSong(32, "something")
         }
 

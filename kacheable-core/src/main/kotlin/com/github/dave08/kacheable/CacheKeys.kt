@@ -8,9 +8,15 @@ import kotlinx.serialization.serializer
 import kotlin.reflect.KClass
 import kotlin.reflect.typeOf
 
+/**
+ * Storage override that is valid for exact cache keys.
+ */
 @ExperimentalKacheableApi
 sealed interface ExactStoragePlan<out R>
 
+/**
+ * Storage override that is valid for partitioned cache keys.
+ */
 @ExperimentalKacheableApi
 sealed interface IndexedStoragePlan<out R>
 
@@ -33,27 +39,51 @@ class EnumMembershipStoragePlan<E : Enum<E>> @PublishedApi internal constructor(
     val returnView: EnumMemberCacheReturn<E>,
 ) : IndexedStoragePlan<E>
 
+/**
+ * Lets Kacheable choose the storage plan from the key shape and result type.
+ */
 @ExperimentalKacheableApi
 fun auto(): AutoStoragePlan = AutoStoragePlan
 
+/**
+ * Stores each exact cache result as one serialized value.
+ */
 @ExperimentalKacheableApi
 fun <R> exactValueStorage(): ExactValueStoragePlan<R> = ExactValueStoragePlan()
 
+/**
+ * Stores each partitioned entry as a serialized value inside its partition.
+ */
 @ExperimentalKacheableApi
 fun <R> indexedValueStorage(): IndexedValueStoragePlan<R> = IndexedValueStoragePlan()
 
+/**
+ * Stores Boolean partitioned results as membership state.
+ *
+ * When [cacheFalse] is `false`, false results are returned to the caller but not written to the
+ * cache.
+ */
 @ExperimentalKacheableApi
 fun membershipStorage(cacheFalse: Boolean = true): MembershipStoragePlan = MembershipStoragePlan(cacheFalse)
 
+/**
+ * Stores enum partitioned results as classification sets, one set per enum value.
+ */
 @ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> enumMembershipStorage(
     values: List<E> = enumValues<E>().toList(),
     noinline valueName: (E) -> String = { it.name },
 ): EnumMembershipStoragePlan<E> = EnumMembershipStoragePlan(EnumMemberCacheReturn(values, valueName, serializer<E>()))
 
+/**
+ * Common type for refs that can be passed to typed invalidation calls.
+ */
 @ExperimentalKacheableApi
 sealed interface CacheInvalidationRef
 
+/**
+ * Exact raw string-cache entry ref, intended as a migration escape hatch.
+ */
 @ExperimentalKacheableApi
 class RawCacheEntryRef internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage.String>,
@@ -61,6 +91,9 @@ class RawCacheEntryRef internal constructor(
     override fun toString(): String = entryRef.toDebugString()
 }
 
+/**
+ * Whole raw string-cache ref, intended as a migration escape hatch.
+ */
 @ExperimentalKacheableApi
 class RawCacheRef internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage.String>,
@@ -68,6 +101,9 @@ class RawCacheRef internal constructor(
     override fun toString(): String = allRef.toDebugString()
 }
 
+/**
+ * Ref to one logical cached result.
+ */
 @ExperimentalKacheableApi
 class CacheEntryRef<R> internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage>,
@@ -76,6 +112,9 @@ class CacheEntryRef<R> internal constructor(
     override fun toString(): String = entryRef.toDebugString()
 }
 
+/**
+ * Ref to a partition or matching subset of a partitioned cache key.
+ */
 @ExperimentalKacheableApi
 class CachePartRef<R> internal constructor(
     internal val partRef: StoredCachePartRef<CacheStorage>,
@@ -84,6 +123,9 @@ class CachePartRef<R> internal constructor(
     override fun toString(): String = partRef.toDebugString()
 }
 
+/**
+ * Ref to all entries belonging to one typed cache key.
+ */
 @ExperimentalKacheableApi
 class CacheAllRef<R> internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage>,
@@ -110,6 +152,9 @@ private fun List<CacheArgs>.debugParams(): String =
     flatMap { it.toParamsArray().asList() }
         .joinToString(prefix = "(", postfix = ")") { it?.toString() ?: "<null>" }
 
+/**
+ * Creates a raw string-cache entry ref for migration code that has not moved to typed cache keys.
+ */
 @ExperimentalKacheableApi
 fun rawCacheEntry(
     cacheName: String,
@@ -125,11 +170,17 @@ fun rawCacheEntry(
     ),
 )
 
+/**
+ * Creates a raw string-cache ref for invalidating a whole legacy cache namespace.
+ */
 @ExperimentalKacheableApi
 fun rawCache(
     cacheName: String,
 ): RawCacheRef = RawCacheRef(StoredAllRef(cacheName, CacheStorage.String))
 
+/**
+ * Result descriptor used by [cacheKey] to choose serialization and automatic storage.
+ */
 @ExperimentalKacheableApi
 class CacheResult<R> @PublishedApi internal constructor(
     @PublishedApi internal val resultClass: KClass<*>,
@@ -153,9 +204,16 @@ internal inline fun <reified R> cacheResult(): CacheResult<R> =
         enumReturn = enumMemberReturnOrNull<R>(),
     )
 
+/**
+ * Describes the result type returned from a typed cache key.
+ */
 @ExperimentalKacheableApi
 inline fun <reified R> returns(): CacheResult<R> = cacheResult()
 
+/**
+ * Describes an enum result and optionally customizes the enum values/names used by membership
+ * storage.
+ */
 @ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> returnsEnum(
     values: List<E> = enumValues<E>().toList(),
@@ -168,6 +226,9 @@ inline fun <reified E : Enum<E>> returnsEnum(
         enumReturn = EnumMemberCacheReturn(values, valueName, { serializer<E>() }),
     )
 
+/**
+ * Key part that can be used for matching invalidations inside a partition.
+ */
 @ExperimentalKacheableApi
 interface MatchableKeyPart<P> : KeyPart<P> {
     override fun invoke(value: P): MatchableKeyPartValue = MatchableKeyPartValue(this, encode(value))
@@ -188,19 +249,32 @@ internal data class SimpleMatchableKeyPart<P>(
     override fun encode(value: P): CacheArgs = delegate.encode(value)
 }
 
+/**
+ * Creates a named key part that may be used by `matching(...)` invalidations.
+ */
 @ExperimentalKacheableApi
 fun <P> matchableKeyPart(name: String): MatchableKeyPart<P> =
     SimpleMatchableKeyPart(keyPart(name))
 
+/**
+ * Creates a named multi-segment key part that may be used by `matching(...)` invalidations.
+ */
 @ExperimentalKacheableApi
 fun <P> matchableKeyPart(
     name: String,
     vararg values: (P) -> Any?,
 ): MatchableKeyPart<P> = SimpleMatchableKeyPart(keyPart(name, *values))
 
+/**
+ * Shape for exact cache keys: one logical result is identified directly by the key values.
+ */
 @ExperimentalKacheableApi
 sealed interface ExactKeyShape
 
+/**
+ * Shape for partitioned cache keys: a partition identifies related entries, and an entry key
+ * identifies one logical result inside that partition.
+ */
 @ExperimentalKacheableApi
 sealed interface PartitionedKeyShape {
     val hasMatchableEntryParts: Boolean
@@ -401,9 +475,15 @@ class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
+/**
+ * Defines a no-argument exact cache key shape.
+ */
 @ExperimentalKacheableApi
 fun exact(): ExactKeyShape0 = ExactKeyShape0
 
+/**
+ * Defines an exact cache key shape from one key part.
+ */
 @ExperimentalKacheableApi
 fun <P1> exact(
     key: KeyPart<P1>,
@@ -434,12 +514,19 @@ fun <P1, P2, P3, P4, P5, P6> exact(
     key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
 ): ExactKeyShape6<P1, P2, P3, P4, P5, P6> = ExactKeyShape6(key)
 
+/**
+ * Defines a partitioned cache key shape from a partition part and an entry key part.
+ */
 @ExperimentalKacheableApi
 fun <I1, K1> partitioned(
     partition: KeyPart<I1>,
     key: KeyPart<K1>,
 ): PartitionedKeyShape1x1<I1, K1> = PartitionedKeyShape1x1(partition, key)
 
+/**
+ * Defines a partitioned cache key with no explicit partition; useful when storage should still
+ * support all-entry invalidation or membership/indexed storage for the whole cache.
+ */
 @ExperimentalKacheableApi
 fun <K1> partitioned(
     key: KeyPart<K1>,
@@ -688,6 +775,9 @@ private fun <R> cacheAllRef(
     allRef = StoredAllRef(name, plannedStorage.storage),
 )
 
+/**
+ * Creates a typed cache key. Exact shapes store one complete logical result per key.
+ */
 @ExperimentalKacheableApi
 fun <R> cacheKey(
     name: String,
@@ -744,6 +834,10 @@ fun <R, P1, P2, P3, P4, P5, P6> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> = ExactCacheKey6(name, key.key, planExact(returns, storage))
 
+/**
+ * Creates a typed cache key. Partitioned shapes allow invalidating a partition or matching entry
+ * parts inside a partition.
+ */
 @ExperimentalKacheableApi
 fun <R, I1, K1> cacheKey(
     name: String,
@@ -753,6 +847,9 @@ fun <R, I1, K1> cacheKey(
 ): PartitionedCacheKey1x1<I1, K1, R> =
     PartitionedCacheKey1x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
+/**
+ * Creates a typed single-partition cache key. Entries share one implicit cache-wide partition.
+ */
 @ExperimentalKacheableApi
 fun <R, K1> cacheKey(
     name: String,
@@ -1779,6 +1876,11 @@ internal fun KeyPartComposition5<*, *, *, *, *>.parts(): List<KeyPart<*>> = list
 @PublishedApi
 internal fun KeyPartComposition6<*, *, *, *, *, *>.parts(): List<KeyPart<*>> = listOf(first, second, third, fourth, fifth, sixth)
 
+/**
+ * Caches a typed cache entry, returning cached data when present or [block]'s result otherwise.
+ *
+ * [cacheIf] is evaluated only for newly computed results.
+ */
 @ExperimentalKacheableApi
 suspend operator fun <R> Kacheable.invoke(
     entryRef: CacheEntryRef<R>,
@@ -1786,6 +1888,9 @@ suspend operator fun <R> Kacheable.invoke(
     block: suspend () -> R,
 ): R = (this as TypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
+/**
+ * Named equivalent of invoking a typed cache entry.
+ */
 @ExperimentalKacheableApi
 suspend fun <R> Kacheable.cache(
     entryRef: CacheEntryRef<R>,
@@ -1793,6 +1898,9 @@ suspend fun <R> Kacheable.cache(
     block: suspend () -> R,
 ): R = invoke(entryRef, cacheIf, block)
 
+/**
+ * Invalidates one or more typed cache entries.
+ */
 @ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     val runtime = this as TypedCacheRuntime

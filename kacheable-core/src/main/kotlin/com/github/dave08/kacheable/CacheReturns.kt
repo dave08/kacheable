@@ -7,6 +7,9 @@ import com.github.dave08.kacheable.store.cacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 
+/**
+ * Storage backend selected for a typed cache key.
+ */
 @ExperimentalKacheableApi
 sealed interface CacheStorage {
     data object String : CacheStorage, SupportsValueView, SupportsPrimaryKeyStorage
@@ -36,6 +39,9 @@ sealed interface SupportsPrimaryKeyStorage : CacheStorageCapability
 @ExperimentalKacheableApi
 sealed interface SupportsPrimarySecondaryKeyStorage : CacheStorageCapability
 
+/**
+ * Describes how a cached result is represented when using a selected storage backend.
+ */
 @ExperimentalKacheableApi
 interface CacheReturn<R, C : CacheStorageCapability> {
     val serializer: KSerializer<R>
@@ -45,6 +51,9 @@ interface CacheReturn<R, C : CacheStorageCapability> {
 @ExperimentalKacheableApi
 interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
 
+/**
+ * Serialized value return view.
+ */
 @ExperimentalKacheableApi
 class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
     private val serializerProvider: () -> KSerializer<R>
@@ -70,6 +79,9 @@ class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
     override val codec: CacheValueCodec<R> by lazy { codecProvider(serializer) }
 }
 
+/**
+ * Boolean membership return view backed by set membership.
+ */
 @ExperimentalKacheableApi
 data class IsMemberCacheReturn(
     val cacheFalse: Boolean = true,
@@ -77,6 +89,9 @@ data class IsMemberCacheReturn(
     override val codec: CacheValueCodec<Boolean> = cacheValueCodec(serializer<Boolean>()),
 ) : SetCacheReturn<Boolean>
 
+/**
+ * Enum membership return view backed by one set per enum value.
+ */
 @ExperimentalKacheableApi
 class EnumMemberCacheReturn<E : Any>(
     val values: List<E>,

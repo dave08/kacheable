@@ -77,37 +77,37 @@ internal class KacheableImpl(
         name: String,
         type: KSerializer<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R
     ): R = storages.string.invoke(
         name = name,
         codec = cacheValueCodec(type, jsonParser),
         params = params,
-        saveResultIf = saveResultIf,
+        saveResultIf = cacheIf,
         block = block,
     )
 
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R {
         @Suppress("UNCHECKED_CAST")
-        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(entryRef, returnView, saveResultIf, block)
+        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(entryRef, returnView, cacheIf, block)
     }
 
     override suspend fun <R> invoke(
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = storages.string.invoke(
         name = name,
         codec = codec,
         params = params,
-        saveResultIf = saveResultIf,
+        saveResultIf = cacheIf,
         block = block,
     )
 }

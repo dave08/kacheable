@@ -30,14 +30,14 @@ internal object NoopKacheable : Kacheable, TypedCacheRuntime {
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R
     ): R = block()
 
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = block()
 
@@ -45,7 +45,7 @@ internal object NoopKacheable : Kacheable, TypedCacheRuntime {
         name: String,
         type: KSerializer<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: suspend () -> R
     ): R = block()
 }

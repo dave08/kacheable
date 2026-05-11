@@ -2,6 +2,12 @@ package com.github.dave08.kacheable.store
 
 import kotlin.time.Duration
 
+/**
+ * Suspended storage adapter used by Kacheable.
+ *
+ * Store implementations provide string, hash, and optionally set-membership operations. Default
+ * methods compose primitive operations for stores that do not need specialized batching.
+ */
 interface KacheableStore {
     suspend fun delete(key: String)
 

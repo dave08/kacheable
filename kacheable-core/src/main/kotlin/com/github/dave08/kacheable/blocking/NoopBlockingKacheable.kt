@@ -40,14 +40,14 @@ internal object NoopBlockingKacheable : BlockingKacheable, BlockingTypedCacheRun
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: () -> R
     ): R = block()
 
     override fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: () -> R,
     ): R = block()
 
@@ -55,7 +55,7 @@ internal object NoopBlockingKacheable : BlockingKacheable, BlockingTypedCacheRun
         name: String,
         type: KSerializer<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: () -> R
     ): R = block()
 }

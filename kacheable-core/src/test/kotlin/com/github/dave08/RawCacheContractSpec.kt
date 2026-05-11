@@ -175,7 +175,7 @@ private fun rawCacheContractSpec(mode: RawCacheMode) = testSuite {
         expectThat(fixture.stringMap.containsKey(fixture.multiParameterKey)).isEqualTo(false)
     }
 
-    test("saveResultIf controls whether the result is cached") {
+    test("cacheIf controls whether the result is cached") {
         val fixture = mode.createFixture(arrayOf(CacheConfig("foo")))
 
         fixture.subject.dontSaveBar()

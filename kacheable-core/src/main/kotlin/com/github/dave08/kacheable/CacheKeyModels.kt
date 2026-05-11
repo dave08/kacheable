@@ -35,6 +35,12 @@ interface CacheEntryPartRef {
         get() = PrimarySecondaryCacheArgs(args)
 }
 
+/**
+ * A typed piece of a cache key.
+ *
+ * A key part knows how to encode a domain value into one or more cache-key segments. Named key
+ * parts also allow naming strategies and matching invalidations to reason about the part.
+ */
 @ExperimentalKacheableApi
 interface KeyPart<P1> {
     val name: String?
@@ -46,6 +52,9 @@ interface KeyPart<P1> {
     operator fun getValue(thisRef: Any?, property: KProperty<*>): KeyPart<P1> = this
 }
 
+/**
+ * Encoded value for a [KeyPart], produced by calling a key part with a concrete value.
+ */
 @ExperimentalKacheableApi
 open class KeyPartValue(
     open val keyPart: KeyPart<*>,

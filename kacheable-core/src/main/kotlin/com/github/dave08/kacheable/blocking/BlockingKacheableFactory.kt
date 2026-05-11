@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheConfig
@@ -9,6 +11,9 @@ import com.github.dave08.kacheable.blocking.internal.BlockingKacheableImpl
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import kotlinx.serialization.json.Json
 
+/**
+ * Creates a blocking cache runtime over [store].
+ */
 fun BlockingKacheable(
     store: BlockingKacheableStore,
     configs: Map<String, CacheConfig> = emptyMap(),

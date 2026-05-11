@@ -2,6 +2,12 @@ package com.github.dave08.kacheable.blocking.store
 
 import kotlin.time.Duration
 
+/**
+ * Blocking storage adapter used by [com.github.dave08.kacheable.blocking.BlockingKacheable].
+ *
+ * Store implementations provide string, hash, and optionally set-membership operations. Default
+ * methods compose primitive operations for stores that do not need specialized batching.
+ */
 interface BlockingKacheableStore {
     fun delete(key: String)
 

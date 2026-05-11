@@ -15,6 +15,11 @@ import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
 
+/**
+ * Caches a typed cache entry, returning cached data when present or [block]'s result otherwise.
+ *
+ * [cacheIf] is evaluated only for newly computed results.
+ */
 @ExperimentalKacheableApi
 operator fun <R> BlockingKacheable.invoke(
     entryRef: CacheEntryRef<R>,
@@ -22,6 +27,9 @@ operator fun <R> BlockingKacheable.invoke(
     block: () -> R,
 ): R = (this as BlockingTypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
+/**
+ * Named equivalent of invoking a typed cache entry.
+ */
 @ExperimentalKacheableApi
 fun <R> BlockingKacheable.cache(
     entryRef: CacheEntryRef<R>,
@@ -29,6 +37,9 @@ fun <R> BlockingKacheable.cache(
     block: () -> R,
 ): R = invoke(entryRef, cacheIf, block)
 
+/**
+ * Invalidates one or more typed cache entries.
+ */
 @ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     val runtime = this as BlockingTypedCacheRuntime

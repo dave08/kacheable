@@ -36,14 +36,14 @@ internal interface BlockingTypedCacheRuntime {
         name: String,
         codec: CacheValueCodec<R>,
         vararg params: Any,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: () -> R,
     ): R
 
     fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
+        cacheIf: (R) -> Boolean,
         block: () -> R,
     ): R
 }
