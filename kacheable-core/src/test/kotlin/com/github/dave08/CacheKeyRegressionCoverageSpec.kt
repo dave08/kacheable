@@ -135,6 +135,42 @@ val CacheKeyRegressionCoverageSpec by testSuite {
             )
         }
 
+        test("partitioned keys support one partition plus five item-key parameters") {
+            val artistId = keyPart<Int>("artistId")
+            val filter = keyPart<String>("filter")
+            val sort = keyPart<String>("sort")
+            val pageSize = keyPart<Int>("pageSize")
+            val market = keyPart<String>("market")
+            val locale = keyPart<String>("locale")
+            val catalogCache = cacheKey(
+                "regression-wide-catalog",
+                returns<TestSong>(),
+                key = partitioned(partition = artistId, key = filter + sort + pageSize + market + locale),
+            )
+
+            cache(catalogCache(3, "favorites", "recent", 25, "us", "en")) {
+                TestSong(7, "Wide")
+            }
+            cache(catalogCache(4, "favorites", "recent", 25, "us", "en")) {
+                TestSong(8, "Other")
+            }
+
+            store.assertHashField(
+                "regression-wide-catalog:3",
+                "favorites,recent,25,us,en",
+                """{"id":7,"title":"Wide"}""",
+            )
+
+            cache.invalidate(catalogCache.partition(3))
+
+            store.assertHashMissing("regression-wide-catalog:3")
+            store.assertHashField(
+                "regression-wide-catalog:4",
+                "favorites,recent,25,us,en",
+                """{"id":8,"title":"Other"}""",
+            )
+        }
+
         test("cacheIf can skip saving a cache-key result") {
             val songId = keyPart<Int>("songId")
             val songCache = cacheKey("regression-cache-if", returns<TestSong>(), key = exact(songId))

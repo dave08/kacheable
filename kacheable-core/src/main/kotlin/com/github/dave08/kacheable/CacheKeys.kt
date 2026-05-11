@@ -270,6 +270,14 @@ class PartitionedKeyShape1x2<I1, K1, K2> @PublishedApi internal constructor(
 }
 
 @ExperimentalKacheableApi
+class PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> @PublishedApi internal constructor(
+    @PublishedApi internal val partition: KeyPart<I1>,
+    @PublishedApi internal val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
+) : PartitionedKeyShape {
+    override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
+}
+
+@ExperimentalKacheableApi
 class PartitionedKeyShape2x1<I1, I2, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -347,6 +355,12 @@ fun <I1, K1, K2> partitioned(
     partition: KeyPart<I1>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape1x2<I1, K1, K2> = PartitionedKeyShape1x2(partition, key)
+
+@ExperimentalKacheableApi
+fun <I1, K1, K2, K3, K4, K5> partitioned(
+    partition: KeyPart<I1>,
+    key: KeyPartComposition5<K1, K2, K3, K4, K5>,
+): PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> = PartitionedKeyShape1x5(partition, key)
 
 @ExperimentalKacheableApi
 fun <I1, I2, K1> partitioned(
@@ -591,6 +605,15 @@ fun <R, I1, K1, K2> cacheKey(
     storage: IndexedStoragePlan<R> = auto(),
 ): PartitionedCacheKey1x2<I1, K1, K2, R> =
     PartitionedCacheKey1x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+
+@ExperimentalKacheableApi
+fun <R, I1, K1, K2, K3, K4, K5> cacheKey(
+    name: String,
+    returns: CacheResult<R>,
+    key: PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5>,
+    storage: IndexedStoragePlan<R> = auto(),
+): PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> =
+    PartitionedCacheKey1x5(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
 @ExperimentalKacheableApi
 fun <R, I1, I2, K1> cacheKey(
@@ -869,6 +892,41 @@ class PartitionedCacheKey1x2<I1, K1, K2, R> @PublishedApi internal constructor(
 }
 
 @ExperimentalKacheableApi
+class PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> @PublishedApi internal constructor(
+    private val name: String,
+    private val partition: KeyPart<I1>,
+    private val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
+    private val plannedStorage: PlannedStorage<R>,
+) {
+    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+
+    operator fun invoke(i1: I1, k1: K1, k2: K2, k3: K3, k4: K4, k5: K5): CacheEntryRef<R> = cacheEntryRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = listOf(partition.encodePart(i1)),
+        partitionPartNames = listOf(partition.name),
+        itemKeyPartArgs = itemKey.encodeParts(k1, k2, k3, k4, k5),
+        itemKeyPartNames = itemKey.partNames(),
+    )
+
+    fun partition(i1: I1): CachePartRef<R> = cachePartRef(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = listOf(partition.encodePart(i1)),
+        partitionPartNames = listOf(partition.name),
+    )
+
+    fun matching(i1: I1, vararg itemKeyParts: MatchableKeyPartValue): CachePartRef<R> = matchingEntryParts(
+        name = name,
+        plannedStorage = plannedStorage,
+        partitionPartArgs = listOf(partition.encodePart(i1)),
+        partitionPartNames = listOf(partition.name),
+        itemKeyParts = itemKey.parts(),
+        selections = itemKeyParts,
+    )
+}
+
+@ExperimentalKacheableApi
 class PartitionedCacheKey2x1<I1, I2, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
@@ -1016,6 +1074,9 @@ internal fun KeyPartComposition2<*, *>.parts(): List<KeyPart<*>> = listOf(first,
 
 @PublishedApi
 internal fun KeyPartComposition3<*, *, *>.parts(): List<KeyPart<*>> = listOf(first, second, third)
+
+@PublishedApi
+internal fun KeyPartComposition5<*, *, *, *, *>.parts(): List<KeyPart<*>> = listOf(first, second, third, fourth, fifth)
 
 @ExperimentalKacheableApi
 suspend operator fun <R> Kacheable.invoke(
