@@ -137,6 +137,59 @@ cache.invalidate(artistSongCache.partition(artistIdValue))
 
 Under `storage = auto()`, partitioned non-Boolean and non-enum results use indexed value storage, currently backed by hash-map style storage.
 
+## Single-Partition Values
+
+Use `partitioned(key = ...)` when related entries belong to one cache family but there is no natural outer partition value.
+
+This is a good fit for top-level paginated queries:
+
+```kotlin
+val page = keyPart<Page>("page", Page::offset, Page::limit)
+
+val newVideosCache = cacheKey(
+    "new-videos",
+    returns<List<VideoId>>(),
+    key = partitioned(key = page),
+)
+```
+
+Read this as:
+
+> Cache one `List<VideoId>` for each `page` entry inside the `new-videos` cache family.
+
+Usage still targets one logical result:
+
+```kotlin
+cache(newVideosCache(Page(0, 20))) {
+    repository.newVideos(Page(0, 20))
+}
+```
+
+Invalidation can target one entry or the whole cache family:
+
+```kotlin
+cache.invalidate(newVideosCache(Page(0, 20)))
+cache.invalidate(newVideosCache.partition())
+```
+
+This stores pages as hash entries under the cache name instead of flattening each page into a separate exact key. That makes “clear all pages” a direct typed invalidation instead of a key-prefix scan.
+
+Single-partition keys can also use matchable entry parts:
+
+```kotlin
+val locale = matchableKeyPart<String>("locale")
+
+val homePagesCache = cacheKey(
+    "home-pages",
+    returns<HomePage>(),
+    key = partitioned(key = page + locale),
+)
+
+cache.invalidate(homePagesCache.matching(locale("he")))
+```
+
+Use this only when matching inside one cache family is the intended invalidation scope. It is still key matching, not value search.
+
 ## Whole-Cache Invalidation
 
 Use `.all()` when a cache result depends on inputs that are not fully represented by the cache key, or when a broad domain change makes every cached result in that cache definition suspect.
@@ -145,7 +198,10 @@ Use `.all()` when a cache result depends on inputs that are not fully represente
 val newestAlbumsCache = cacheKey(
     "newest-albums",
     returns<List<AlbumId>>(),
-    key = exact(page + albumType),
+    key = partitioned(
+        partition = albumType,
+        key = page,
+    ),
 )
 
 cache.invalidate(newestAlbumsCache.all())
@@ -330,6 +386,6 @@ Longer term, Kacheable could grow dependency-aware caches so callers can say tha
 ## Prototype Limits
 
 - Exact cache keys cover no-argument values plus arity 1 through 6.
-- Partitioned cache keys cover the shapes exercised by the prototype tests, including one-part and multi-part partitions plus matchable inner-key parts.
+- Partitioned cache keys cover the shapes exercised by the prototype tests, including single-partition caches, one-part and multi-part partitions, and matchable inner-key parts.
 - `matching(...)` accepts only `MatchableKeyPartValue`, so non-matchable key parts cannot be passed to it by accident. A compile-fail harness can make that guarantee explicit in tests later if this terminology survives.
 - The old typed API remains available while this model is evaluated.

@@ -98,6 +98,7 @@ It is **not** trying to be:
 - Typed `entryKey(...)` API for structured cache definitions
 - Experimental `cacheKey(...)` prototype for result-first cache definitions
 - Hash-backed grouped caches
+- Single-partition hash caches for paginated/global result families
 - Set-backed membership and classified membership caches
 - Exact invalidation, grouped invalidation, and partial layered hash invalidation
 - Blocking and suspending interfaces
@@ -139,6 +140,46 @@ cache(songCache(songIdValue)) { loadSong(songIdValue) }
 cache(artistSongCache(artistIdValue, songIdValue)) { loadArtistSong() }
 cache.invalidate(artistSongCache.partition(artistIdValue))
 cache.invalidate(artistSongCache.all())
+```
+
+Use `partitioned(key = ...)` when there is no domain partition, but each key value should still be one entry inside a shared cache family. This is useful for top-level paginated results:
+
+```kotlin
+val newVideosCache = cacheKey(
+    "new-videos",
+    returns<List<VideoId>>(),
+    key = partitioned(key = page),
+)
+
+cache(newVideosCache(Page(0, 20))) { loadNewVideos(Page(0, 20)) }
+cache.invalidate(newVideosCache(Page(0, 20))) // one page
+cache.invalidate(newVideosCache.partition())  // all pages
+```
+
+Use `matchableKeyPart(...)` when part of an entry key should be usable for invalidation matching:
+
+```kotlin
+val locale = matchableKeyPart<String>("locale")
+
+val artistPagesCache = cacheKey(
+    "artist-pages",
+    returns<List<Song>>(),
+    key = partitioned(
+        partition = artistId,
+        key = page + locale,
+    ),
+)
+
+cache.invalidate(artistPagesCache.matching(artistIdValue, locale("he")))
+```
+
+Nullable key parts are positional values, not omitted values. Configure their rendered segment with the naming strategy:
+
+```kotlin
+val cache = Kacheable(
+    store = store,
+    namingStrategy = defaultCacheNamingStrategy(nullKeyPart = "__NULL__"),
+)
 ```
 
 See [docs/cache-key-prototype.md](docs/cache-key-prototype.md) for the prototype terminology, storage inference rules, collection examples, invalidation scope, and power-user storage overrides.
