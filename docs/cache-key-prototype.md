@@ -383,6 +383,14 @@ cache.invalidate(homePageCache.all())
 
 Longer term, Kacheable could grow dependency-aware caches so callers can say that one source change invalidates a set of derived caches. That should stay separate from the basic cache-key model unless it can be expressed without making ordinary exact and partitioned caches harder to understand.
 
+## Future: Cache Families
+
+Some key-only caches may naturally belong to one domain partition even when each lookup returns a different value. For example, several small ad authorization values might all belong to one `adId`, or several setting lookups might belong to one setting scope.
+
+Do not group caches just because they share an id. Grouping is only useful when the caller can honestly say: "these are several named facts about the same thing, and they should be warmed, retrieved, or invalidated together."
+
+A possible future model is a typed cache family: multiple cache keys could share an invalidation partition without forcing unrelated result types into one awkward union value. This would keep the retrieval API type-safe while giving callers a single partition target when that is the real domain boundary.
+
 ## Prototype Limits
 
 - Exact cache keys cover no-argument values plus arity 1 through 6.
