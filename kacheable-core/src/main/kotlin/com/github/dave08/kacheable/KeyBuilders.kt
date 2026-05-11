@@ -15,12 +15,28 @@ private fun <P1> mappedKeyPart(
 
 /**
  * Creates an unnamed key part that uses the value itself as the cache-key segment.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val page = keyPart<Int>()
+ * val pages = cacheKey("pages", returns<Page>(), key = exact(page))
+ * cache(pages(3)) { loadPage(3) }
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P1> keyPart(): KeyPart<P1> = mappedKeyPart(values = listOf({ it }))
 
 /**
  * Creates an unnamed key part from one or more extracted segments.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * data class Page(val offset: Int, val limit: Int)
+ *
+ * val page = keyPart<Page>(Page::offset, Page::limit)
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P1> keyPart(
@@ -32,6 +48,13 @@ fun <P1> keyPart(
  *
  * Prefer named key parts for typed cache keys so custom naming strategies and matching
  * invalidations can identify each part.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val songId = keyPart<Int>("songId")
+ * val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P1> keyPart(
@@ -40,6 +63,12 @@ fun <P1> keyPart(
 
 /**
  * Creates a named key part from one or more extracted segments.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val page = keyPart<Page>("page", Page::offset, Page::limit)
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P1> keyPart(

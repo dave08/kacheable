@@ -54,6 +54,22 @@ fun CacheEntryName.asCombined(): CacheEntryName.Primary = CacheEntryName.Primary
  *
  * Exact caches receive all key values as [primaryParams]. Partitioned caches receive partition
  * values as [primaryParams] and entry-key values as [secondaryParams].
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val naming = CacheNamingStrategy { cacheName, primary, secondary ->
+ *     if (secondary.isEmpty()) {
+ *         CacheEntryName.Primary("$cacheName:${primary.joinToString(":")}")
+ *     } else {
+ *         CacheEntryName.PrimarySecondary(
+ *             primary = "$cacheName:${primary.joinToString(":")}",
+ *             secondary = secondary.joinToString(":"),
+ *             combine = { primaryKey, secondaryEntry -> "$primaryKey:$secondaryEntry" },
+ *         )
+ *     }
+ * }
+ * ```
  */
 fun interface CacheNamingStrategy {
     fun getEntryName(
@@ -67,6 +83,15 @@ fun interface CacheNamingStrategy {
  * Default naming strategy.
  *
  * [nullKeyPart] controls how null key segments are represented in generated Redis/string keys.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val cache = Kacheable(
+ *     store = store,
+ *     namingStrategy = defaultCacheNamingStrategy(nullKeyPart = "__NULL__"),
+ * )
+ * ```
  */
 fun defaultCacheNamingStrategy(
     nullKeyPart: String = "<null>",

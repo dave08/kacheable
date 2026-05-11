@@ -34,6 +34,8 @@ cache.invalidate(songCache(songIdValue))
 
 The `returns<Result>()` token fixes the cache result type without forcing users to spell out key-part type parameters. `exact(...)` and `partitioned(...)` then infer key-part types normally, which keeps invocation type-safe.
 
+The cache key is born complete: callers do not later attach `returnsAs(...)` or storage metadata at the call site. That avoids states where the same key shape is accidentally reused as two different result types.
+
 For one named value with no parameters, use `exact()`:
 
 ```kotlin
@@ -80,6 +82,8 @@ val cache = Kacheable(
     ),
 )
 ```
+
+Use this when `null` is part of the repository call identity, for example “no filter selected”. Do not drop nullable params from the key unless every null and non-null call truly returns the same cached result.
 
 ## Collections Are Values
 
@@ -134,6 +138,21 @@ cache.invalidate(artistSongCache.partition(artistIdValue))
 ```
 
 Under `storage = auto()`, partitioned non-Boolean and non-enum results use indexed value storage, currently backed by hash-map style storage.
+
+Partitioned values are still one-result lookups. This cache:
+
+```kotlin
+val artistPageCache = cacheKey(
+    "artist-page",
+    returns<List<Song>>(),
+    key = partitioned(
+        partition = artistId,
+        key = page,
+    ),
+)
+```
+
+does not cache individual songs. It caches one `List<Song>` for each page entry inside the artist partition.
 
 ## Single-Partition Values
 
@@ -256,6 +275,31 @@ cache.invalidate(pageCache.matching(artistIdValue, "top", locale("en"), device("
 
 Because matching behavior needs hash-style field matching, matchable inner-key parts force indexed value storage under `auto()`, even for Boolean or enum results.
 
+That tradeoff is deliberate: membership and enum membership are efficient for exact member lookups and partition invalidation, but they do not have the same “delete every entry whose inner key includes locale = he” shape.
+
+## Conditional Writes
+
+Use `cacheIf` when a computed result should be returned but not always stored:
+
+```kotlin
+val result = cache(expensiveCache(id), cacheIf = { it.isStable }) {
+    repository.loadExpensiveValue(id)
+}
+```
+
+`cacheIf` is evaluated only after the block runs. It is not evaluated on cache hits.
+
+For Boolean membership caches, `membershipStorage(cacheFalse = false)` is the clearer option when the policy is specifically “cache true, do not cache false”:
+
+```kotlin
+val followCache = cacheKey(
+    "artist-follow",
+    returns<Boolean>(),
+    key = partitioned(artistId, accountId),
+    storage = membershipStorage(cacheFalse = false),
+)
+```
+
 ## Legacy Raw Invalidation
 
 Prefer typed cache refs for new code. During migrations, raw refs can be mixed with typed refs in one invalidation call:
@@ -295,6 +339,21 @@ Read this as:
 > Cache one `Boolean` follow state for each `accountId` key inside one `artistId + locale` partition.
 
 Kacheable can store that more efficiently than a separate serialized Boolean per account.
+
+The public meaning does not change:
+
+```kotlin
+val isFollowing: Boolean = cache(followCache(artistIdValue, accountIdValue)) {
+    repository.isFollowing(artistIdValue, accountIdValue)
+}
+```
+
+Invalidation is still expressed through typed refs:
+
+```kotlin
+cache.invalidate(followCache(artistIdValue, accountIdValue)) // one member state
+cache.invalidate(followCache.partition(artistIdValue, "he"))  // all accounts for artist + locale
+```
 
 Power users can control false caching:
 
@@ -346,6 +405,8 @@ Read this as:
 
 The public model is still a `Reaction` lookup. The classified set layout is an optimization.
 
+When a member's enum value changes, Kacheable removes stale classification state before adding the new value. Exact invalidation also removes that member from all enum classification sets for the partition.
+
 Power users can choose the enum universe or storage names:
 
 ```kotlin
@@ -388,6 +449,18 @@ val followCache = cacheKey(
 )
 ```
 
+Automatic planning currently follows these rules:
+
+| Key shape | Result | Auto storage |
+| --- | --- | --- |
+| `exact(...)` | any result, including `List`, `Set`, `Map`, nullable values | exact serialized value |
+| `partitioned(...)` | `Boolean`, no matchable entry key parts | membership sets |
+| `partitioned(...)` | non-null enum, no matchable entry key parts | enum classification sets |
+| `partitioned(...)` | any other result | indexed/hash values |
+| `partitioned(...)` | any result with matchable entry key parts | indexed/hash values |
+
+The type system exposes only the override families that make sense for a key shape: exact storage for exact keys, and indexed/membership/enum membership storage for partitioned keys.
+
 ## Hidden Dependencies
 
 A cache key should normally describe the inputs that decide one cached result. Some results also depend on hidden inputs: database views, ranking formulas, visibility rules, background counters, or other data read inside a query but not present at the call site.
@@ -413,4 +486,4 @@ A possible future model is a typed cache family: multiple cache keys could share
 - Exact cache keys cover no-argument values plus arity 1 through 6.
 - Partitioned cache keys cover the currently supported shapes, including single-partition caches, one-part and multi-part partitions, and matchable inner-key parts.
 - `matching(...)` accepts only `MatchableKeyPartValue`, so non-matchable key parts cannot be passed to it by accident. A compile-fail harness can make that guarantee explicit in tests later if this terminology survives.
-- The old typed API remains available while this model is evaluated.
+- Raw string-cache refs remain available as a migration escape hatch, but new code should prefer typed cache refs.

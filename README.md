@@ -74,10 +74,50 @@ cache.invalidate(artistSongCache.all())
 - Exact, partition, matchable, and whole-cache invalidation refs
 - Single-partition caches for top-level paginated result families
 - Nullable results and nullable key parts
+- Conditional writes with `cacheIf`
 - Blocking and suspending interfaces
 - In-memory, Redis/Lettuce, and no-op stores
 - Per-cache expiry configuration
 - Custom cache naming strategies
+
+## The Mental Model
+
+`cacheKey(...)` binds three things together:
+
+1. The cache name.
+2. The result type returned by one cache lookup.
+3. The key shape that identifies that result.
+
+```kotlin
+val artistSongsCache = cacheKey(
+    "artist-songs",
+    returns<List<Song>>(),
+    key = exact(artistId),
+)
+```
+
+Read this as:
+
+> Cache one `List<Song>` for each `artistId`.
+
+The result type is not a storage instruction. `List<Song>`, `Set<Int>`, and `Map<Int, Song>` are ordinary cached values unless you model the cache as partitioned.
+
+```kotlin
+val artistPageCache = cacheKey(
+    "artist-page",
+    returns<List<Song>>(),
+    key = partitioned(
+        partition = artistId,
+        key = page,
+    ),
+)
+```
+
+Read this as:
+
+> Cache one `List<Song>` for each `page` entry inside one `artistId` partition.
+
+This is the point where Kacheable can store related entries together and invalidate them together.
 
 ## Exact Values
 
@@ -101,7 +141,7 @@ Collections are ordinary values. `returns<List<Song>>()`, `returns<Set<Int>>()`,
 
 ## Partitioned Values
 
-Use `partitioned(partition = ..., key = ...)` when one outer domain value owns many cached entries.
+Use `partitioned(partition = ..., key = ...)` when one domain value owns many cached entries.
 
 ```kotlin
 val artistPagesCache = cacheKey(
@@ -116,6 +156,14 @@ val artistPagesCache = cacheKey(
 
 Read it as: one `List<Song>` for each `page` key inside one `artistId` partition.
 
+The refs tell you what can be invalidated:
+
+```kotlin
+cache.invalidate(artistPagesCache(artistIdValue, pageValue)) // one cached page
+cache.invalidate(artistPagesCache.partition(artistIdValue))  // all pages for one artist
+cache.invalidate(artistPagesCache.all())                     // all artist-page entries
+```
+
 Use `partitioned(key = ...)` when there is no natural outer partition, but the cache should still be stored as one indexed family:
 
 ```kotlin
@@ -127,6 +175,8 @@ val newestVideosCache = cacheKey(
 
 cache.invalidate(newestVideosCache.partition()) // all pages in this cache family
 ```
+
+That is useful for paginated top-level results: each page is still one logical result, but clearing the whole family does not require a raw key-prefix delete.
 
 ## Matchable Key Parts
 
@@ -148,6 +198,27 @@ cache.invalidate(localizedPagesCache.matching(artistIdValue, locale("he")))
 ```
 
 Matching is key matching inside the cache structure, not value search. It is scoped to a partition or cache family; Kacheable does not do keyspace-wide wildcard searches for typed matchable invalidation.
+
+Only `matchableKeyPart(...)` values can be passed to `matching(...)`, so this kind of broad invalidation has to be opted into on the key part itself.
+
+```kotlin
+val locale = matchableKeyPart<String>("locale")
+val device = matchableKeyPart<String>("device")
+
+val pageCache = cacheKey(
+    "artist-pages",
+    returns<SongPage>(),
+    key = partitioned(
+        partition = artistId,
+        key = page + locale + device,
+    ),
+)
+
+cache.invalidate(pageCache.matching(artistIdValue, locale("he")))
+cache.invalidate(pageCache.matching(artistIdValue, locale("he"), device("mobile")))
+```
+
+Because matching needs hash-style field matching, `auto()` uses indexed value storage when a partitioned key has matchable entry parts, even if the result type is `Boolean` or an enum.
 
 ## Membership Results
 
@@ -185,6 +256,25 @@ val reactionCache = cacheKey(
 
 The caller still gets a `Boolean` or `Reaction`; the set layout is only the storage plan.
 
+`cacheIf` still applies to newly computed results:
+
+```kotlin
+cache(followCache(artistIdValue, accountIdValue), cacheIf = { it }) {
+    repository.isFollowing(artistIdValue, accountIdValue)
+}
+```
+
+For membership caches, prefer `membershipStorage(cacheFalse = false)` when the policy is specifically “do not cache false results”:
+
+```kotlin
+val followCache = cacheKey(
+    "artist-follow",
+    returns<Boolean>(),
+    key = partitioned(artistId, accountId),
+    storage = membershipStorage(cacheFalse = false),
+)
+```
+
 ## Storage Overrides
 
 Storage defaults to `auto()`.
@@ -198,6 +288,18 @@ storage = enumMembershipStorage<Reaction>()
 ```
 
 Use overrides when you need a specific storage behavior. For example, force `indexedValueStorage()` if a partitioned `Boolean` should be serialized as an indexed value rather than stored as membership.
+
+`auto()` currently resolves like this:
+
+| Key shape | Result type | Storage |
+| --- | --- | --- |
+| `exact(...)` | any result | one serialized value |
+| `partitioned(...)` | `Boolean`, no matchable entry parts | membership sets |
+| `partitioned(...)` | enum, no matchable entry parts | enum classification sets |
+| `partitioned(...)` | any other result | indexed/hash values |
+| `partitioned(...)` | any result with matchable entry parts | indexed/hash values |
+
+Overrides are intentionally type-limited. For example, `exactValueStorage()` belongs to exact keys, while `membershipStorage()` belongs to partitioned `Boolean` keys.
 
 ## Nullable Values
 
@@ -233,6 +335,8 @@ val cache = Kacheable(
 )
 ```
 
+Use nullable key parts when `null` is a real part of the repository call identity. For example, `filter = null` can mean “no filter selected”, which is different from omitting the filter from the key.
+
 ## Raw Escape Hatch
 
 The raw API remains available for low-level or migration cases:
@@ -247,6 +351,21 @@ cache.invalidate(rawCache("legacy-family"))
 ```
 
 Prefer typed cache refs for new code because they preserve the cache result type and storage plan through invalidation.
+
+## Naming Strategy
+
+The default naming strategy receives exact and partitioned keys differently:
+
+```kotlin
+val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
+val artistPageCache = cacheKey("artist-page", returns<Page>(), key = partitioned(artistId, page))
+```
+
+For `songCache(7)`, `songId` is passed as primary params.
+
+For `artistPageCache(3, Page(0, 20))`, `artistId` is passed as primary params and `page` is passed as secondary params. Redis/hash-like stores use that split to keep all pages for one artist under one partition key.
+
+Custom naming strategies can change the generated strings while keeping that exact/partition split.
 
 ## More
 

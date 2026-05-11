@@ -41,18 +41,38 @@ class EnumMembershipStoragePlan<E : Enum<E>> @PublishedApi internal constructor(
 
 /**
  * Lets Kacheable choose the storage plan from the key shape and result type.
+ *
+ * With `auto()`, exact keys use value storage. Partitioned Boolean results use membership storage,
+ * partitioned enum results use enum membership storage, and other partitioned results use indexed
+ * value storage.
  */
 @ExperimentalKacheableApi
 fun auto(): AutoStoragePlan = AutoStoragePlan
 
 /**
  * Stores each exact cache result as one serialized value.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * cacheKey("artist-songs", returns<List<Song>>(), key = exact(artistId))
+ * ```
+ *
+ * The `List<Song>` is one cached value, not many indexed songs.
  */
 @ExperimentalKacheableApi
 fun <R> exactValueStorage(): ExactValueStoragePlan<R> = ExactValueStoragePlan()
 
 /**
  * Stores each partitioned entry as a serialized value inside its partition.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * cacheKey("artist-page", returns<List<Song>>(), key = partitioned(artistId, page))
+ * ```
+ *
+ * Each page is one serialized value inside the artist partition.
  */
 @ExperimentalKacheableApi
 fun <R> indexedValueStorage(): IndexedValueStoragePlan<R> = IndexedValueStoragePlan()
@@ -62,12 +82,34 @@ fun <R> indexedValueStorage(): IndexedValueStoragePlan<R> = IndexedValueStorageP
  *
  * When [cacheFalse] is `false`, false results are returned to the caller but not written to the
  * cache.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * cacheKey(
+ *     "artist-follow",
+ *     returns<Boolean>(),
+ *     key = partitioned(partition = artistId, key = accountId),
+ *     storage = membershipStorage(cacheFalse = false),
+ * )
+ * ```
  */
 @ExperimentalKacheableApi
 fun membershipStorage(cacheFalse: Boolean = true): MembershipStoragePlan = MembershipStoragePlan(cacheFalse)
 
 /**
  * Stores enum partitioned results as classification sets, one set per enum value.
+ *
+ * The public cache result is still the enum value. The set layout is only the storage plan.
+ *
+ * ```kotlin
+ * cacheKey(
+ *     "song-reaction",
+ *     returns<Reaction>(),
+ *     key = partitioned(partition = songId, key = accountId),
+ *     storage = enumMembershipStorage<Reaction>(),
+ * )
+ * ```
  */
 @ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> enumMembershipStorage(
@@ -180,6 +222,8 @@ fun rawCache(
 
 /**
  * Result descriptor used by [cacheKey] to choose serialization and automatic storage.
+ *
+ * Users normally create this with [returns] or [returnsEnum].
  */
 @ExperimentalKacheableApi
 class CacheResult<R> @PublishedApi internal constructor(
@@ -206,6 +250,15 @@ internal inline fun <reified R> cacheResult(): CacheResult<R> =
 
 /**
  * Describes the result type returned from a typed cache key.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
+ * val songsCache = cacheKey("artist-songs", returns<List<Song>>(), key = exact(artistId))
+ * ```
+ *
+ * Collections are ordinary results. `returns<List<Song>>()` means one cached list for each key.
  */
 @ExperimentalKacheableApi
 inline fun <reified R> returns(): CacheResult<R> = cacheResult()
@@ -213,6 +266,9 @@ inline fun <reified R> returns(): CacheResult<R> = cacheResult()
 /**
  * Describes an enum result and optionally customizes the enum values/names used by membership
  * storage.
+ *
+ * `returns<EnumType>()` is enough for automatic enum membership. Use `returnsEnum(...)` when you
+ * want to make the enum universe or stored enum names explicit.
  */
 @ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> returnsEnum(
@@ -228,6 +284,9 @@ inline fun <reified E : Enum<E>> returnsEnum(
 
 /**
  * Key part that can be used for matching invalidations inside a partition.
+ *
+ * A matchable key part is still an ordinary key part for reads. The extra marker only allows calls
+ * like `cache.invalidate(pageCache.matching(artistId, locale("he")))`.
  */
 @ExperimentalKacheableApi
 interface MatchableKeyPart<P> : KeyPart<P> {
@@ -251,6 +310,17 @@ internal data class SimpleMatchableKeyPart<P>(
 
 /**
  * Creates a named key part that may be used by `matching(...)` invalidations.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val locale = matchableKeyPart<String>("locale")
+ * val pages = cacheKey("artist-pages", returns<Page>(), key = partitioned(artistId, page + locale))
+ *
+ * cache.invalidate(pages.matching(artistIdValue, locale("he")))
+ * ```
+ *
+ * Matching is scoped key matching inside a partition, not value search.
  */
 @ExperimentalKacheableApi
 fun <P> matchableKeyPart(name: String): MatchableKeyPart<P> =
@@ -258,6 +328,12 @@ fun <P> matchableKeyPart(name: String): MatchableKeyPart<P> =
 
 /**
  * Creates a named multi-segment key part that may be used by `matching(...)` invalidations.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val paging = matchableKeyPart<Page>("page", Page::offset, Page::limit)
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P> matchableKeyPart(
@@ -477,12 +553,25 @@ class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> @PublishedApi internal cons
 
 /**
  * Defines a no-argument exact cache key shape.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val settings = cacheKey("settings", returns<AppSettings>(), key = exact())
+ * cache(settings()) { loadSettings() }
+ * ```
  */
 @ExperimentalKacheableApi
 fun exact(): ExactKeyShape0 = ExactKeyShape0
 
 /**
  * Defines an exact cache key shape from one key part.
+ *
+ * Use exact keys when the supplied values directly identify one cached result.
+ *
+ * ```kotlin
+ * val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
+ * ```
  */
 @ExperimentalKacheableApi
 fun <P1> exact(
@@ -516,6 +605,16 @@ fun <P1, P2, P3, P4, P5, P6> exact(
 
 /**
  * Defines a partitioned cache key shape from a partition part and an entry key part.
+ *
+ * Read `partitioned(partition = artistId, key = page)` as: one cached result per `page` inside
+ * one `artistId` partition.
+ *
+ * ```kotlin
+ * val pages = cacheKey("artist-pages", returns<List<Song>>(), key = partitioned(artistId, page))
+ *
+ * cache.invalidate(pages(artistIdValue, pageValue))      // one page
+ * cache.invalidate(pages.partition(artistIdValue))       // all pages for the artist
+ * ```
  */
 @ExperimentalKacheableApi
 fun <I1, K1> partitioned(
@@ -526,6 +625,13 @@ fun <I1, K1> partitioned(
 /**
  * Defines a partitioned cache key with no explicit partition; useful when storage should still
  * support all-entry invalidation or membership/indexed storage for the whole cache.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val newest = cacheKey("newest-videos", returns<List<Video>>(), key = partitioned(key = page))
+ * cache.invalidate(newest.partition()) // all pages in the cache family
+ * ```
  */
 @ExperimentalKacheableApi
 fun <K1> partitioned(
