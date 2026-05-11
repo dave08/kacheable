@@ -24,12 +24,12 @@ internal interface TypedCacheRuntime {
 
     suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     )
 
     suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     )
 
     suspend fun <R> invoke(
@@ -42,7 +42,7 @@ internal interface TypedCacheRuntime {
 
     suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R

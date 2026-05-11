@@ -1,10 +1,8 @@
-# Cache Key Prototype
+# Cache Keys
 
-This prototype explores a different public model for typed caches:
+Typed cache keys use one public model:
 
 > One cache key describes one cached result. Storage is an optimization plan.
-
-The existing `entryKey(...)` / `returnsAs = ...` API still works. The cache-key API sits next to it while we test whether this terminology is clearer.
 
 ## Defining A Cache
 
@@ -24,7 +22,7 @@ Read this as:
 
 > Cache one `Song` for each exact `songId`.
 
-Usage does not need `returnsAs`:
+Usage carries the return plan from the cache key:
 
 ```kotlin
 cache(songCache(songIdValue)) {
@@ -413,6 +411,6 @@ A possible future model is a typed cache family: multiple cache keys could share
 ## Prototype Limits
 
 - Exact cache keys cover no-argument values plus arity 1 through 6.
-- Partitioned cache keys cover the shapes exercised by the prototype tests, including single-partition caches, one-part and multi-part partitions, and matchable inner-key parts.
+- Partitioned cache keys cover the currently supported shapes, including single-partition caches, one-part and multi-part partitions, and matchable inner-key parts.
 - `matching(...)` accepts only `MatchableKeyPartValue`, so non-matchable key parts cannot be passed to it by accident. A compile-fail harness can make that guarantee explicit in tests later if this terminology survives.
 - The old typed API remains available while this model is evaluated.

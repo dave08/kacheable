@@ -44,14 +44,14 @@ internal class StringTypedStorage(
 
     override suspend fun <R> invoke(
         entryRef: StoredCacheEntryRef<CacheStorage.String>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = store.invokeAtAddress(
         entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
-        codec = returnsAs.codec,
+        codec = returnView.codec,
         saveResultIf = saveResultIf,
         block = block,
     )

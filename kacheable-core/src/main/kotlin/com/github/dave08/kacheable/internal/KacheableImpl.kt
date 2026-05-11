@@ -61,16 +61,16 @@ internal class KacheableImpl(
 
     override suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(entryRef, returnsAs)
+        storages.set.invalidate(entryRef, returnView)
     }
 
     override suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(partRef, returnsAs)
+        storages.set.invalidate(partRef, returnView)
     }
 
     override suspend fun <R> invoke(
@@ -89,12 +89,12 @@ internal class KacheableImpl(
 
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R {
         @Suppress("UNCHECKED_CAST")
-        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(entryRef, returnsAs, saveResultIf, block)
+        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(entryRef, returnView, saveResultIf, block)
     }
 
     override suspend fun <R> invoke(

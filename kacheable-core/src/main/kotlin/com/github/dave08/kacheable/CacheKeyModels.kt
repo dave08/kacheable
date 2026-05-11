@@ -56,7 +56,7 @@ open class KeyPartValue(
 }
 
 @PublishedApi
-internal data class SimpleSecondaryKeyPart<P1>(
+internal data class SimpleKeyPart<P1>(
     override val name: String? = null,
     private val encoders: List<(P1) -> Any?>,
 ) : KeyPart<P1> {

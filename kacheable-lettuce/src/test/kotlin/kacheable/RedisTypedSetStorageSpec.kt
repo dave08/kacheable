@@ -3,10 +3,8 @@
 package kacheable
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.enumMember
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
-import com.github.dave08.kacheable.isMember
 import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect
 import strikt.assertions.isEqualTo
@@ -20,11 +18,11 @@ val RedisTypedSetStorageSpec by testSuite {
             val accountId = 7
             var calls = 0
 
-            val first = cache(redisArtistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+            val first = cache(redisArtistFollowerCache(artistId, accountId)) {
                 calls++
                 true
             }
-            val second = cache(redisArtistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+            val second = cache(redisArtistFollowerCache(artistId, accountId)) {
                 calls++
                 false
             }
@@ -44,11 +42,11 @@ val RedisTypedSetStorageSpec by testSuite {
             val accountId = 7
             var calls = 0
 
-            val first = cache(redisArtistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+            val first = cache(redisArtistFollowerCache(artistId, accountId)) {
                 calls++
                 false
             }
-            val second = cache(redisArtistFollowerCache.key(artistId, accountId), returnsAs = isMember()) {
+            val second = cache(redisArtistFollowerCache(artistId, accountId)) {
                 calls++
                 true
             }
@@ -69,15 +67,13 @@ val RedisTypedSetStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisSongReactionCache.key(songId, accountId),
-                returnsAs = enumMember<RedisSongReaction>(),
+                redisSongReactionCache(songId, accountId),
             ) {
                 calls++
                 RedisSongReaction.LIKE
             }
             val second = cache(
-                redisSongReactionCache.key(songId, accountId),
-                returnsAs = enumMember<RedisSongReaction>(),
+                redisSongReactionCache(songId, accountId),
             ) {
                 calls++
                 RedisSongReaction.DISLIKE
@@ -100,17 +96,14 @@ val RedisTypedSetStorageSpec by testSuite {
             val accountId = 7
             val otherAccountId = 8
 
-            cache(redisSongReactionCache.key(songId, accountId), returnsAs = enumMember<RedisSongReaction>()) {
+            cache(redisSongReactionCache(songId, accountId)) {
                 RedisSongReaction.DISLIKE
             }
-            cache(redisSongReactionCache.key(songId, otherAccountId), returnsAs = enumMember<RedisSongReaction>()) {
+            cache(redisSongReactionCache(songId, otherAccountId)) {
                 RedisSongReaction.LIKE
             }
 
-            cache.invalidate(
-                redisSongReactionCache.key(songId, accountId),
-                returnsAs = enumMember<RedisSongReaction>(),
-            )
+            cache.invalidate(redisSongReactionCache(songId, accountId))
 
             expect {
                 that(commands.sismember(redisSongReactionKey(songId, RedisSongReaction.DISLIKE), accountId.toString()))

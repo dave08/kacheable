@@ -22,7 +22,7 @@ internal interface BlockingTypedStorage<S : CacheStorage> {
 
     fun <R> invoke(
         entryRef: StoredCacheEntryRef<S>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: () -> R,
     ): R

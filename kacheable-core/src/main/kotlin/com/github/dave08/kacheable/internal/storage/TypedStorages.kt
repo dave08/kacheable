@@ -22,7 +22,7 @@ internal interface TypedStorage<S : CacheStorage> {
 
     suspend fun <R> invoke(
         entryRef: StoredCacheEntryRef<S>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R

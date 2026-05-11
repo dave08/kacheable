@@ -36,38 +36,38 @@ internal class BlockingSetTypedStorage(
 
     fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        SetStorageStrategy.invalidateClassification(store, namingStrategy, entryRef.name, entryRef.cacheArgs, returnsAs.valueNames) {}
+        SetStorageStrategy.invalidateClassification(store, namingStrategy, entryRef.name, entryRef.cacheArgs, returnView.valueNames) {}
     }
 
     fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        SetStorageStrategy.invalidateClassification(store, namingStrategy, partRef.name, partRef.cacheArgs, returnsAs.valueNames) {}
+        SetStorageStrategy.invalidateClassification(store, namingStrategy, partRef.name, partRef.cacheArgs, returnView.valueNames) {}
     }
 
     @Suppress("UNCHECKED_CAST")
     override fun <R> invoke(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: () -> R,
-    ): R = when (returnsAs) {
+    ): R = when (returnView) {
         is IsMemberCacheReturn -> SetStorageStrategy.invokeMembership(
             store = store,
             configs = configs,
             namingStrategy = namingStrategy,
             name = entryRef.name,
             cacheArgs = entryRef.cacheArgs,
-            cacheFalse = returnsAs.cacheFalse,
+            cacheFalse = returnView.cacheFalse,
             saveResultIf = saveResultIf as (Boolean) -> Boolean,
             block = block as () -> Boolean,
         ) as R
 
         is EnumMemberCacheReturn<*> -> {
-            val typedReturn = returnsAs as EnumMemberCacheReturn<Any>
+            val typedReturn = returnView as EnumMemberCacheReturn<Any>
             SetStorageStrategy.invokeClassification(
                 store = store,
                 configs = configs,
@@ -81,6 +81,6 @@ internal class BlockingSetTypedStorage(
             ) as R
         }
 
-        else -> error("Set storage does not support return view ${returnsAs::class.simpleName}.")
+        else -> error("Set storage does not support return view ${returnView::class.simpleName}.")
     }
 }

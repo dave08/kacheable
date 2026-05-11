@@ -3,8 +3,6 @@
 package kacheable
 
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.enumMember
-import com.github.dave08.kacheable.isMember
 import com.github.dave08.kacheable.blocking.invoke
 import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect
@@ -20,15 +18,13 @@ val RedisBlockingTypedSetStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisBlockingArtistFollowerCache.key(artistId, accountId),
-                returnsAs = isMember(),
+                redisBlockingArtistFollowerCache(artistId, accountId),
             ) {
                 calls++
                 true
             }
             val second = cache(
-                redisBlockingArtistFollowerCache.key(artistId, accountId),
-                returnsAs = isMember(),
+                redisBlockingArtistFollowerCache(artistId, accountId),
             ) {
                 calls++
                 false
@@ -50,15 +46,13 @@ val RedisBlockingTypedSetStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisBlockingArtistFollowerCache.key(artistId, accountId),
-                returnsAs = isMember(),
+                redisBlockingArtistFollowerCache(artistId, accountId),
             ) {
                 calls++
                 false
             }
             val second = cache(
-                redisBlockingArtistFollowerCache.key(artistId, accountId),
-                returnsAs = isMember(),
+                redisBlockingArtistFollowerCache(artistId, accountId),
             ) {
                 calls++
                 true
@@ -80,15 +74,13 @@ val RedisBlockingTypedSetStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisBlockingSongReactionCache.key(songId, accountId),
-                returnsAs = enumMember<RedisBlockingSongReaction>(),
+                redisBlockingSongReactionCache(songId, accountId),
             ) {
                 calls++
                 RedisBlockingSongReaction.NONE
             }
             val second = cache(
-                redisBlockingSongReactionCache.key(songId, accountId),
-                returnsAs = enumMember<RedisBlockingSongReaction>(),
+                redisBlockingSongReactionCache(songId, accountId),
             ) {
                 calls++
                 RedisBlockingSongReaction.LIKE

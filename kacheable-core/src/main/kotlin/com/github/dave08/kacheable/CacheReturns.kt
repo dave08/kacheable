@@ -12,7 +12,6 @@ sealed interface CacheStorage {
     data object String : CacheStorage, SupportsValueView, SupportsPrimaryKeyStorage
     data object HashMap : CacheStorage,
         SupportsValueView,
-        SupportsMapView,
         SupportsPrimaryKeyStorage,
         SupportsPrimarySecondaryKeyStorage
 
@@ -29,9 +28,6 @@ sealed interface CacheStorageCapability
 sealed interface SupportsValueView : CacheStorageCapability
 
 @ExperimentalKacheableApi
-sealed interface SupportsMapView : CacheStorageCapability
-
-@ExperimentalKacheableApi
 sealed interface SupportsMembershipView : CacheStorageCapability
 
 @ExperimentalKacheableApi
@@ -45,9 +41,6 @@ interface CacheReturn<R, C : CacheStorageCapability> {
     val serializer: KSerializer<R>
     val codec: CacheValueCodec<R>
 }
-
-@ExperimentalKacheableApi
-interface HashMapCacheReturn<R> : CacheReturn<R, SupportsMapView>
 
 @ExperimentalKacheableApi
 interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
@@ -78,12 +71,6 @@ class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
 }
 
 @ExperimentalKacheableApi
-data class MapCacheReturn<K : Any, R>(
-    override val serializer: KSerializer<Map<K, R>>,
-    override val codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer),
-) : HashMapCacheReturn<Map<K, R>>
-
-@ExperimentalKacheableApi
 data class IsMemberCacheReturn(
     val cacheFalse: Boolean = true,
     override val serializer: KSerializer<Boolean> = serializer<Boolean>(),
@@ -109,37 +96,6 @@ class EnumMemberCacheReturn<E : Any>(
     val valueNames: List<String> = values.map(valueName)
 }
 
-@ExperimentalKacheableApi
-inline fun <reified R> value(
-    codec: CacheValueCodec<R> = cacheValueCodec(serializer<R>()),
-): ValueCacheReturn<R> = ValueCacheReturn(serializer<R>(), codec)
-
 @PublishedApi
 internal inline fun <reified R> lazyValue(): ValueCacheReturn<R> =
     ValueCacheReturn { serializer<R>() }
-
-@ExperimentalKacheableApi
-fun <R> value(
-    serializer: KSerializer<R>,
-    codec: CacheValueCodec<R> = cacheValueCodec(serializer),
-): ValueCacheReturn<R> = ValueCacheReturn(serializer, codec)
-
-@ExperimentalKacheableApi
-inline fun <reified K : Any, reified R> map(
-    codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer<Map<K, R>>()),
-): MapCacheReturn<K, R> = MapCacheReturn(serializer<Map<K, R>>(), codec)
-
-@ExperimentalKacheableApi
-fun <K : Any, R> map(
-    serializer: KSerializer<Map<K, R>>,
-    codec: CacheValueCodec<Map<K, R>> = cacheValueCodec(serializer),
-): MapCacheReturn<K, R> = MapCacheReturn(serializer, codec)
-
-@ExperimentalKacheableApi
-fun isMember(cacheFalse: Boolean = true): IsMemberCacheReturn = IsMemberCacheReturn(cacheFalse)
-
-@ExperimentalKacheableApi
-inline fun <reified E : Enum<E>> enumMember(
-    values: List<E> = enumValues<E>().toList(),
-    noinline valueName: (E) -> String = { it.name },
-): EnumMemberCacheReturn<E> = EnumMemberCacheReturn(values, valueName, { serializer<E>() })

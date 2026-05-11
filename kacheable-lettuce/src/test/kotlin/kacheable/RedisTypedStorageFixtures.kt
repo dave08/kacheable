@@ -2,30 +2,43 @@
 
 package kacheable
 
-import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExperimentalKacheableApi
-import com.github.dave08.kacheable.entryKey
+import com.github.dave08.kacheable.cacheKey
+import com.github.dave08.kacheable.matchableKeyPart
+import com.github.dave08.kacheable.partitioned
+import com.github.dave08.kacheable.returns
 import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.plus
-import com.github.dave08.kacheable.times
 
-val redisArtistCache = entryKey<Int>("artist-cache", storedAs = CacheStorage.HashMap)
-val redisSongKey = keyPart<Int>()
-val redisArtistSongsCache = redisArtistCache + redisSongKey
-val redisPagingKey = keyPart<Int>("page")
-val redisLocaleKey = keyPart<String>("locale")
-val redisArtistPagePrimaryKey = keyPart<Int>("artist")
-val redisArtistSongsByLocaleCache = entryKey(
-    "artist-page-cache",
-    redisArtistPagePrimaryKey * (redisPagingKey + redisLocaleKey),
-    storedAs = CacheStorage.HashMap,
+val redisArtistKey = keyPart<Int>("artist")
+val redisSongKey = keyPart<Int>("song")
+val redisArtistSongsCache = cacheKey(
+    "artist-cache",
+    returns<Bar>(),
+    key = partitioned(partition = redisArtistKey, key = redisSongKey),
 )
-val redisArtistFollowersCache = entryKey<Int>("artist-followers-cache", storedAs = CacheStorage.Set)
-val redisFollowerAccountKey = keyPart<Int>()
-val redisArtistFollowerCache = redisArtistFollowersCache + redisFollowerAccountKey
-val redisSongReactionsCache = entryKey<Int>("song-reaction-cache", storedAs = CacheStorage.Set)
-val redisReactingAccountKey = keyPart<Int>()
-val redisSongReactionCache = redisSongReactionsCache + redisReactingAccountKey
+val redisPagingKey = keyPart<Int>("page")
+val redisLocaleKey = matchableKeyPart<String>("locale")
+val redisArtistPagePrimaryKey = keyPart<Int>("artist")
+val redisArtistSongsByLocaleCache = cacheKey(
+    "artist-page-cache",
+    returns<Bar>(),
+    key = partitioned(partition = redisArtistPagePrimaryKey, key = redisPagingKey + redisLocaleKey),
+)
+val redisFollowerArtistKey = keyPart<Int>("artist")
+val redisFollowerAccountKey = keyPart<Int>("account")
+val redisArtistFollowerCache = cacheKey(
+    "artist-followers-cache",
+    returns<Boolean>(),
+    key = partitioned(partition = redisFollowerArtistKey, key = redisFollowerAccountKey),
+)
+val redisSongReactionSongKey = keyPart<Int>("song")
+val redisReactingAccountKey = keyPart<Int>("account")
+val redisSongReactionCache = cacheKey(
+    "song-reaction-cache",
+    returns<RedisSongReaction>(),
+    key = partitioned(partition = redisSongReactionSongKey, key = redisReactingAccountKey),
+)
 
 enum class RedisSongReaction {
     LIKE,
@@ -43,25 +56,35 @@ fun redisArtistFollowerNonMembersKey(artistId: Int): String =
 fun redisSongReactionKey(songId: Int, reaction: RedisSongReaction): String =
     "song-reaction-cache:$songId:${reaction.name}"
 
-val redisBlockingArtistCache = entryKey<Int>("blocking-artist-cache", storedAs = CacheStorage.HashMap)
-val redisBlockingSongKey = keyPart<Int>()
-val redisBlockingArtistSongsCache = redisBlockingArtistCache + redisBlockingSongKey
-val redisBlockingPagingKey = keyPart<Int>("page")
-val redisBlockingLocaleKey = keyPart<String>("locale")
-val redisBlockingArtistPagePrimaryKey = keyPart<Int>("artist")
-val redisBlockingArtistSongsByLocaleCache = entryKey(
-    "blocking-artist-page-cache",
-    redisBlockingArtistPagePrimaryKey * (redisBlockingPagingKey + redisBlockingLocaleKey),
-    storedAs = CacheStorage.HashMap,
+val redisBlockingArtistKey = keyPart<Int>("artist")
+val redisBlockingSongKey = keyPart<Int>("song")
+val redisBlockingArtistSongsCache = cacheKey(
+    "blocking-artist-cache",
+    returns<Bar>(),
+    key = partitioned(partition = redisBlockingArtistKey, key = redisBlockingSongKey),
 )
-val redisBlockingArtistFollowersCache =
-    entryKey<Int>("blocking-artist-followers-cache", storedAs = CacheStorage.Set)
-val redisBlockingFollowerAccountKey = keyPart<Int>()
-val redisBlockingArtistFollowerCache = redisBlockingArtistFollowersCache + redisBlockingFollowerAccountKey
-val redisBlockingSongReactionsCache =
-    entryKey<Int>("blocking-song-reaction-cache", storedAs = CacheStorage.Set)
-val redisBlockingReactingAccountKey = keyPart<Int>()
-val redisBlockingSongReactionCache = redisBlockingSongReactionsCache + redisBlockingReactingAccountKey
+val redisBlockingPagingKey = keyPart<Int>("page")
+val redisBlockingLocaleKey = matchableKeyPart<String>("locale")
+val redisBlockingArtistPagePrimaryKey = keyPart<Int>("artist")
+val redisBlockingArtistSongsByLocaleCache = cacheKey(
+    "blocking-artist-page-cache",
+    returns<Bar>(),
+    key = partitioned(partition = redisBlockingArtistPagePrimaryKey, key = redisBlockingPagingKey + redisBlockingLocaleKey),
+)
+val redisBlockingFollowerArtistKey = keyPart<Int>("artist")
+val redisBlockingFollowerAccountKey = keyPart<Int>("account")
+val redisBlockingArtistFollowerCache = cacheKey(
+    "blocking-artist-followers-cache",
+    returns<Boolean>(),
+    key = partitioned(partition = redisBlockingFollowerArtistKey, key = redisBlockingFollowerAccountKey),
+)
+val redisBlockingSongReactionSongKey = keyPart<Int>("song")
+val redisBlockingReactingAccountKey = keyPart<Int>("account")
+val redisBlockingSongReactionCache = cacheKey(
+    "blocking-song-reaction-cache",
+    returns<RedisBlockingSongReaction>(),
+    key = partitioned(partition = redisBlockingSongReactionSongKey, key = redisBlockingReactingAccountKey),
+)
 
 enum class RedisBlockingSongReaction {
     LIKE,

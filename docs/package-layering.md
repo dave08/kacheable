@@ -1,12 +1,12 @@
 # Package Layering
 
-This is the current direction for the typed cache API after the shape-first refactor work.
+This is the current layering direction for the typed cache-key API.
 
 ## Layers
 
 `com.github.dave08.kacheable`
 - Public API surface.
-- Owns key shape, return views, storage markers, builders, and user-facing types.
+- Owns key shape, result descriptors, storage plans, builders, and user-facing types.
 - Should not own storage-specific branching beyond thin delegation.
 
 `com.github.dave08.kacheable.internal.keys`
@@ -16,8 +16,8 @@ This is the current direction for the typed cache API after the shape-first refa
 - Must not depend on storage operation planning.
 
 `com.github.dave08.kacheable.internal.storage`
-- Internal storage-facing planning and adaptation.
-- Owns storage-specific ref resolution, entry-name resolution, and set membership planning.
+- Internal storage-facing adaptation.
+- Owns entry-name resolution and storage-specific read/write behavior.
 - Prefer subpackages such as `internal.storage.string`, `internal.storage.hash`, and `internal.storage.set`
   when behavior is truly storage-owned.
 - May depend on public API contracts and `internal.keys`.

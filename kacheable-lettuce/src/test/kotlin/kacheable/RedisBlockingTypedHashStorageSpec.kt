@@ -5,8 +5,6 @@ package kacheable
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
-import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect
 import strikt.api.expectThat
@@ -22,15 +20,13 @@ val RedisBlockingTypedHashStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisBlockingArtistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
+                redisBlockingArtistSongsCache(artistId, songId),
             ) {
                 calls++
                 Bar(songId, "Seven")
             }
             val second = cache(
-                redisBlockingArtistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
+                redisBlockingArtistSongsCache(artistId, songId),
             ) {
                 calls++
                 Bar(songId, "Changed")
@@ -51,14 +47,14 @@ val RedisBlockingTypedHashStorageSpec by testSuite {
             val firstSongId = 7
             val secondSongId = 8
 
-            cache(redisBlockingArtistSongsCache.key(artistId, firstSongId), returnsAs = value<Bar>()) {
+            cache(redisBlockingArtistSongsCache(artistId, firstSongId)) {
                 Bar(firstSongId, "Seven")
             }
-            cache(redisBlockingArtistSongsCache.key(artistId, secondSongId), returnsAs = value<Bar>()) {
+            cache(redisBlockingArtistSongsCache(artistId, secondSongId)) {
                 Bar(secondSongId, "Eight")
             }
 
-            cache.invalidate(redisBlockingArtistSongsCache.keyPart(artistId))
+            cache.invalidate(redisBlockingArtistSongsCache.partition(artistId))
 
             expectThat(commands.exists(redisBlockingArtistCacheKey(artistId))).isEqualTo(0)
         }
@@ -66,21 +62,18 @@ val RedisBlockingTypedHashStorageSpec by testSuite {
         test("partially invalidates layered hash fields by selected secondary key part") {
             val artistId = 13
 
-            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 1, "en"), returnsAs = value<Bar>()) {
+            cache(redisBlockingArtistSongsByLocaleCache(artistId, 1, "en")) {
                 Bar(artistId, "Page EN 1")
             }
-            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 2, "en"), returnsAs = value<Bar>()) {
+            cache(redisBlockingArtistSongsByLocaleCache(artistId, 2, "en")) {
                 Bar(artistId, "Page EN 2")
             }
-            cache(redisBlockingArtistSongsByLocaleCache.key(artistId, 1, "he"), returnsAs = value<Bar>()) {
+            cache(redisBlockingArtistSongsByLocaleCache(artistId, 1, "he")) {
                 Bar(artistId, "Page HE 1")
             }
 
             cache.invalidate(
-                redisBlockingArtistSongsByLocaleCache.keyPart(
-                    redisBlockingArtistPagePrimaryKey(artistId),
-                    redisBlockingLocaleKey("en"),
-                ),
+                redisBlockingArtistSongsByLocaleCache.matching(artistId, redisBlockingLocaleKey("en")),
             )
 
             expect {

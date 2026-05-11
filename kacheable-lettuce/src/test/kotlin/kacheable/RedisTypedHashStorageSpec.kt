@@ -5,8 +5,6 @@ package kacheable
 import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.invalidate
 import com.github.dave08.kacheable.invoke
-import com.github.dave08.kacheable.keyPart
-import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
 import strikt.api.expect
 import strikt.api.expectThat
@@ -22,15 +20,13 @@ val RedisTypedHashStorageSpec by testSuite {
             var calls = 0
 
             val first = cache(
-                redisArtistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
+                redisArtistSongsCache(artistId, songId),
             ) {
                 calls++
                 Bar(songId, "Seven")
             }
             val second = cache(
-                redisArtistSongsCache.key(artistId, songId),
-                returnsAs = value<Bar>(),
+                redisArtistSongsCache(artistId, songId),
             ) {
                 calls++
                 Bar(songId, "Changed")
@@ -51,14 +47,14 @@ val RedisTypedHashStorageSpec by testSuite {
             val firstSongId = 7
             val secondSongId = 8
 
-            cache(redisArtistSongsCache.key(artistId, firstSongId), returnsAs = value<Bar>()) {
+            cache(redisArtistSongsCache(artistId, firstSongId)) {
                 Bar(firstSongId, "Seven")
             }
-            cache(redisArtistSongsCache.key(artistId, secondSongId), returnsAs = value<Bar>()) {
+            cache(redisArtistSongsCache(artistId, secondSongId)) {
                 Bar(secondSongId, "Eight")
             }
 
-            cache.invalidate(redisArtistSongsCache.keyPart(artistId))
+            cache.invalidate(redisArtistSongsCache.partition(artistId))
 
             expectThat(commands.exists(redisArtistCacheKey(artistId))).isEqualTo(0)
         }
@@ -66,17 +62,17 @@ val RedisTypedHashStorageSpec by testSuite {
         test("partially invalidates layered hash fields by selected secondary key part") {
             val artistId = 13
 
-            cache(redisArtistSongsByLocaleCache.key(artistId, 1, "en"), returnsAs = value<Bar>()) {
+            cache(redisArtistSongsByLocaleCache(artistId, 1, "en")) {
                 Bar(artistId, "Page EN 1")
             }
-            cache(redisArtistSongsByLocaleCache.key(artistId, 2, "en"), returnsAs = value<Bar>()) {
+            cache(redisArtistSongsByLocaleCache(artistId, 2, "en")) {
                 Bar(artistId, "Page EN 2")
             }
-            cache(redisArtistSongsByLocaleCache.key(artistId, 1, "he"), returnsAs = value<Bar>()) {
+            cache(redisArtistSongsByLocaleCache(artistId, 1, "he")) {
                 Bar(artistId, "Page HE 1")
             }
 
-            cache.invalidate(redisArtistSongsByLocaleCache.keyPart(redisArtistPagePrimaryKey(artistId), redisLocaleKey("en")))
+            cache.invalidate(redisArtistSongsByLocaleCache.matching(artistId, redisLocaleKey("en")))
 
             expect {
                 that(commands.hget("artist-page-cache:$artistId", "1,he")).isEqualTo("""{"id":13,"name":"Page HE 1"}""")

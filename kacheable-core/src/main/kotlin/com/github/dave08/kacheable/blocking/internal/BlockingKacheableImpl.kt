@@ -61,16 +61,16 @@ internal class BlockingKacheableImpl(
 
     override fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(entryRef, returnsAs)
+        storages.set.invalidate(entryRef, returnView)
     }
 
     override fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
-        returnsAs: EnumMemberCacheReturn<E>,
+        returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(partRef, returnsAs)
+        storages.set.invalidate(partRef, returnView)
     }
 
     override fun <R> invoke(
@@ -89,12 +89,12 @@ internal class BlockingKacheableImpl(
 
     override fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: () -> R,
     ): R {
         @Suppress("UNCHECKED_CAST")
-        return (storages.any(entryRef.storage) as BlockingTypedStorage<S>).invoke(entryRef, returnsAs, saveResultIf, block)
+        return (storages.any(entryRef.storage) as BlockingTypedStorage<S>).invoke(entryRef, returnView, saveResultIf, block)
     }
 
     override fun <R> invoke(

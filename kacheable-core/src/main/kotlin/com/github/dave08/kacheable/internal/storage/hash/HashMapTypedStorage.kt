@@ -42,14 +42,14 @@ internal class HashMapTypedStorage(
 
     override suspend fun <R> invoke(
         entryRef: StoredCacheEntryRef<CacheStorage.HashMap>,
-        returnsAs: CacheReturn<R, *>,
+        returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
     ): R = store.invokeAtAddress(
         entryName = HashMapStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
-        codec = returnsAs.codec,
+        codec = returnView.codec,
         saveResultIf = saveResultIf,
         block = block,
     )

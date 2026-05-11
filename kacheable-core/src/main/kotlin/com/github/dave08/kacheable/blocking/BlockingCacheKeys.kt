@@ -20,7 +20,7 @@ operator fun <R> BlockingKacheable.invoke(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
     block: () -> R,
-): R = (this as BlockingTypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnsAs, cacheIf, block)
+): R = (this as BlockingTypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
 @ExperimentalKacheableApi
 fun <R> BlockingKacheable.cache(
@@ -95,9 +95,9 @@ fun <R> BlockingKacheable.invalidate(
 
 @Suppress("UNCHECKED_CAST")
 private fun BlockingTypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef<*>) {
-    val returnsAs = entryRef.returnsAs
-    if (entryRef.entryRef.storage == CacheStorage.Set && returnsAs is EnumMemberCacheReturn<*>) {
-        invalidate(entryRef.entryRef as StoredCacheEntryRef<CacheStorage.Set>, returnsAs as EnumMemberCacheReturn<Any>)
+    val returnView = entryRef.returnView
+    if (entryRef.entryRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
+        invalidate(entryRef.entryRef as StoredCacheEntryRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
     } else {
         invalidate(entryRef.entryRef)
     }
@@ -105,9 +105,9 @@ private fun BlockingTypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef
 
 @Suppress("UNCHECKED_CAST")
 private fun BlockingTypedCacheRuntime.invalidateCacheRef(partRef: CachePartRef<*>) {
-    val returnsAs = partRef.returnsAs
-    if (partRef.partRef.storage == CacheStorage.Set && returnsAs is EnumMemberCacheReturn<*>) {
-        invalidate(partRef.partRef as StoredCachePartRef<CacheStorage.Set>, returnsAs as EnumMemberCacheReturn<Any>)
+    val returnView = partRef.returnView
+    if (partRef.partRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
+        invalidate(partRef.partRef as StoredCachePartRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
     } else {
         invalidate(partRef.partRef)
     }
