@@ -258,6 +258,23 @@ cache.invalidate(pageCache.matching(artistIdValue, "top", locale("en"), device("
 
 Because matching behavior needs hash-style field matching, matchable inner-key parts force indexed value storage under `auto()`, even for Boolean or enum results.
 
+## Legacy Raw Invalidation
+
+Prefer typed cache refs for new code. During migrations, raw refs can be mixed with typed refs in one invalidation call:
+
+```kotlin
+cache.invalidate(
+    rawCacheEntry("old-song-cache", songId),
+    artistSongCache.partition(artistId),
+)
+```
+
+Use `rawCacheEntry(...)` for one known flat legacy key. Use `rawCache(...)` only when intentionally deleting all flat keys that belong to a legacy cache family. No-argument typed cache keys should normally be invalidated with the entry ref itself:
+
+```kotlin
+cache.invalidate(appSettingsCache())
+```
+
 ## Membership Optimization
 
 Boolean partitioned caches default to membership storage when the inner key has no matchable parts.

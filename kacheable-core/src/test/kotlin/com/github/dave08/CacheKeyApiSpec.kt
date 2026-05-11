@@ -21,6 +21,8 @@ import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.matchableKeyPart
 import com.github.dave08.kacheable.membershipStorage
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.rawCache
+import com.github.dave08.kacheable.rawCacheEntry
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -67,6 +69,31 @@ val CacheKeyApiSpec by testSuite {
             cache.invalidate(podcastCache(7))
 
             store.assertStringValueMissing("cache-key-unserializable-podcast:7")
+        }
+
+        test("raw cache entry refs can be invalidated with typed refs") {
+            val songId = keyPart<Int>("songId")
+            val songCache = cacheKey("cache-key-typed-raw-entry", returns<CachedSong>(), key = exact(songId))
+
+            cache("cache-key-typed-raw-entry", 7) { CachedSong(7, "Raw") }
+            cache(songCache(8)) { CachedSong(8, "Typed") }
+
+            cache.invalidate(rawCacheEntry("cache-key-typed-raw-entry", 7), songCache(8))
+
+            store.assertStringValueMissing("cache-key-typed-raw-entry:7")
+            store.assertStringValueMissing("cache-key-typed-raw-entry:8")
+        }
+
+        test("raw cache refs invalidate all matching raw cache entries") {
+            cache("cache-key-raw-family", 7) { CachedSong(7, "Seven") }
+            cache("cache-key-raw-family", 8) { CachedSong(8, "Eight") }
+            cache("cache-key-raw-family-extra", 7) { CachedSong(70, "Still here") }
+
+            cache.invalidate(rawCache("cache-key-raw-family"))
+
+            store.assertStringValueMissing("cache-key-raw-family:7")
+            store.assertStringValueMissing("cache-key-raw-family:8")
+            store.assertStringValue("cache-key-raw-family-extra:7", """{"id":70,"title":"Still here"}""")
         }
 
         test("exact cache keys treat class list set and map results as one value") {

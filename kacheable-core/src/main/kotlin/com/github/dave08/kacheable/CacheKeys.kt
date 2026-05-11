@@ -55,6 +55,16 @@ inline fun <reified E : Enum<E>> enumMembershipStorage(
 sealed interface CacheInvalidationRef
 
 @ExperimentalKacheableApi
+class RawCacheEntryRef internal constructor(
+    internal val entryRef: StoredCacheEntryRef<CacheStorage.String>,
+) : CacheInvalidationRef
+
+@ExperimentalKacheableApi
+class RawCacheRef internal constructor(
+    internal val allRef: StoredCacheAllRef<CacheStorage.String>,
+) : CacheInvalidationRef
+
+@ExperimentalKacheableApi
 class CacheEntryRef<R> internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage>,
     internal val returnsAs: CacheReturn<R, *>,
@@ -70,6 +80,26 @@ class CachePartRef<R> internal constructor(
 class CacheAllRef<R> internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage>,
 ) : CacheInvalidationRef
+
+@ExperimentalKacheableApi
+fun rawCacheEntry(
+    cacheName: String,
+    vararg params: Any?,
+): RawCacheEntryRef = RawCacheEntryRef(
+    StoredEntryRef(
+        name = cacheName,
+        cacheArgs = cacheArgs(
+            primaryPartArgs = params.map { argsOf(it) },
+            primaryPartNames = List(params.size) { null },
+        ),
+        storage = CacheStorage.String,
+    ),
+)
+
+@ExperimentalKacheableApi
+fun rawCache(
+    cacheName: String,
+): RawCacheRef = RawCacheRef(StoredAllRef(cacheName, CacheStorage.String))
 
 @ExperimentalKacheableApi
 class CacheResult<R> @PublishedApi internal constructor(
@@ -1062,6 +1092,8 @@ private suspend fun TypedCacheRuntime.invalidateCacheRef(allRef: CacheAllRef<*>)
 
 private suspend fun TypedCacheRuntime.invalidateCacheRef(ref: CacheInvalidationRef) {
     when (ref) {
+        is RawCacheEntryRef -> invalidate(ref.entryRef)
+        is RawCacheRef -> invalidate(ref.allRef)
         is CacheEntryRef<*> -> invalidateCacheRef(ref)
         is CachePartRef<*> -> invalidateCacheRef(ref)
         is CacheAllRef<*> -> invalidateCacheRef(ref)

@@ -7,12 +7,16 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
+import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.entryKey
+import com.github.dave08.kacheable.exact
 import com.github.dave08.kacheable.enumMember
 import com.github.dave08.kacheable.isMember
 import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.map
 import com.github.dave08.kacheable.plus
+import com.github.dave08.kacheable.rawCacheEntry
+import com.github.dave08.kacheable.returns
 import com.github.dave08.kacheable.times
 import com.github.dave08.kacheable.value
 import de.infix.testBalloon.framework.core.testSuite
@@ -87,6 +91,21 @@ val BlockingTypedCacheSpec by testSuite {
 
             assertNull(store.get("song-cache:11"))
             assertEquals("""{"id":12,"title":"Other"}""", store.get("song-cache:12"))
+        }
+
+        test("blocking raw entry refs can be invalidated with typed refs") {
+            val songId = keyPart<Int>("songId")
+            val songByIdCache = cacheKey("song-cache", returns<TestSong>(), key = exact(songId))
+
+            cache("song-cache", 11) { TestSong(11, "Raw") }
+            cache(songByIdCache(12)) {
+                TestSong(12, "Typed")
+            }
+
+            cache.invalidate(rawCacheEntry("song-cache", 11), songByIdCache(12))
+
+            assertNull(store.get("song-cache:11"))
+            assertNull(store.get("song-cache:12"))
         }
 
         test("blocking hash entry refs invalidate one stored field") {

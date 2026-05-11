@@ -9,6 +9,8 @@ import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.CacheAllRef
 import com.github.dave08.kacheable.CacheEntryRef
 import com.github.dave08.kacheable.CachePartRef
+import com.github.dave08.kacheable.RawCacheEntryRef
+import com.github.dave08.kacheable.RawCacheRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
@@ -117,6 +119,8 @@ private fun BlockingTypedCacheRuntime.invalidateCacheRef(allRef: CacheAllRef<*>)
 
 private fun BlockingTypedCacheRuntime.invalidateCacheRef(ref: CacheInvalidationRef) {
     when (ref) {
+        is RawCacheEntryRef -> invalidate(ref.entryRef)
+        is RawCacheRef -> invalidate(ref.allRef)
         is CacheEntryRef<*> -> invalidateCacheRef(ref)
         is CachePartRef<*> -> invalidateCacheRef(ref)
         is CacheAllRef<*> -> invalidateCacheRef(ref)
