@@ -1,8 +1,5 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08
 
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

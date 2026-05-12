@@ -1,10 +1,7 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.keys.validateUniqueKeyPartNames
 
-@ExperimentalKacheableApi
 data class KeyPartComposition2<P1, P2>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
@@ -18,7 +15,6 @@ data class KeyPartComposition2<P1, P2>(
     internal fun partNames(): List<String?> = listOf(first.name, second.name)
 }
 
-@ExperimentalKacheableApi
 data class KeyPartComposition3<P1, P2, P3>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
@@ -34,7 +30,6 @@ data class KeyPartComposition3<P1, P2, P3>(
     internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name)
 }
 
-@ExperimentalKacheableApi
 data class KeyPartComposition4<P1, P2, P3, P4>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
@@ -52,7 +47,6 @@ data class KeyPartComposition4<P1, P2, P3, P4>(
     internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name)
 }
 
-@ExperimentalKacheableApi
 data class KeyPartComposition5<P1, P2, P3, P4, P5>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
@@ -71,7 +65,6 @@ data class KeyPartComposition5<P1, P2, P3, P4, P5>(
     internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name)
 }
 
-@ExperimentalKacheableApi
 data class KeyPartComposition6<P1, P2, P3, P4, P5, P6>(
     val first: KeyPart<P1>,
     val second: KeyPart<P2>,
@@ -105,27 +98,22 @@ data class KeyPartComposition6<P1, P2, P3, P4, P5, P6>(
     internal fun partNames(): List<String?> = listOf(first.name, second.name, third.name, fourth.name, fifth.name, sixth.name)
 }
 
-@ExperimentalKacheableApi
 operator fun <P1, P2> KeyPart<P1>.plus(
     other: KeyPart<P2>,
 ): KeyPartComposition2<P1, P2> = KeyPartComposition2(this, other)
 
-@ExperimentalKacheableApi
 operator fun <P1, P2, P3> KeyPartComposition2<P1, P2>.plus(
     other: KeyPart<P3>,
 ): KeyPartComposition3<P1, P2, P3> = KeyPartComposition3(first, second, other)
 
-@ExperimentalKacheableApi
 operator fun <P1, P2, P3, P4> KeyPartComposition3<P1, P2, P3>.plus(
     other: KeyPart<P4>,
 ): KeyPartComposition4<P1, P2, P3, P4> = KeyPartComposition4(first, second, third, other)
 
-@ExperimentalKacheableApi
 operator fun <P1, P2, P3, P4, P5> KeyPartComposition4<P1, P2, P3, P4>.plus(
     other: KeyPart<P5>,
 ): KeyPartComposition5<P1, P2, P3, P4, P5> = KeyPartComposition5(first, second, third, fourth, other)
 
-@ExperimentalKacheableApi
 operator fun <P1, P2, P3, P4, P5, P6> KeyPartComposition5<P1, P2, P3, P4, P5>.plus(
     other: KeyPart<P6>,
 ): KeyPartComposition6<P1, P2, P3, P4, P5, P6> =

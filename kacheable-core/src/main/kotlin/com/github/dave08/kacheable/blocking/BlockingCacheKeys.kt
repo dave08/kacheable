@@ -1,11 +1,8 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheInvalidationRef
 import com.github.dave08.kacheable.EnumMemberCacheReturn
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.CacheAllRef
 import com.github.dave08.kacheable.CacheEntryRef
 import com.github.dave08.kacheable.CachePartRef
@@ -20,7 +17,6 @@ import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
  *
  * [cacheIf] is evaluated only for newly computed results.
  */
-@ExperimentalKacheableApi
 operator fun <R> BlockingKacheable.invoke(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
@@ -30,7 +26,6 @@ operator fun <R> BlockingKacheable.invoke(
 /**
  * Named equivalent of invoking a typed cache entry.
  */
-@ExperimentalKacheableApi
 fun <R> BlockingKacheable.cache(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
@@ -40,13 +35,11 @@ fun <R> BlockingKacheable.cache(
 /**
  * Invalidates one or more typed cache entries.
  */
-@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     val runtime = this as BlockingTypedCacheRuntime
     entryRefs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 fun <R> BlockingKacheable.invalidate(
     vararg entryRefs: CacheEntryRef<*>,
     block: () -> R,
@@ -56,13 +49,11 @@ fun <R> BlockingKacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg partRefs: CachePartRef<*>) {
     val runtime = this as BlockingTypedCacheRuntime
     partRefs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 fun <R> BlockingKacheable.invalidate(
     vararg partRefs: CachePartRef<*>,
     block: () -> R,
@@ -72,19 +63,16 @@ fun <R> BlockingKacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(vararg refs: CacheInvalidationRef) {
     val runtime = this as BlockingTypedCacheRuntime
     refs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 fun BlockingKacheable.invalidate(refs: Iterable<CacheInvalidationRef>) {
     val runtime = this as BlockingTypedCacheRuntime
     refs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 fun <R> BlockingKacheable.invalidate(
     vararg refs: CacheInvalidationRef,
     block: () -> R,
@@ -94,7 +82,6 @@ fun <R> BlockingKacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 fun <R> BlockingKacheable.invalidate(
     refs: Iterable<CacheInvalidationRef>,
     block: () -> R,

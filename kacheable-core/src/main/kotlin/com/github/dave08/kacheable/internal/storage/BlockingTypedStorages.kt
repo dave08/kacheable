@@ -2,7 +2,6 @@ package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
@@ -10,7 +9,6 @@ import com.github.dave08.kacheable.internal.storage.hash.BlockingHashMapTypedSto
 import com.github.dave08.kacheable.internal.storage.set.BlockingSetTypedStorage
 import com.github.dave08.kacheable.internal.storage.string.BlockingStringTypedStorage
 
-@OptIn(ExperimentalKacheableApi::class)
 internal interface BlockingTypedStorage<S : CacheStorage> {
     val storage: S
 
@@ -28,7 +26,6 @@ internal interface BlockingTypedStorage<S : CacheStorage> {
     ): R
 }
 
-@OptIn(ExperimentalKacheableApi::class)
 internal data class BlockingTypedStorages(
     val string: BlockingStringTypedStorage,
     val hashMap: BlockingHashMapTypedStorage,

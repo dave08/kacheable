@@ -2,7 +2,6 @@ package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.requireSecondaryEntry
@@ -10,7 +9,6 @@ import com.github.dave08.kacheable.withInternalSuffix
 
 private const val NON_MEMBERS_SUFFIX = "__kacheable_non_members"
 
-@ExperimentalKacheableApi
 internal data class SetMembershipEntry(
     val membersKey: String,
     val nonMembersKey: String,
@@ -24,13 +22,11 @@ internal data class SetMembershipEntry(
     fun classifiedKey(valueName: String): String = "$membersKey:$valueName"
 }
 
-@ExperimentalKacheableApi
 internal data class SetMembershipInvalidationPlan(
     val keys: List<String> = emptyList(),
     val members: List<Pair<String, String>> = emptyList(),
 )
 
-@ExperimentalKacheableApi
 internal fun setMembershipEntry(
     name: String,
     cacheArgs: PrimarySecondaryCacheArgs,
@@ -51,7 +47,6 @@ internal fun setMembershipEntry(
     )
 }
 
-@ExperimentalKacheableApi
 internal fun SetMembershipEntry.invalidationPlan(): SetMembershipInvalidationPlan =
     if (member == null)
         SetMembershipInvalidationPlan(keys = listOf(membersKey, nonMembersKey))
@@ -63,14 +58,12 @@ internal fun SetMembershipEntry.invalidationPlan(): SetMembershipInvalidationPla
             ),
         )
 
-@ExperimentalKacheableApi
 internal fun shouldWriteSetMembershipResult(
     result: Boolean,
     cacheFalse: Boolean,
     saveResultIf: (Boolean) -> Boolean,
 ): Boolean = saveResultIf(result) && (result || cacheFalse)
 
-@ExperimentalKacheableApi
 internal fun SetMembershipEntry.classificationInvalidationPlan(
     valueNames: List<String>,
 ): SetMembershipInvalidationPlan =
@@ -79,7 +72,6 @@ internal fun SetMembershipEntry.classificationInvalidationPlan(
     else
         SetMembershipInvalidationPlan(members = valueNames.map { classifiedKey(it) to member })
 
-@ExperimentalKacheableApi
 internal fun <R : Any> SetMembershipEntry.keyForClassificationResult(
     result: R,
     values: List<R>,

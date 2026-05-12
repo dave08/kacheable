@@ -481,7 +481,7 @@ Do not group caches just because they share an id. Grouping is only useful when 
 
 A possible future model is a typed cache family: multiple cache keys could share an invalidation partition without forcing unrelated result types into one awkward union value. This would keep the retrieval API type-safe while giving callers a single partition target when that is the real domain boundary.
 
-## Prototype Limits
+## Current Limits
 
 - Exact cache keys cover no-argument values plus arity 1 through 6.
 - Partitioned cache keys cover the currently supported shapes, including single-partition caches, one-part and multi-part partitions, and matchable inner-key parts.

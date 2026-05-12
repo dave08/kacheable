@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.store.CacheValueCodec
@@ -10,7 +8,6 @@ import kotlinx.serialization.serializer
 /**
  * Storage backend selected for a typed cache key.
  */
-@ExperimentalKacheableApi
 sealed interface CacheStorage {
     data object String : CacheStorage, SupportsValueView, SupportsPrimaryKeyStorage
     data object HashMap : CacheStorage,
@@ -24,37 +21,29 @@ sealed interface CacheStorage {
         SupportsPrimarySecondaryKeyStorage
 }
 
-@ExperimentalKacheableApi
 sealed interface CacheStorageCapability
 
-@ExperimentalKacheableApi
 sealed interface SupportsValueView : CacheStorageCapability
 
-@ExperimentalKacheableApi
 sealed interface SupportsMembershipView : CacheStorageCapability
 
-@ExperimentalKacheableApi
 sealed interface SupportsPrimaryKeyStorage : CacheStorageCapability
 
-@ExperimentalKacheableApi
 sealed interface SupportsPrimarySecondaryKeyStorage : CacheStorageCapability
 
 /**
  * Describes how a cached result is represented when using a selected storage backend.
  */
-@ExperimentalKacheableApi
 interface CacheReturn<R, C : CacheStorageCapability> {
     val serializer: KSerializer<R>
     val codec: CacheValueCodec<R>
 }
 
-@ExperimentalKacheableApi
 interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
 
 /**
  * Serialized value return view.
  */
-@ExperimentalKacheableApi
 class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
     private val serializerProvider: () -> KSerializer<R>
     private val codecProvider: (KSerializer<R>) -> CacheValueCodec<R>
@@ -82,7 +71,6 @@ class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
 /**
  * Boolean membership return view backed by set membership.
  */
-@ExperimentalKacheableApi
 data class IsMemberCacheReturn(
     val cacheFalse: Boolean = true,
     override val serializer: KSerializer<Boolean> = serializer<Boolean>(),
@@ -92,7 +80,6 @@ data class IsMemberCacheReturn(
 /**
  * Enum membership return view backed by one set per enum value.
  */
-@ExperimentalKacheableApi
 class EnumMemberCacheReturn<E : Any>(
     val values: List<E>,
     val valueName: (E) -> String,

@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 private fun <P1> mappedKeyPart(
@@ -24,7 +22,6 @@ private fun <P1> mappedKeyPart(
  * cache(pages(3)) { loadPage(3) }
  * ```
  */
-@ExperimentalKacheableApi
 fun <P1> keyPart(): KeyPart<P1> = mappedKeyPart(values = listOf({ it }))
 
 /**
@@ -38,7 +35,6 @@ fun <P1> keyPart(): KeyPart<P1> = mappedKeyPart(values = listOf({ it }))
  * val page = keyPart<Page>(Page::offset, Page::limit)
  * ```
  */
-@ExperimentalKacheableApi
 fun <P1> keyPart(
     vararg values: (P1) -> Any?,
 ): KeyPart<P1> = mappedKeyPart(values = values.toList())
@@ -56,7 +52,6 @@ fun <P1> keyPart(
  * val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
  * ```
  */
-@ExperimentalKacheableApi
 fun <P1> keyPart(
     name: String,
 ): KeyPart<P1> = mappedKeyPart(name = name, values = listOf({ it }))
@@ -70,7 +65,6 @@ fun <P1> keyPart(
  * val page = keyPart<Page>("page", Page::offset, Page::limit)
  * ```
  */
-@ExperimentalKacheableApi
 fun <P1> keyPart(
     name: String,
     vararg values: (P1) -> Any?,
@@ -82,5 +76,4 @@ fun <P1> keyPart(
  * Raw key parts cannot be used with matching invalidations because their segment count is not
  * known to the type-safe key API.
  */
-@ExperimentalKacheableApi
 fun rawKeyPart(): KeyPart<CacheArgs> = RawKeyPart

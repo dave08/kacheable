@@ -1,5 +1,3 @@
-@file:OptIn(com.github.dave08.kacheable.ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable.internal.keys
 
 import com.github.dave08.kacheable.CacheArgs

@@ -1,10 +1,9 @@
-@file:OptIn(ExperimentalKacheableApi::class)
+@file:Suppress("DEPRECATION")
 
 package com.github.dave08
 
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.argsOf

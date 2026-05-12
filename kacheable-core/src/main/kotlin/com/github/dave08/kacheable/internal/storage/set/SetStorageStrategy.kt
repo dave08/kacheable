@@ -4,7 +4,6 @@ import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.ExpiryType
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
@@ -17,7 +16,6 @@ import com.github.dave08.kacheable.internal.storage.shouldWriteSetMembershipResu
 import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.store.KacheableStore
 
-@OptIn(ExperimentalKacheableApi::class)
 internal object SetStorageStrategy {
     val storage: CacheStorage.Set = CacheStorage.Set
 

@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.TypedCacheRuntime
@@ -11,30 +9,23 @@ import kotlin.reflect.typeOf
 /**
  * Storage override that is valid for exact cache keys.
  */
-@ExperimentalKacheableApi
 sealed interface ExactStoragePlan<out R>
 
 /**
  * Storage override that is valid for partitioned cache keys.
  */
-@ExperimentalKacheableApi
 sealed interface IndexedStoragePlan<out R>
 
-@ExperimentalKacheableApi
 data object AutoStoragePlan : ExactStoragePlan<Nothing>, IndexedStoragePlan<Nothing>
 
-@ExperimentalKacheableApi
 class ExactValueStoragePlan<R> internal constructor() : ExactStoragePlan<R>
 
-@ExperimentalKacheableApi
 class IndexedValueStoragePlan<R> internal constructor() : IndexedStoragePlan<R>
 
-@ExperimentalKacheableApi
 class MembershipStoragePlan internal constructor(
     val cacheFalse: Boolean,
 ) : IndexedStoragePlan<Boolean>
 
-@ExperimentalKacheableApi
 class EnumMembershipStoragePlan<E : Enum<E>> @PublishedApi internal constructor(
     val returnView: EnumMemberCacheReturn<E>,
 ) : IndexedStoragePlan<E>
@@ -46,7 +37,6 @@ class EnumMembershipStoragePlan<E : Enum<E>> @PublishedApi internal constructor(
  * partitioned enum results use enum membership storage, and other partitioned results use indexed
  * value storage.
  */
-@ExperimentalKacheableApi
 fun auto(): AutoStoragePlan = AutoStoragePlan
 
 /**
@@ -60,7 +50,6 @@ fun auto(): AutoStoragePlan = AutoStoragePlan
  *
  * The `List<Song>` is one cached value, not many indexed songs.
  */
-@ExperimentalKacheableApi
 fun <R> exactValueStorage(): ExactValueStoragePlan<R> = ExactValueStoragePlan()
 
 /**
@@ -74,7 +63,6 @@ fun <R> exactValueStorage(): ExactValueStoragePlan<R> = ExactValueStoragePlan()
  *
  * Each page is one serialized value inside the artist partition.
  */
-@ExperimentalKacheableApi
 fun <R> indexedValueStorage(): IndexedValueStoragePlan<R> = IndexedValueStoragePlan()
 
 /**
@@ -94,7 +82,6 @@ fun <R> indexedValueStorage(): IndexedValueStoragePlan<R> = IndexedValueStorageP
  * )
  * ```
  */
-@ExperimentalKacheableApi
 fun membershipStorage(cacheFalse: Boolean = true): MembershipStoragePlan = MembershipStoragePlan(cacheFalse)
 
 /**
@@ -111,7 +98,6 @@ fun membershipStorage(cacheFalse: Boolean = true): MembershipStoragePlan = Membe
  * )
  * ```
  */
-@ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> enumMembershipStorage(
     values: List<E> = enumValues<E>().toList(),
     noinline valueName: (E) -> String = { it.name },
@@ -120,13 +106,11 @@ inline fun <reified E : Enum<E>> enumMembershipStorage(
 /**
  * Common type for refs that can be passed to typed invalidation calls.
  */
-@ExperimentalKacheableApi
 sealed interface CacheInvalidationRef
 
 /**
  * Exact raw string-cache entry ref, intended as a migration escape hatch.
  */
-@ExperimentalKacheableApi
 class RawCacheEntryRef internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage.String>,
 ) : CacheInvalidationRef {
@@ -136,7 +120,6 @@ class RawCacheEntryRef internal constructor(
 /**
  * Whole raw string-cache ref, intended as a migration escape hatch.
  */
-@ExperimentalKacheableApi
 class RawCacheRef internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage.String>,
 ) : CacheInvalidationRef {
@@ -146,7 +129,6 @@ class RawCacheRef internal constructor(
 /**
  * Ref to one logical cached result.
  */
-@ExperimentalKacheableApi
 class CacheEntryRef<R> internal constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage>,
     internal val returnView: CacheReturn<R, *>,
@@ -157,7 +139,6 @@ class CacheEntryRef<R> internal constructor(
 /**
  * Ref to a partition or matching subset of a partitioned cache key.
  */
-@ExperimentalKacheableApi
 class CachePartRef<R> internal constructor(
     internal val partRef: StoredCachePartRef<CacheStorage>,
     internal val returnView: CacheReturn<R, *>,
@@ -168,7 +149,6 @@ class CachePartRef<R> internal constructor(
 /**
  * Ref to all entries belonging to one typed cache key.
  */
-@ExperimentalKacheableApi
 class CacheAllRef<R> internal constructor(
     internal val allRef: StoredCacheAllRef<CacheStorage>,
 ) : CacheInvalidationRef {
@@ -197,7 +177,6 @@ private fun List<CacheArgs>.debugParams(): String =
 /**
  * Creates a raw string-cache entry ref for migration code that has not moved to typed cache keys.
  */
-@ExperimentalKacheableApi
 fun rawCacheEntry(
     cacheName: String,
     vararg params: Any?,
@@ -215,7 +194,6 @@ fun rawCacheEntry(
 /**
  * Creates a raw string-cache ref for invalidating a whole legacy cache namespace.
  */
-@ExperimentalKacheableApi
 fun rawCache(
     cacheName: String,
 ): RawCacheRef = RawCacheRef(StoredAllRef(cacheName, CacheStorage.String))
@@ -225,7 +203,6 @@ fun rawCache(
  *
  * Users normally create this with [returns] or [returnsEnum].
  */
-@ExperimentalKacheableApi
 class CacheResult<R> @PublishedApi internal constructor(
     @PublishedApi internal val resultClass: KClass<*>,
     @PublishedApi internal val isNullable: Boolean,
@@ -260,7 +237,6 @@ internal inline fun <reified R> cacheResult(): CacheResult<R> =
  *
  * Collections are ordinary results. `returns<List<Song>>()` means one cached list for each key.
  */
-@ExperimentalKacheableApi
 inline fun <reified R> returns(): CacheResult<R> = cacheResult()
 
 /**
@@ -270,7 +246,6 @@ inline fun <reified R> returns(): CacheResult<R> = cacheResult()
  * `returns<EnumType>()` is enough for automatic enum membership. Use `returnsEnum(...)` when you
  * want to make the enum universe or stored enum names explicit.
  */
-@ExperimentalKacheableApi
 inline fun <reified E : Enum<E>> returnsEnum(
     values: List<E> = enumValues<E>().toList(),
     noinline valueName: (E) -> String = { it.name },
@@ -288,12 +263,10 @@ inline fun <reified E : Enum<E>> returnsEnum(
  * A matchable key part is still an ordinary key part for reads. The extra marker only allows calls
  * like `cache.invalidate(pageCache.matching(artistId, locale("he")))`.
  */
-@ExperimentalKacheableApi
 interface MatchableKeyPart<P> : KeyPart<P> {
     override fun invoke(value: P): MatchableKeyPartValue = MatchableKeyPartValue(this, encode(value))
 }
 
-@ExperimentalKacheableApi
 class MatchableKeyPartValue(
     override val keyPart: MatchableKeyPart<*>,
     override val args: CacheArgs,
@@ -322,7 +295,6 @@ internal data class SimpleMatchableKeyPart<P>(
  *
  * Matching is scoped key matching inside a partition, not value search.
  */
-@ExperimentalKacheableApi
 fun <P> matchableKeyPart(name: String): MatchableKeyPart<P> =
     SimpleMatchableKeyPart(keyPart(name))
 
@@ -335,7 +307,6 @@ fun <P> matchableKeyPart(name: String): MatchableKeyPart<P> =
  * val paging = matchableKeyPart<Page>("page", Page::offset, Page::limit)
  * ```
  */
-@ExperimentalKacheableApi
 fun <P> matchableKeyPart(
     name: String,
     vararg values: (P) -> Any?,
@@ -344,94 +315,78 @@ fun <P> matchableKeyPart(
 /**
  * Shape for exact cache keys: one logical result is identified directly by the key values.
  */
-@ExperimentalKacheableApi
 sealed interface ExactKeyShape
 
 /**
  * Shape for partitioned cache keys: a partition identifies related entries, and an entry key
  * identifies one logical result inside that partition.
  */
-@ExperimentalKacheableApi
 sealed interface PartitionedKeyShape {
     val hasMatchableEntryParts: Boolean
 }
 
-@ExperimentalKacheableApi
 data object ExactKeyShape0 : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape1<P1> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPart<P1>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape2<P1, P2> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition2<P1, P2>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape3<P1, P2, P3> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition3<P1, P2, P3>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape4<P1, P2, P3, P4> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition4<P1, P2, P3, P4>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape5<P1, P2, P3, P4, P5> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition5<P1, P2, P3, P4, P5>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class ExactKeyShape6<P1, P2, P3, P4, P5, P6> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
 ) : ExactKeyShape
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape1<K1> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPart<K1>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape2<K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPartComposition2<K1, K2>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape3<K1, K2, K3> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPartComposition3<K1, K2, K3>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape4<K1, K2, K3, K4> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPartComposition4<K1, K2, K3, K4>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape5<K1, K2, K3, K4, K5> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionKeyShape6<K1, K2, K3, K4, K5, K6> @PublishedApi internal constructor(
     @PublishedApi internal val itemKey: KeyPartComposition6<K1, K2, K3, K4, K5, K6>,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape1x1<I1, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -439,7 +394,6 @@ class PartitionedKeyShape1x1<I1, K1> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape1x2<I1, K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val itemKey: KeyPartComposition2<K1, K2>,
@@ -447,7 +401,6 @@ class PartitionedKeyShape1x2<I1, K1, K2> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape1x3<I1, K1, K2, K3> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val itemKey: KeyPartComposition3<K1, K2, K3>,
@@ -455,7 +408,6 @@ class PartitionedKeyShape1x3<I1, K1, K2, K3> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape1x4<I1, K1, K2, K3, K4> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val itemKey: KeyPartComposition4<K1, K2, K3, K4>,
@@ -463,7 +415,6 @@ class PartitionedKeyShape1x4<I1, K1, K2, K3, K4> @PublishedApi internal construc
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
     @PublishedApi internal val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
@@ -471,7 +422,6 @@ class PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape2x1<I1, I2, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -479,7 +429,6 @@ class PartitionedKeyShape2x1<I1, I2, K1> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape2x2<I1, I2, K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
     @PublishedApi internal val itemKey: KeyPartComposition2<K1, K2>,
@@ -487,7 +436,6 @@ class PartitionedKeyShape2x2<I1, I2, K1, K2> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape2x3<I1, I2, K1, K2, K3> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
     @PublishedApi internal val itemKey: KeyPartComposition3<K1, K2, K3>,
@@ -495,7 +443,6 @@ class PartitionedKeyShape2x3<I1, I2, K1, K2, K3> @PublishedApi internal construc
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
     @PublishedApi internal val itemKey: KeyPartComposition4<K1, K2, K3, K4>,
@@ -503,7 +450,6 @@ class PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape3x1<I1, I2, I3, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition3<I1, I2, I3>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -511,7 +457,6 @@ class PartitionedKeyShape3x1<I1, I2, I3, K1> @PublishedApi internal constructor(
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape3x2<I1, I2, I3, K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition3<I1, I2, I3>,
     @PublishedApi internal val itemKey: KeyPartComposition2<K1, K2>,
@@ -519,7 +464,6 @@ class PartitionedKeyShape3x2<I1, I2, I3, K1, K2> @PublishedApi internal construc
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition3<I1, I2, I3>,
     @PublishedApi internal val itemKey: KeyPartComposition3<K1, K2, K3>,
@@ -527,7 +471,6 @@ class PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape4x1<I1, I2, I3, I4, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition4<I1, I2, I3, I4>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -535,7 +478,6 @@ class PartitionedKeyShape4x1<I1, I2, I3, I4, K1> @PublishedApi internal construc
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition4<I1, I2, I3, I4>,
     @PublishedApi internal val itemKey: KeyPartComposition2<K1, K2>,
@@ -543,7 +485,6 @@ class PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-@ExperimentalKacheableApi
 class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
     @PublishedApi internal val itemKey: KeyPart<K1>,
@@ -561,7 +502,6 @@ class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> @PublishedApi internal cons
  * cache(settings()) { loadSettings() }
  * ```
  */
-@ExperimentalKacheableApi
 fun exact(): ExactKeyShape0 = ExactKeyShape0
 
 /**
@@ -573,32 +513,26 @@ fun exact(): ExactKeyShape0 = ExactKeyShape0
  * val songCache = cacheKey("song", returns<Song>(), key = exact(songId))
  * ```
  */
-@ExperimentalKacheableApi
 fun <P1> exact(
     key: KeyPart<P1>,
 ): ExactKeyShape1<P1> = ExactKeyShape1(key)
 
-@ExperimentalKacheableApi
 fun <P1, P2> exact(
     key: KeyPartComposition2<P1, P2>,
 ): ExactKeyShape2<P1, P2> = ExactKeyShape2(key)
 
-@ExperimentalKacheableApi
 fun <P1, P2, P3> exact(
     key: KeyPartComposition3<P1, P2, P3>,
 ): ExactKeyShape3<P1, P2, P3> = ExactKeyShape3(key)
 
-@ExperimentalKacheableApi
 fun <P1, P2, P3, P4> exact(
     key: KeyPartComposition4<P1, P2, P3, P4>,
 ): ExactKeyShape4<P1, P2, P3, P4> = ExactKeyShape4(key)
 
-@ExperimentalKacheableApi
 fun <P1, P2, P3, P4, P5> exact(
     key: KeyPartComposition5<P1, P2, P3, P4, P5>,
 ): ExactKeyShape5<P1, P2, P3, P4, P5> = ExactKeyShape5(key)
 
-@ExperimentalKacheableApi
 fun <P1, P2, P3, P4, P5, P6> exact(
     key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
 ): ExactKeyShape6<P1, P2, P3, P4, P5, P6> = ExactKeyShape6(key)
@@ -616,7 +550,6 @@ fun <P1, P2, P3, P4, P5, P6> exact(
  * cache.invalidate(pages.partition(artistIdValue))       // all pages for the artist
  * ```
  */
-@ExperimentalKacheableApi
 fun <I1, K1> partitioned(
     partition: KeyPart<I1>,
     key: KeyPart<K1>,
@@ -633,115 +566,95 @@ fun <I1, K1> partitioned(
  * cache.invalidate(newest.partition()) // all pages in the cache family
  * ```
  */
-@ExperimentalKacheableApi
 fun <K1> partitioned(
     key: KeyPart<K1>,
 ): SinglePartitionKeyShape1<K1> = SinglePartitionKeyShape1(key)
 
-@ExperimentalKacheableApi
 fun <K1, K2> partitioned(
     key: KeyPartComposition2<K1, K2>,
 ): SinglePartitionKeyShape2<K1, K2> = SinglePartitionKeyShape2(key)
 
-@ExperimentalKacheableApi
 fun <K1, K2, K3> partitioned(
     key: KeyPartComposition3<K1, K2, K3>,
 ): SinglePartitionKeyShape3<K1, K2, K3> = SinglePartitionKeyShape3(key)
 
-@ExperimentalKacheableApi
 fun <K1, K2, K3, K4> partitioned(
     key: KeyPartComposition4<K1, K2, K3, K4>,
 ): SinglePartitionKeyShape4<K1, K2, K3, K4> = SinglePartitionKeyShape4(key)
 
-@ExperimentalKacheableApi
 fun <K1, K2, K3, K4, K5> partitioned(
     key: KeyPartComposition5<K1, K2, K3, K4, K5>,
 ): SinglePartitionKeyShape5<K1, K2, K3, K4, K5> = SinglePartitionKeyShape5(key)
 
-@ExperimentalKacheableApi
 fun <K1, K2, K3, K4, K5, K6> partitioned(
     key: KeyPartComposition6<K1, K2, K3, K4, K5, K6>,
 ): SinglePartitionKeyShape6<K1, K2, K3, K4, K5, K6> = SinglePartitionKeyShape6(key)
 
-@ExperimentalKacheableApi
 fun <I1, K1, K2> partitioned(
     partition: KeyPart<I1>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape1x2<I1, K1, K2> = PartitionedKeyShape1x2(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, K1, K2, K3> partitioned(
     partition: KeyPart<I1>,
     key: KeyPartComposition3<K1, K2, K3>,
 ): PartitionedKeyShape1x3<I1, K1, K2, K3> = PartitionedKeyShape1x3(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, K1, K2, K3, K4> partitioned(
     partition: KeyPart<I1>,
     key: KeyPartComposition4<K1, K2, K3, K4>,
 ): PartitionedKeyShape1x4<I1, K1, K2, K3, K4> = PartitionedKeyShape1x4(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, K1, K2, K3, K4, K5> partitioned(
     partition: KeyPart<I1>,
     key: KeyPartComposition5<K1, K2, K3, K4, K5>,
 ): PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> = PartitionedKeyShape1x5(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, K1> partitioned(
     partition: KeyPartComposition2<I1, I2>,
     key: KeyPart<K1>,
 ): PartitionedKeyShape2x1<I1, I2, K1> = PartitionedKeyShape2x1(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, K1, K2> partitioned(
     partition: KeyPartComposition2<I1, I2>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape2x2<I1, I2, K1, K2> = PartitionedKeyShape2x2(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, K1, K2, K3> partitioned(
     partition: KeyPartComposition2<I1, I2>,
     key: KeyPartComposition3<K1, K2, K3>,
 ): PartitionedKeyShape2x3<I1, I2, K1, K2, K3> = PartitionedKeyShape2x3(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, K1, K2, K3, K4> partitioned(
     partition: KeyPartComposition2<I1, I2>,
     key: KeyPartComposition4<K1, K2, K3, K4>,
 ): PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4> = PartitionedKeyShape2x4(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, K1> partitioned(
     partition: KeyPartComposition3<I1, I2, I3>,
     key: KeyPart<K1>,
 ): PartitionedKeyShape3x1<I1, I2, I3, K1> = PartitionedKeyShape3x1(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, K1, K2> partitioned(
     partition: KeyPartComposition3<I1, I2, I3>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape3x2<I1, I2, I3, K1, K2> = PartitionedKeyShape3x2(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, K1, K2, K3> partitioned(
     partition: KeyPartComposition3<I1, I2, I3>,
     key: KeyPartComposition3<K1, K2, K3>,
 ): PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> = PartitionedKeyShape3x3(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, I4, K1> partitioned(
     partition: KeyPartComposition4<I1, I2, I3, I4>,
     key: KeyPart<K1>,
 ): PartitionedKeyShape4x1<I1, I2, I3, I4, K1> = PartitionedKeyShape4x1(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, I4, K1, K2> partitioned(
     partition: KeyPartComposition4<I1, I2, I3, I4>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2> = PartitionedKeyShape4x2(partition, key)
 
-@ExperimentalKacheableApi
 fun <I1, I2, I3, I4, I5, K1> partitioned(
     partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
     key: KeyPart<K1>,
@@ -884,7 +797,6 @@ private fun <R> cacheAllRef(
 /**
  * Creates a typed cache key. Exact shapes store one complete logical result per key.
  */
-@ExperimentalKacheableApi
 fun <R> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -892,7 +804,6 @@ fun <R> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey0<R> = ExactCacheKey0(name, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -900,7 +811,6 @@ fun <R, P1> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey1<P1, R> = ExactCacheKey1(name, key.key, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1, P2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -908,7 +818,6 @@ fun <R, P1, P2> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey2<P1, P2, R> = ExactCacheKey2(name, key.key, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1, P2, P3> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -916,7 +825,6 @@ fun <R, P1, P2, P3> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey3<P1, P2, P3, R> = ExactCacheKey3(name, key.key, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1, P2, P3, P4> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -924,7 +832,6 @@ fun <R, P1, P2, P3, P4> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey4<P1, P2, P3, P4, R> = ExactCacheKey4(name, key.key, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1, P2, P3, P4, P5> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -932,7 +839,6 @@ fun <R, P1, P2, P3, P4, P5> cacheKey(
     storage: ExactStoragePlan<R> = auto(),
 ): ExactCacheKey5<P1, P2, P3, P4, P5, R> = ExactCacheKey5(name, key.key, planExact(returns, storage))
 
-@ExperimentalKacheableApi
 fun <R, P1, P2, P3, P4, P5, P6> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -944,7 +850,6 @@ fun <R, P1, P2, P3, P4, P5, P6> cacheKey(
  * Creates a typed cache key. Partitioned shapes allow invalidating a partition or matching entry
  * parts inside a partition.
  */
-@ExperimentalKacheableApi
 fun <R, I1, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -956,7 +861,6 @@ fun <R, I1, K1> cacheKey(
 /**
  * Creates a typed single-partition cache key. Entries share one implicit cache-wide partition.
  */
-@ExperimentalKacheableApi
 fun <R, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -965,7 +869,6 @@ fun <R, K1> cacheKey(
 ): SinglePartitionCacheKey1<K1, R> =
     SinglePartitionCacheKey1(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -974,7 +877,6 @@ fun <R, K1, K2> cacheKey(
 ): SinglePartitionCacheKey2<K1, K2, R> =
     SinglePartitionCacheKey2(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -983,7 +885,6 @@ fun <R, K1, K2, K3> cacheKey(
 ): SinglePartitionCacheKey3<K1, K2, K3, R> =
     SinglePartitionCacheKey3(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -992,7 +893,6 @@ fun <R, K1, K2, K3, K4> cacheKey(
 ): SinglePartitionCacheKey4<K1, K2, K3, K4, R> =
     SinglePartitionCacheKey4(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, K1, K2, K3, K4, K5> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1001,7 +901,6 @@ fun <R, K1, K2, K3, K4, K5> cacheKey(
 ): SinglePartitionCacheKey5<K1, K2, K3, K4, K5, R> =
     SinglePartitionCacheKey5(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, K1, K2, K3, K4, K5, K6> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1010,7 +909,6 @@ fun <R, K1, K2, K3, K4, K5, K6> cacheKey(
 ): SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> =
     SinglePartitionCacheKey6(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1019,7 +917,6 @@ fun <R, I1, K1, K2> cacheKey(
 ): PartitionedCacheKey1x2<I1, K1, K2, R> =
     PartitionedCacheKey1x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1028,7 +925,6 @@ fun <R, I1, K1, K2, K3> cacheKey(
 ): PartitionedCacheKey1x3<I1, K1, K2, K3, R> =
     PartitionedCacheKey1x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1037,7 +933,6 @@ fun <R, I1, K1, K2, K3, K4> cacheKey(
 ): PartitionedCacheKey1x4<I1, K1, K2, K3, K4, R> =
     PartitionedCacheKey1x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, K1, K2, K3, K4, K5> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1046,7 +941,6 @@ fun <R, I1, K1, K2, K3, K4, K5> cacheKey(
 ): PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> =
     PartitionedCacheKey1x5(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1055,7 +949,6 @@ fun <R, I1, I2, K1> cacheKey(
 ): PartitionedCacheKey2x1<I1, I2, K1, R> =
     PartitionedCacheKey2x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1064,7 +957,6 @@ fun <R, I1, I2, K1, K2> cacheKey(
 ): PartitionedCacheKey2x2<I1, I2, K1, K2, R> =
     PartitionedCacheKey2x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1073,7 +965,6 @@ fun <R, I1, I2, K1, K2, K3> cacheKey(
 ): PartitionedCacheKey2x3<I1, I2, K1, K2, K3, R> =
     PartitionedCacheKey2x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1082,7 +973,6 @@ fun <R, I1, I2, K1, K2, K3, K4> cacheKey(
 ): PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> =
     PartitionedCacheKey2x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1091,7 +981,6 @@ fun <R, I1, I2, I3, K1> cacheKey(
 ): PartitionedCacheKey3x1<I1, I2, I3, K1, R> =
     PartitionedCacheKey3x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1100,7 +989,6 @@ fun <R, I1, I2, I3, K1, K2> cacheKey(
 ): PartitionedCacheKey3x2<I1, I2, I3, K1, K2, R> =
     PartitionedCacheKey3x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1109,7 +997,6 @@ fun <R, I1, I2, I3, K1, K2, K3> cacheKey(
 ): PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> =
     PartitionedCacheKey3x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, I4, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1118,7 +1005,6 @@ fun <R, I1, I2, I3, I4, K1> cacheKey(
 ): PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> =
     PartitionedCacheKey4x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, I4, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1127,7 +1013,6 @@ fun <R, I1, I2, I3, I4, K1, K2> cacheKey(
 ): PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> =
     PartitionedCacheKey4x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 fun <R, I1, I2, I3, I4, I5, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
@@ -1136,7 +1021,6 @@ fun <R, I1, I2, I3, I4, I5, K1> cacheKey(
 ): PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R> =
     PartitionedCacheKey5x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
 
-@ExperimentalKacheableApi
 class ExactCacheKey0<R> @PublishedApi internal constructor(
     private val name: String,
     private val plannedStorage: PlannedStorage<R>,
@@ -1151,7 +1035,6 @@ class ExactCacheKey0<R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey1<P1, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPart<P1>,
@@ -1167,7 +1050,6 @@ class ExactCacheKey1<P1, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey2<P1, P2, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPartComposition2<P1, P2>,
@@ -1183,7 +1065,6 @@ class ExactCacheKey2<P1, P2, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey3<P1, P2, P3, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPartComposition3<P1, P2, P3>,
@@ -1199,7 +1080,6 @@ class ExactCacheKey3<P1, P2, P3, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey4<P1, P2, P3, P4, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPartComposition4<P1, P2, P3, P4>,
@@ -1215,7 +1095,6 @@ class ExactCacheKey4<P1, P2, P3, P4, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey5<P1, P2, P3, P4, P5, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPartComposition5<P1, P2, P3, P4, P5>,
@@ -1231,7 +1110,6 @@ class ExactCacheKey5<P1, P2, P3, P4, P5, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> @PublishedApi internal constructor(
     private val name: String,
     private val key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
@@ -1247,7 +1125,6 @@ class ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> @PublishedApi internal construct
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey1<K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPart<K1>,
@@ -1281,7 +1158,6 @@ class SinglePartitionCacheKey1<K1, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey2<K1, K2, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPartComposition2<K1, K2>,
@@ -1315,7 +1191,6 @@ class SinglePartitionCacheKey2<K1, K2, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey3<K1, K2, K3, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPartComposition3<K1, K2, K3>,
@@ -1344,7 +1219,6 @@ class SinglePartitionCacheKey3<K1, K2, K3, R> @PublishedApi internal constructor
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey4<K1, K2, K3, K4, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPartComposition4<K1, K2, K3, K4>,
@@ -1373,7 +1247,6 @@ class SinglePartitionCacheKey4<K1, K2, K3, K4, R> @PublishedApi internal constru
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey5<K1, K2, K3, K4, K5, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
@@ -1402,7 +1275,6 @@ class SinglePartitionCacheKey5<K1, K2, K3, K4, K5, R> @PublishedApi internal con
     )
 }
 
-@ExperimentalKacheableApi
 class SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> @PublishedApi internal constructor(
     private val name: String,
     private val itemKey: KeyPartComposition6<K1, K2, K3, K4, K5, K6>,
@@ -1431,7 +1303,6 @@ class SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> @PublishedApi internal
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey1x1<I1, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
@@ -1466,7 +1337,6 @@ class PartitionedCacheKey1x1<I1, K1, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey1x2<I1, K1, K2, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
@@ -1501,7 +1371,6 @@ class PartitionedCacheKey1x2<I1, K1, K2, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey1x3<I1, K1, K2, K3, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
@@ -1536,7 +1405,6 @@ class PartitionedCacheKey1x3<I1, K1, K2, K3, R> @PublishedApi internal construct
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey1x4<I1, K1, K2, K3, K4, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
@@ -1571,7 +1439,6 @@ class PartitionedCacheKey1x4<I1, K1, K2, K3, K4, R> @PublishedApi internal const
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
@@ -1606,7 +1473,6 @@ class PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> @PublishedApi internal c
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey2x1<I1, I2, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
@@ -1632,7 +1498,6 @@ class PartitionedCacheKey2x1<I1, I2, K1, R> @PublishedApi internal constructor(
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey2x2<I1, I2, K1, K2, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
@@ -1667,7 +1532,6 @@ class PartitionedCacheKey2x2<I1, I2, K1, K2, R> @PublishedApi internal construct
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey2x3<I1, I2, K1, K2, K3, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
@@ -1702,7 +1566,6 @@ class PartitionedCacheKey2x3<I1, I2, K1, K2, K3, R> @PublishedApi internal const
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
@@ -1737,7 +1600,6 @@ class PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> @PublishedApi internal c
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey3x1<I1, I2, I3, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition3<I1, I2, I3>,
@@ -1763,7 +1625,6 @@ class PartitionedCacheKey3x1<I1, I2, I3, K1, R> @PublishedApi internal construct
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey3x2<I1, I2, I3, K1, K2, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition3<I1, I2, I3>,
@@ -1798,7 +1659,6 @@ class PartitionedCacheKey3x2<I1, I2, I3, K1, K2, R> @PublishedApi internal const
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition3<I1, I2, I3>,
@@ -1824,7 +1684,6 @@ class PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> @PublishedApi internal c
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition4<I1, I2, I3, I4>,
@@ -1850,7 +1709,6 @@ class PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> @PublishedApi internal const
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition4<I1, I2, I3, I4>,
@@ -1885,7 +1743,6 @@ class PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> @PublishedApi internal c
     )
 }
 
-@ExperimentalKacheableApi
 class PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
@@ -1987,7 +1844,6 @@ internal fun KeyPartComposition6<*, *, *, *, *, *>.parts(): List<KeyPart<*>> = l
  *
  * [cacheIf] is evaluated only for newly computed results.
  */
-@ExperimentalKacheableApi
 suspend operator fun <R> Kacheable.invoke(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
@@ -1997,7 +1853,6 @@ suspend operator fun <R> Kacheable.invoke(
 /**
  * Named equivalent of invoking a typed cache entry.
  */
-@ExperimentalKacheableApi
 suspend fun <R> Kacheable.cache(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
@@ -2007,13 +1862,11 @@ suspend fun <R> Kacheable.cache(
 /**
  * Invalidates one or more typed cache entries.
  */
-@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
     val runtime = this as TypedCacheRuntime
     entryRefs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 suspend fun <R> Kacheable.invalidate(
     vararg entryRefs: CacheEntryRef<*>,
     block: suspend () -> R,
@@ -2023,13 +1876,11 @@ suspend fun <R> Kacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg partRefs: CachePartRef<*>) {
     val runtime = this as TypedCacheRuntime
     partRefs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 suspend fun <R> Kacheable.invalidate(
     vararg partRefs: CachePartRef<*>,
     block: suspend () -> R,
@@ -2039,19 +1890,16 @@ suspend fun <R> Kacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(vararg refs: CacheInvalidationRef) {
     val runtime = this as TypedCacheRuntime
     refs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 suspend fun Kacheable.invalidate(refs: Iterable<CacheInvalidationRef>) {
     val runtime = this as TypedCacheRuntime
     refs.forEach { runtime.invalidateCacheRef(it) }
 }
 
-@ExperimentalKacheableApi
 suspend fun <R> Kacheable.invalidate(
     vararg refs: CacheInvalidationRef,
     block: suspend () -> R,
@@ -2061,7 +1909,6 @@ suspend fun <R> Kacheable.invalidate(
     return result
 }
 
-@ExperimentalKacheableApi
 suspend fun <R> Kacheable.invalidate(
     refs: Iterable<CacheInvalidationRef>,
     block: suspend () -> R,

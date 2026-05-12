@@ -1,11 +1,8 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08
 
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
 import com.github.dave08.kacheable.cacheKey

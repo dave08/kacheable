@@ -1,11 +1,8 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.keys.validateUniqueKeyPartNames
 import kotlin.reflect.KProperty
 
-@ExperimentalKacheableApi
 data class PrimarySecondaryCacheArgs(
     val primary: CacheArgs,
     val secondary: CacheArgs? = null,
@@ -24,7 +21,6 @@ data class PrimarySecondaryCacheArgs(
     val flattened: CacheArgs = joinArgs(*(primaryPartArgs + secondaryPartArgs).toTypedArray())
 }
 
-@ExperimentalKacheableApi
 interface CacheEntryPartRef {
     val name: String
     val args: CacheArgs
@@ -41,7 +37,6 @@ interface CacheEntryPartRef {
  * A key part knows how to encode a domain value into one or more cache-key segments. Named key
  * parts also allow naming strategies and matching invalidations to reason about the part.
  */
-@ExperimentalKacheableApi
 interface KeyPart<P1> {
     val name: String?
     val segmentCount: Int?
@@ -55,7 +50,6 @@ interface KeyPart<P1> {
 /**
  * Encoded value for a [KeyPart], produced by calling a key part with a concrete value.
  */
-@ExperimentalKacheableApi
 open class KeyPartValue(
     open val keyPart: KeyPart<*>,
     open val args: CacheArgs,

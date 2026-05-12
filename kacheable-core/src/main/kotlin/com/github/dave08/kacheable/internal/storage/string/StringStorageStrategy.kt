@@ -2,13 +2,11 @@ package com.github.dave08.kacheable.internal.storage.string
 
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.combinedKey
 import com.github.dave08.kacheable.internal.storage.StoreEntryName
 import com.github.dave08.kacheable.internal.storage.delete as blockingDelete
 import com.github.dave08.kacheable.internal.storage.delete
 
-@OptIn(ExperimentalKacheableApi::class)
 internal object StringStorageStrategy {
     val storage: CacheStorage.String = CacheStorage.String
 

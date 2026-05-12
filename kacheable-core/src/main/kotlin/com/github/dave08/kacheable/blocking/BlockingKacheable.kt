@@ -3,7 +3,6 @@ package com.github.dave08.kacheable.blocking
 import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer

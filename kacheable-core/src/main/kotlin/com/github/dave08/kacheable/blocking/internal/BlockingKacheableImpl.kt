@@ -6,7 +6,6 @@ import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
@@ -22,7 +21,6 @@ import com.github.dave08.kacheable.store.cacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
-@OptIn(ExperimentalKacheableApi::class)
 internal class BlockingKacheableImpl(
     private val storages: BlockingTypedStorages,
     private val jsonParser: Json

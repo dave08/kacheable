@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheArgs
@@ -8,7 +6,6 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef

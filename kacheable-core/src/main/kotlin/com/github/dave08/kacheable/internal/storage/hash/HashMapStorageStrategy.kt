@@ -2,7 +2,6 @@ package com.github.dave08.kacheable.internal.storage.hash
 
 import com.github.dave08.kacheable.CacheEntryName
 import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.StoreEntryName
 import com.github.dave08.kacheable.primaryKey
@@ -10,7 +9,6 @@ import com.github.dave08.kacheable.internal.storage.delete as blockingDelete
 import com.github.dave08.kacheable.internal.storage.delete
 import com.github.dave08.kacheable.internal.storage.deleteMatching
 
-@OptIn(ExperimentalKacheableApi::class)
 internal object HashMapStorageStrategy {
     val storage: CacheStorage.HashMap = CacheStorage.HashMap
 

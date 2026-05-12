@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package com.github.dave08.kacheable
 
 import com.github.dave08.kacheable.internal.TypedCacheRuntime

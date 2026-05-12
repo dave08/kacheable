@@ -1,7 +1,7 @@
 [![](https://jitpack.io/v/dave08/kacheable.svg)](https://jitpack.io/#dave08/kacheable)
 
-> [!CAUTION]
-> Kacheable is still experimental. The typed cache-key API is the intended public direction, but names may still tighten before a stable release.
+> [!IMPORTANT]
+> Kacheable is production-usable, but it is still a `0.x` library. The typed cache-key API is the intended direction and should be safe to try in real applications, while minor source-level refinements may still happen before `1.0` as community feedback comes in.
 
 > [!NOTE]
 > Cached values currently use Kotlinx Serialization JSON by default, so stored value types should be `@Serializable` unless you provide a custom codec.

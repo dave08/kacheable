@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
-group = "org.github.dave08.kacheable"
-version = "0.1.4"
+group = "com.github.dave08.kacheable"
+version = "0.2.0-alpha01"
 
 kotlin {
     jvmToolchain(11)

@@ -1,8 +1,5 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package kacheable
 
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.matchableKeyPart
 import com.github.dave08.kacheable.partitioned

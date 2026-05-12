@@ -1,8 +1,5 @@
-@file:OptIn(ExperimentalKacheableApi::class)
-
 package kacheable
 
-import com.github.dave08.kacheable.ExperimentalKacheableApi
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
 import de.infix.testBalloon.framework.core.testSuite
