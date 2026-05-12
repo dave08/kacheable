@@ -1,8 +1,14 @@
 package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheArgs
+import com.github.dave08.kacheable.CacheEntryPartRef
+import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
+import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
+import com.github.dave08.kacheable.StoredCacheAllRef
+import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
@@ -45,6 +51,29 @@ interface BlockingKacheable {
         vararg params: Any,
         cacheIf: (R) -> Boolean = { true },
         block: () -> R
+    ): R
+
+    fun invalidate(entryRef: StoredCacheEntryRef<*>)
+
+    fun invalidate(partRef: CacheEntryPartRef)
+
+    fun invalidate(allRef: StoredCacheAllRef<*>)
+
+    fun <E : Any> invalidate(
+        entryRef: StoredCacheEntryRef<CacheStorage.Set>,
+        returnView: EnumMemberCacheReturn<E>,
+    )
+
+    fun <E : Any> invalidate(
+        partRef: StoredCachePartRef<CacheStorage.Set>,
+        returnView: EnumMemberCacheReturn<E>,
+    )
+
+    fun <S : CacheStorage, R> invoke(
+        entryRef: StoredCacheEntryRef<S>,
+        returnView: CacheReturn<R, *>,
+        cacheIf: (R) -> Boolean,
+        block: () -> R,
     ): R
 }
 

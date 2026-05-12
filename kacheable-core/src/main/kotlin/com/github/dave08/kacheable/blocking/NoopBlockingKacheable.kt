@@ -9,11 +9,10 @@ import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
 import com.github.dave08.kacheable.store.CacheValueCodec
 import kotlinx.serialization.KSerializer
 
-internal object NoopBlockingKacheable : BlockingKacheable, BlockingTypedCacheRuntime {
+internal object NoopBlockingKacheable : BlockingKacheable {
     override fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R =
         block()
 

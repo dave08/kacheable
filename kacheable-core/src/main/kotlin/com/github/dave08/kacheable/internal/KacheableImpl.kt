@@ -24,7 +24,7 @@ import kotlinx.serialization.json.Json
 internal class KacheableImpl(
     private val storages: TypedStorages,
     private val jsonParser: Json,
-) : Kacheable, TypedCacheRuntime {
+) : Kacheable {
     constructor(
         store: KacheableStore,
         configs: Map<String, CacheConfig>,

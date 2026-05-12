@@ -10,7 +10,6 @@ import com.github.dave08.kacheable.RawCacheEntryRef
 import com.github.dave08.kacheable.RawCacheRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.blocking.internal.BlockingTypedCacheRuntime
 
 /**
  * Caches a typed cache entry, returning cached data when present or [block]'s result otherwise.
@@ -21,7 +20,7 @@ operator fun <R> BlockingKacheable.invoke(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
     block: () -> R,
-): R = (this as BlockingTypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
+): R = invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
 /**
  * Named equivalent of invoking a typed cache entry.
@@ -36,8 +35,7 @@ fun <R> BlockingKacheable.cache(
  * Invalidates one or more typed cache entries.
  */
 fun BlockingKacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
-    val runtime = this as BlockingTypedCacheRuntime
-    entryRefs.forEach { runtime.invalidateCacheRef(it) }
+    entryRefs.forEach { invalidateCacheRef(it) }
 }
 
 fun <R> BlockingKacheable.invalidate(
@@ -50,8 +48,7 @@ fun <R> BlockingKacheable.invalidate(
 }
 
 fun BlockingKacheable.invalidate(vararg partRefs: CachePartRef<*>) {
-    val runtime = this as BlockingTypedCacheRuntime
-    partRefs.forEach { runtime.invalidateCacheRef(it) }
+    partRefs.forEach { invalidateCacheRef(it) }
 }
 
 fun <R> BlockingKacheable.invalidate(
@@ -64,13 +61,11 @@ fun <R> BlockingKacheable.invalidate(
 }
 
 fun BlockingKacheable.invalidate(vararg refs: CacheInvalidationRef) {
-    val runtime = this as BlockingTypedCacheRuntime
-    refs.forEach { runtime.invalidateCacheRef(it) }
+    refs.forEach { invalidateCacheRef(it) }
 }
 
 fun BlockingKacheable.invalidate(refs: Iterable<CacheInvalidationRef>) {
-    val runtime = this as BlockingTypedCacheRuntime
-    refs.forEach { runtime.invalidateCacheRef(it) }
+    refs.forEach { invalidateCacheRef(it) }
 }
 
 fun <R> BlockingKacheable.invalidate(
@@ -92,7 +87,7 @@ fun <R> BlockingKacheable.invalidate(
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun BlockingTypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef<*>) {
+private fun BlockingKacheable.invalidateCacheRef(entryRef: CacheEntryRef<*>) {
     val returnView = entryRef.returnView
     if (entryRef.entryRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
         invalidate(entryRef.entryRef as StoredCacheEntryRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
@@ -102,7 +97,7 @@ private fun BlockingTypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun BlockingTypedCacheRuntime.invalidateCacheRef(partRef: CachePartRef<*>) {
+private fun BlockingKacheable.invalidateCacheRef(partRef: CachePartRef<*>) {
     val returnView = partRef.returnView
     if (partRef.partRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
         invalidate(partRef.partRef as StoredCachePartRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
@@ -111,11 +106,11 @@ private fun BlockingTypedCacheRuntime.invalidateCacheRef(partRef: CachePartRef<*
     }
 }
 
-private fun BlockingTypedCacheRuntime.invalidateCacheRef(allRef: CacheAllRef<*>) {
+private fun BlockingKacheable.invalidateCacheRef(allRef: CacheAllRef<*>) {
     invalidate(allRef.allRef)
 }
 
-private fun BlockingTypedCacheRuntime.invalidateCacheRef(ref: CacheInvalidationRef) {
+private fun BlockingKacheable.invalidateCacheRef(ref: CacheInvalidationRef) {
     when (ref) {
         is RawCacheEntryRef -> invalidate(ref.entryRef)
         is RawCacheRef -> invalidate(ref.allRef)

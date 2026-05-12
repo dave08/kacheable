@@ -44,6 +44,29 @@ interface Kacheable {
         cacheIf: (R) -> Boolean = { true },
         block: suspend () -> R
     ): R
+
+    suspend fun invalidate(entryRef: StoredCacheEntryRef<*>)
+
+    suspend fun invalidate(partRef: CacheEntryPartRef)
+
+    suspend fun invalidate(allRef: StoredCacheAllRef<*>)
+
+    suspend fun <E : Any> invalidate(
+        entryRef: StoredCacheEntryRef<CacheStorage.Set>,
+        returnView: EnumMemberCacheReturn<E>,
+    )
+
+    suspend fun <E : Any> invalidate(
+        partRef: StoredCachePartRef<CacheStorage.Set>,
+        returnView: EnumMemberCacheReturn<E>,
+    )
+
+    suspend fun <S : CacheStorage, R> invoke(
+        entryRef: StoredCacheEntryRef<S>,
+        returnView: CacheReturn<R, *>,
+        cacheIf: (R) -> Boolean,
+        block: suspend () -> R,
+    ): R
 }
 
 /**

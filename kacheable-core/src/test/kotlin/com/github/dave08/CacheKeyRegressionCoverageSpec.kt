@@ -3,9 +3,11 @@
 package com.github.dave08
 
 import com.github.dave08.kacheable.CacheEntryName
+import com.github.dave08.kacheable.CacheEntryRef
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.GetNameStrategy
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.argsOf
 import com.github.dave08.kacheable.blocking.invalidate
 import com.github.dave08.kacheable.blocking.invoke
@@ -180,6 +182,26 @@ val CacheKeyRegressionCoverageSpec by testSuite {
 
             assertEquals(TestSong(9, "Live"), result)
             store.assertStringValueMissing("regression-cache-if:9")
+        }
+
+        test("typed cache calls work from classes that delegate Kacheable") {
+            val songId = keyPart<Int>("songId")
+            val songCache = cacheKey("regression-delegated-runtime", returns<TestSong>(), key = exact(songId))
+            val repository = DelegatingSuspendRepository(cache)
+
+            val first = repository.getSong(songCache(11)) {
+                TestSong(11, "Delegated Runtime")
+            }
+            val second = repository.getSong(songCache(11)) {
+                error("cached value should be returned")
+            }
+
+            assertEquals(TestSong(11, "Delegated Runtime"), first)
+            assertEquals(first, second)
+
+            repository.clearSong(songCache(11))
+
+            store.assertStringValueMissing("regression-delegated-runtime:11")
         }
 
         test("matchable key parts can be selected by name without reusing the original instance") {
@@ -437,6 +459,48 @@ val CacheKeyRegressionCoverageSpec by testSuite {
             store.assertStringValueMissing("regression-blocking-exact[7][en]")
             store.assertHashMissing("regression-blocking-pages[3]")
         }
+
+        test("blocking typed cache calls work from classes that delegate BlockingKacheable") {
+            val songId = keyPart<Int>("songId")
+            val songCache = cacheKey("regression-blocking-delegated-runtime", returns<TestSong>(), key = exact(songId))
+            val repository = DelegatingBlockingRepository(cache)
+
+            val first = repository.getSong(songCache(12)) {
+                TestSong(12, "Blocking Delegated Runtime")
+            }
+            val second = repository.getSong(songCache(12)) {
+                error("cached value should be returned")
+            }
+
+            assertEquals(TestSong(12, "Blocking Delegated Runtime"), first)
+            assertEquals(first, second)
+
+            repository.clearSong(songCache(12))
+
+            store.assertStringValueMissing("regression-blocking-delegated-runtime[12]")
+        }
+    }
+}
+
+private class DelegatingSuspendRepository(
+    cache: Kacheable,
+) : Kacheable by cache {
+    suspend fun getSong(ref: CacheEntryRef<TestSong>, block: suspend () -> TestSong): TestSong =
+        invoke(ref, block = block)
+
+    suspend fun clearSong(ref: CacheEntryRef<TestSong>) {
+        invalidate(ref)
+    }
+}
+
+private class DelegatingBlockingRepository(
+    cache: BlockingKacheable,
+) : BlockingKacheable by cache {
+    fun getSong(ref: CacheEntryRef<TestSong>, block: () -> TestSong): TestSong =
+        invoke(ref, block = block)
+
+    fun clearSong(ref: CacheEntryRef<TestSong>) {
+        invalidate(ref)
     }
 }
 

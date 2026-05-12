@@ -24,7 +24,7 @@ import kotlinx.serialization.json.Json
 internal class BlockingKacheableImpl(
     private val storages: BlockingTypedStorages,
     private val jsonParser: Json
-) : BlockingKacheable, BlockingTypedCacheRuntime {
+) : BlockingKacheable {
     constructor(
         store: BlockingKacheableStore,
         configs: Map<String, CacheConfig>,

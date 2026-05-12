@@ -1,6 +1,5 @@
 package com.github.dave08.kacheable
 
-import com.github.dave08.kacheable.internal.TypedCacheRuntime
 import com.github.dave08.kacheable.internal.keys.cacheArgs
 import kotlinx.serialization.serializer
 import kotlin.reflect.KClass
@@ -1848,7 +1847,7 @@ suspend operator fun <R> Kacheable.invoke(
     entryRef: CacheEntryRef<R>,
     cacheIf: (R) -> Boolean = { true },
     block: suspend () -> R,
-): R = (this as TypedCacheRuntime).invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
+): R = invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
 /**
  * Named equivalent of invoking a typed cache entry.
@@ -1863,8 +1862,7 @@ suspend fun <R> Kacheable.cache(
  * Invalidates one or more typed cache entries.
  */
 suspend fun Kacheable.invalidate(vararg entryRefs: CacheEntryRef<*>) {
-    val runtime = this as TypedCacheRuntime
-    entryRefs.forEach { runtime.invalidateCacheRef(it) }
+    entryRefs.forEach { invalidateCacheRef(it) }
 }
 
 suspend fun <R> Kacheable.invalidate(
@@ -1877,8 +1875,7 @@ suspend fun <R> Kacheable.invalidate(
 }
 
 suspend fun Kacheable.invalidate(vararg partRefs: CachePartRef<*>) {
-    val runtime = this as TypedCacheRuntime
-    partRefs.forEach { runtime.invalidateCacheRef(it) }
+    partRefs.forEach { invalidateCacheRef(it) }
 }
 
 suspend fun <R> Kacheable.invalidate(
@@ -1891,13 +1888,11 @@ suspend fun <R> Kacheable.invalidate(
 }
 
 suspend fun Kacheable.invalidate(vararg refs: CacheInvalidationRef) {
-    val runtime = this as TypedCacheRuntime
-    refs.forEach { runtime.invalidateCacheRef(it) }
+    refs.forEach { invalidateCacheRef(it) }
 }
 
 suspend fun Kacheable.invalidate(refs: Iterable<CacheInvalidationRef>) {
-    val runtime = this as TypedCacheRuntime
-    refs.forEach { runtime.invalidateCacheRef(it) }
+    refs.forEach { invalidateCacheRef(it) }
 }
 
 suspend fun <R> Kacheable.invalidate(
@@ -1919,7 +1914,7 @@ suspend fun <R> Kacheable.invalidate(
 }
 
 @Suppress("UNCHECKED_CAST")
-private suspend fun TypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef<*>) {
+private suspend fun Kacheable.invalidateCacheRef(entryRef: CacheEntryRef<*>) {
     val returnView = entryRef.returnView
     if (entryRef.entryRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
         invalidate(entryRef.entryRef as StoredCacheEntryRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
@@ -1929,7 +1924,7 @@ private suspend fun TypedCacheRuntime.invalidateCacheRef(entryRef: CacheEntryRef
 }
 
 @Suppress("UNCHECKED_CAST")
-private suspend fun TypedCacheRuntime.invalidateCacheRef(partRef: CachePartRef<*>) {
+private suspend fun Kacheable.invalidateCacheRef(partRef: CachePartRef<*>) {
     val returnView = partRef.returnView
     if (partRef.partRef.storage == CacheStorage.Set && returnView is EnumMemberCacheReturn<*>) {
         invalidate(partRef.partRef as StoredCachePartRef<CacheStorage.Set>, returnView as EnumMemberCacheReturn<Any>)
@@ -1938,11 +1933,11 @@ private suspend fun TypedCacheRuntime.invalidateCacheRef(partRef: CachePartRef<*
     }
 }
 
-private suspend fun TypedCacheRuntime.invalidateCacheRef(allRef: CacheAllRef<*>) {
+private suspend fun Kacheable.invalidateCacheRef(allRef: CacheAllRef<*>) {
     invalidate(allRef.allRef)
 }
 
-private suspend fun TypedCacheRuntime.invalidateCacheRef(ref: CacheInvalidationRef) {
+private suspend fun Kacheable.invalidateCacheRef(ref: CacheInvalidationRef) {
     when (ref) {
         is RawCacheEntryRef -> invalidate(ref.entryRef)
         is RawCacheRef -> invalidate(ref.allRef)

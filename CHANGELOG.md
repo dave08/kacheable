@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-alpha02
+
+This release makes typed cache-key calls work from Kotlin classes that delegate `Kacheable`.
+
+### Changed
+
+- Typed cache-key runtime operations are now part of the public `Kacheable` and `BlockingKacheable` contracts instead of relying on casts to internal runtime interfaces.
+- `cache(...)`, `invoke(...)`, and typed invalidation extensions now dispatch through the public delegated interface, so patterns like `class Repo(kacheable: Kacheable) : Kacheable by kacheable` work with typed keys.
+
+### Verification
+
+- `./gradlew test`
+
 ## 0.2.0-alpha01
 
 This release introduces the result-first typed cache-key API as the main direction for Kacheable.
