@@ -7,6 +7,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
+import com.github.dave08.kacheable.internal.CacheLoadCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.invokeAtAddress
@@ -15,6 +16,7 @@ import com.github.dave08.kacheable.store.KacheableStore
 internal class HashMapTypedStorage(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
+    private val loadCoordinator: CacheLoadCoordinator,
     namingStrategy: CacheNamingStrategy,
 ) : TypedStorage<CacheStorage.HashMap> {
     override val storage: CacheStorage.HashMap = CacheStorage.HashMap
@@ -47,6 +49,7 @@ internal class HashMapTypedStorage(
         entryName = HashMapStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
+        loadCoordinator = loadCoordinator,
         codec = returnView.codec,
         saveResultIf = saveResultIf,
         block = block,

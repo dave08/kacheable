@@ -461,6 +461,48 @@ Automatic planning currently follows these rules:
 
 The type system exposes only the override families that make sense for a key shape: exact storage for exact keys, and indexed/membership/enum membership storage for partitioned keys.
 
+## Loader Resilience
+
+Cache keys describe identity and invalidation. Resilience settings describe what happens after a miss, when Kacheable has to run the loader.
+
+Resilience can be configured globally on `Kacheable(...)` or per cache with `CacheConfig.resilience`:
+
+```kotlin
+val cache = Kacheable(
+    store = redisStore,
+    defaultResilience = CacheResilienceConfig(
+        singleFlight = SingleFlightMode.Local,
+        maxConcurrentLoads = 8,
+        loadTimeout = 2.seconds,
+    ),
+    configs = mapOf(
+        "artist-pages" to CacheConfig(
+            name = "artist-pages",
+            expiryType = ExpiryType.after_write,
+            expiry = 10.minutes,
+            resilience = CacheResilienceConfig(
+                singleFlight = SingleFlightMode.Redis,
+                maxConcurrentLoads = 3,
+                staleOnTimeout = true,
+            ),
+        ),
+    ),
+)
+```
+
+The modes are intentionally explicit:
+
+| Setting | Behavior |
+| --- | --- |
+| `SingleFlightMode.None` | Default behavior. Concurrent misses may run duplicate loaders. |
+| `SingleFlightMode.Local` | One loader per cache key per JVM; concurrent callers await the same result. |
+| `SingleFlightMode.Redis` | Cross-process coordination through a distributed-capable store such as Lettuce. |
+| `maxConcurrentLoads` | Limits different cold keys for the same cache so a cold cache cannot consume every backing DB connection. |
+| `loadTimeout` | Bounds the loader path. It does not replace Redis or database driver timeouts. |
+| `staleOnFailure` / `staleOnTimeout` | Return an already cached value when one exists and the cache opted into that fallback. |
+
+Redis single-flight is a store capability. Kacheable fails fast during startup if a cache asks for `SingleFlightMode.Redis` but the configured store cannot provide distributed coordination.
+
 ## Hidden Dependencies
 
 A cache key should normally describe the inputs that decide one cached result. Some results also depend on hidden inputs: database views, ranking formulas, visibility rules, background counters, or other data read inside a query but not present at the call site.

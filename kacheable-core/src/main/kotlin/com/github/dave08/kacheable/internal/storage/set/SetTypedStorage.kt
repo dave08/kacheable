@@ -9,12 +9,14 @@ import com.github.dave08.kacheable.IsMemberCacheReturn
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
+import com.github.dave08.kacheable.internal.CacheLoadCoordinator
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.store.KacheableStore
 
 internal class SetTypedStorage(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
+    private val loadCoordinator: CacheLoadCoordinator,
     private val namingStrategy: CacheNamingStrategy,
 ) : TypedStorage<CacheStorage.Set> {
     override val storage: CacheStorage.Set = CacheStorage.Set
@@ -61,6 +63,7 @@ internal class SetTypedStorage(
             cacheArgs = entryRef.cacheArgs,
             cacheFalse = returnView.cacheFalse,
             saveResultIf = saveResultIf as (Boolean) -> Boolean,
+            loadCoordinator = loadCoordinator,
             block = block as suspend () -> Boolean,
         ) as R
 
@@ -75,6 +78,7 @@ internal class SetTypedStorage(
                 values = typedReturn.values,
                 valueName = typedReturn.valueName,
                 saveResultIf = saveResultIf as (Any) -> Boolean,
+                loadCoordinator = loadCoordinator,
                 block = block as suspend () -> Any,
             ) as R
         }

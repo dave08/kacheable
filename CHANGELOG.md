@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.2.0-alpha03
+
+This release adds opt-in resilience controls for cold-cache pressure and hardens the Redis/Lettuce store after production rollout testing.
+
+### Added
+
+- `CacheResilienceConfig` with global and per-cache settings for:
+  - `singleFlight = None | Local | Redis`
+  - `loadTimeout`
+  - `maxConcurrentLoads`
+  - `staleOnFailure`
+  - `staleOnTimeout`
+- Local single-flight, so concurrent callers in one JVM can share one loader for the same cold key.
+- Redis single-flight for cross-process coordination when the store implements distributed coordination.
+- Store-level compound operations for write-with-expiry and hash-write-with-expiry, so normal cache writes avoid generic transaction machinery.
+- Pressure tests for local single-flight, Redis single-flight across two connections, loader failure/timeout cleanup, and concurrent mutation failure behavior.
+
+### Changed
+
+- Redis/Lettuce suspend operations now use Lettuce coroutine commands directly instead of wrapping coroutine-friendly calls in `Dispatchers.IO`.
+- Redis/Lettuce `mutate { ... }` records operations first and executes them atomically with Lua after the block completes successfully.
+- Redis/Lettuce known compound operations use direct Redis commands or Lua scripts instead of opening `MULTI` for ordinary cache writes.
+- `CacheConfig` keeps `nullPlaceholder` in its existing positional slot; the new `resilience` property is appended to reduce source compatibility surprises.
+
+### Fixed
+
+- Avoids `DISCARD without MULTI` when a mutation block fails before all operations are known.
+- Redis single-flight fails fast at startup if configured against a store that does not support distributed coordination.
+- Loader failure or timeout clears local in-flight state so later calls are not poisoned.
+
+### Verification
+
+- `./gradlew :kacheable-core:test :kacheable-lettuce:test`
+- Real API consumer compiled and tested against a local composite build of this version.
+
 ## 0.2.0-alpha02
 
 This release makes typed cache-key calls work from Kotlin classes that delegate `Kacheable`.

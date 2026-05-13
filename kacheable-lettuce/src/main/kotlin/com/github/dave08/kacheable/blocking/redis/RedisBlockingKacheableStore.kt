@@ -96,6 +96,17 @@ class RedisBlockingKacheableStore(
         conn.sync().psetex(key, expiry.inWholeMilliseconds, value)
     }
 
+    override fun setHashValueWithExpire(key: String, field: String, value: String, expiry: Duration) {
+        conn.sync().eval<Long>(
+            SET_HASH_VALUE_WITH_EXPIRE_SCRIPT,
+            ScriptOutputType.INTEGER,
+            arrayOf(key),
+            field,
+            value,
+            expiry.inWholeMilliseconds.toString(),
+        )
+    }
+
     override fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
         try {
             conn.sync().getex(key, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
@@ -150,19 +161,39 @@ class RedisBlockingKacheableStore(
     }
 
     override fun mutate(block: BlockingStoreMutationScope.() -> Unit) {
+        val recording = RedisBlockingStoreMutationRecording(deleteMode)
+        recording.block()
+        val operations = recording.operations
+        if (operations.isEmpty()) return
+
         mutationLock.withLock {
             val commands = conn.sync()
-            commands.multi()
+            var transactionOpen = false
             try {
-                RedisBlockingStoreMutationScope(commands, deleteMode).block()
+                commands.multi()
+                transactionOpen = true
+                operations.forEach { it.execute(commands) }
                 commands.exec()
+                transactionOpen = false
             } catch (t: Throwable) {
-                commands.discard()
+                if (transactionOpen) {
+                    try {
+                        commands.discard()
+                    } catch (discardFailure: Throwable) {
+                        t.addSuppressed(discardFailure)
+                    }
+                }
                 throw t
             }
         }
     }
 }
+
+private const val SET_HASH_VALUE_WITH_EXPIRE_SCRIPT = """
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+redis.call('PEXPIRE', KEYS[1], ARGV[3])
+return 1
+"""
 
 private const val REPLACE_SET_MEMBERSHIP_SCRIPT = """
 redis.call('SREM', KEYS[1], ARGV[1])
@@ -188,39 +219,86 @@ end
 return 1
 """
 
-private class RedisBlockingStoreMutationScope(
-    private val commands: RedisCommands<String, String>,
+private class RedisBlockingStoreMutationRecording(
     private val deleteMode: RedisDeleteMode,
 ) : BlockingStoreMutationScope {
+    val operations = mutableListOf<RedisBlockingMutationOperation>()
+
     override fun delete(key: String) {
         require(!key.contains("*")) { "Pattern deletes are not supported inside atomic Redis mutations." }
-        when (deleteMode) {
-            RedisDeleteMode.Del -> commands.del(key)
-            RedisDeleteMode.Unlink -> commands.unlink(key)
-        }
+        operations += RedisBlockingMutationOperation.Delete(key, deleteMode)
     }
 
     override fun deleteHashValue(key: String, field: String) {
-        commands.hdel(key, field)
+        operations += RedisBlockingMutationOperation.DeleteHashValue(key, field)
     }
 
     override fun deleteSetMember(key: String, member: String) {
-        commands.srem(key, member)
+        operations += RedisBlockingMutationOperation.DeleteSetMember(key, member)
     }
 
     override fun set(key: String, value: String) {
-        commands.set(key, value)
+        operations += RedisBlockingMutationOperation.Set(key, value)
     }
 
     override fun setHashValue(key: String, field: String, value: String) {
-        commands.hset(key, field, value)
+        operations += RedisBlockingMutationOperation.SetHashValue(key, field, value)
     }
 
     override fun addSetMember(key: String, member: String) {
-        commands.sadd(key, member)
+        operations += RedisBlockingMutationOperation.AddSetMember(key, member)
     }
 
     override fun setExpire(key: String, expiry: Duration) {
-        commands.pexpire(key, expiry.inWholeMilliseconds)
+        operations += RedisBlockingMutationOperation.SetExpire(key, expiry)
+    }
+}
+
+private sealed interface RedisBlockingMutationOperation {
+    fun execute(commands: RedisCommands<String, String>)
+
+    data class Delete(val key: String, val deleteMode: RedisDeleteMode) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            when (deleteMode) {
+                RedisDeleteMode.Del -> commands.del(key)
+                RedisDeleteMode.Unlink -> commands.unlink(key)
+            }
+        }
+    }
+
+    data class DeleteHashValue(val key: String, val field: String) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.hdel(key, field)
+        }
+    }
+
+    data class DeleteSetMember(val key: String, val member: String) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.srem(key, member)
+        }
+    }
+
+    data class Set(val key: String, val value: String) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.set(key, value)
+        }
+    }
+
+    data class SetHashValue(val key: String, val field: String, val value: String) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.hset(key, field, value)
+        }
+    }
+
+    data class AddSetMember(val key: String, val member: String) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.sadd(key, member)
+        }
+    }
+
+    data class SetExpire(val key: String, val expiry: Duration) : RedisBlockingMutationOperation {
+        override fun execute(commands: RedisCommands<String, String>) {
+            commands.pexpire(key, expiry.inWholeMilliseconds)
+        }
     }
 }

@@ -7,6 +7,7 @@ import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
+import com.github.dave08.kacheable.internal.CacheLoadCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.delete
@@ -17,6 +18,7 @@ import com.github.dave08.kacheable.store.KacheableStore
 internal class StringTypedStorage(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
+    private val loadCoordinator: CacheLoadCoordinator,
     namingStrategy: CacheNamingStrategy,
 ) : TypedStorage<CacheStorage.String> {
     override val storage: CacheStorage.String = CacheStorage.String
@@ -49,6 +51,7 @@ internal class StringTypedStorage(
         entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
+        loadCoordinator = loadCoordinator,
         codec = returnView.codec,
         saveResultIf = saveResultIf,
         block = block,
@@ -64,6 +67,7 @@ internal class StringTypedStorage(
         entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(name, params)),
         cacheName = name,
         configs = configs,
+        loadCoordinator = loadCoordinator,
         codec = codec,
         saveResultIf = saveResultIf,
         block = block,

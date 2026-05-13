@@ -49,6 +49,13 @@ interface BlockingKacheableStore {
         }
     }
 
+    fun setHashValueWithExpire(key: String, field: String, value: String, expiry: Duration) {
+        mutate {
+            setHashValue(key, field, value)
+            setExpire(key, expiry)
+        }
+    }
+
     fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
         get(key)?.also { setExpire(key, expiry) }
 

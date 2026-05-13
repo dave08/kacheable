@@ -1,5 +1,7 @@
 package com.github.dave08.kacheable.redis
 
+import com.github.dave08.kacheable.internal.CacheLoadTimeoutException
+import com.github.dave08.kacheable.store.DistributedSingleFlightStore
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.StoreMutationScope
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
@@ -7,16 +9,13 @@ import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
 import io.lettuce.core.ScanCursor
-import io.lettuce.core.ScanIterator
 import io.lettuce.core.ScriptOutputType
+import io.lettuce.core.SetArgs
 import io.lettuce.core.api.StatefulRedisConnection
-import io.lettuce.core.api.sync.RedisCommands
 import io.lettuce.core.api.coroutines
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlin.time.Duration
+import kotlin.time.TimeSource
 
 @OptIn(ExperimentalLettuceCoroutinesApi::class)
 class RedisKacheableStore(
@@ -24,25 +23,20 @@ class RedisKacheableStore(
     private val deleteFromPatternInChunksOf: Int = 20,
     private val deleteScanCount: Long = 1000,
     private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
-) : KacheableStore {
-    private val mutationMutex = Mutex()
-
+) : KacheableStore, DistributedSingleFlightStore {
     override suspend fun delete(key: String) {
         if (!key.contains("*"))
             deleteKeys(key)
-        else withContext(Dispatchers.IO) {
-            val commands = conn.sync()
-
-            ScanIterator.scan(commands, ScanArgs().match(key).limit(deleteScanCount)).asSequence()
-                .chunked(deleteFromPatternInChunksOf)
-                .forEach { keys ->
-                    if (keys.isNotEmpty()) {
-                        when (deleteMode) {
-                            RedisDeleteMode.Del -> commands.del(*(keys.toTypedArray()))
-                            RedisDeleteMode.Unlink -> commands.unlink(*(keys.toTypedArray()))
-                        }
-                    }
+        else {
+            val commands = conn.coroutines()
+            var cursor: ScanCursor = ScanCursor.INITIAL
+            do {
+                val result = checkNotNull(commands.scan(cursor, ScanArgs().match(key).limit(deleteScanCount)))
+                result.keys.chunked(deleteFromPatternInChunksOf).forEach { keys ->
+                    if (keys.isNotEmpty()) deleteKeys(*keys.toTypedArray())
                 }
+                cursor = result
+            } while (!cursor.isFinished)
         }
     }
 
@@ -70,18 +64,16 @@ class RedisKacheableStore(
     }
 
     override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) {
-        withContext(Dispatchers.IO) {
-            val commands = conn.sync()
-            var cursor: ScanCursor = ScanCursor.INITIAL
-            do {
-                val result = commands.hscan(key, cursor, ScanArgs().match(fieldPattern).limit(deleteScanCount))
-                val fields = result.map.keys.toList()
-                if (fields.isNotEmpty()) {
-                    commands.hdel(key, *fields.toTypedArray())
-                }
-                cursor = result
-            } while (!cursor.isFinished)
-        }
+        val commands = conn.coroutines()
+        var cursor: ScanCursor = ScanCursor.INITIAL
+        do {
+            val result = checkNotNull(commands.hscan(key, cursor, ScanArgs().match(fieldPattern).limit(deleteScanCount)))
+            val fields = result.map.keys.toList()
+            if (fields.isNotEmpty()) {
+                commands.hdel(key, *fields.toTypedArray())
+            }
+            cursor = result
+        } while (!cursor.isFinished)
     }
 
     override suspend fun deleteSetMember(key: String, member: String) {
@@ -103,14 +95,23 @@ class RedisKacheableStore(
         conn.coroutines().psetex(key, expiry.inWholeMilliseconds, value)
     }
 
+    override suspend fun setHashValueWithExpire(key: String, field: String, value: String, expiry: Duration) {
+        conn.coroutines().eval<Long>(
+            SET_HASH_VALUE_WITH_EXPIRE_SCRIPT,
+            ScriptOutputType.INTEGER,
+            arrayOf(key),
+            field,
+            value,
+            expiry.inWholeMilliseconds.toString(),
+        )
+    }
+
     override suspend fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
-        withContext(Dispatchers.IO) {
-            try {
-                conn.sync().getex(key, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
-            } catch (_: RedisCommandExecutionException) {
-                conn.sync().get(key)?.also {
-                    conn.sync().pexpire(key, expiry.inWholeMilliseconds)
-                }
+        try {
+            conn.coroutines().getex(key, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
+        } catch (_: RedisCommandExecutionException) {
+            conn.coroutines().get(key)?.also {
+                conn.coroutines().pexpire(key, expiry.inWholeMilliseconds)
             }
         }
 
@@ -122,24 +123,20 @@ class RedisKacheableStore(
         expiry: Duration?,
         cacheFalse: Boolean,
     ) {
-        withContext(Dispatchers.IO) {
-            mutationMutex.withLock {
-                val targetIndex =
-                    when {
-                        isMember -> "1"
-                        cacheFalse -> "2"
-                        else -> "0"
-                    }
-                conn.sync().eval<Long>(
-                    REPLACE_SET_MEMBERSHIP_SCRIPT,
-                    ScriptOutputType.INTEGER,
-                    arrayOf(membersKey, nonMembersKey),
-                    member,
-                    targetIndex,
-                    expiry?.inWholeMilliseconds?.toString().orEmpty(),
-                )
+        val targetIndex =
+            when {
+                isMember -> "1"
+                cacheFalse -> "2"
+                else -> "0"
             }
-        }
+        conn.coroutines().eval<Long>(
+            REPLACE_SET_MEMBERSHIP_SCRIPT,
+            ScriptOutputType.INTEGER,
+            arrayOf(membersKey, nonMembersKey),
+            member,
+            targetIndex,
+            expiry?.inWholeMilliseconds?.toString().orEmpty(),
+        )
     }
 
     override suspend fun replaceClassifiedMembership(
@@ -148,36 +145,79 @@ class RedisKacheableStore(
         candidateKeys: List<String>,
         expiry: Duration?,
     ) {
-        withContext(Dispatchers.IO) {
-            mutationMutex.withLock {
-                val keys = listOf(targetKey) + candidateKeys.filterNot { it == targetKey }
-                conn.sync().eval<Long>(
-                    REPLACE_CLASSIFIED_MEMBERSHIP_SCRIPT,
-                    ScriptOutputType.INTEGER,
-                    keys.toTypedArray(),
-                    member,
-                    expiry?.inWholeMilliseconds?.toString().orEmpty(),
-                )
-            }
-        }
+        val keys = listOf(targetKey) + candidateKeys.filterNot { it == targetKey }
+        conn.coroutines().eval<Long>(
+            REPLACE_CLASSIFIED_MEMBERSHIP_SCRIPT,
+            ScriptOutputType.INTEGER,
+            keys.toTypedArray(),
+            member,
+            expiry?.inWholeMilliseconds?.toString().orEmpty(),
+        )
     }
 
     override suspend fun mutate(block: suspend StoreMutationScope.() -> Unit) {
-        withContext(Dispatchers.IO) {
-            mutationMutex.withLock {
-                val commands = conn.sync()
-                commands.multi()
-                try {
-                    RedisStoreMutationScope(commands, deleteMode).block()
-                    commands.exec()
-                } catch (t: Throwable) {
-                    commands.discard()
-                    throw t
+        val recording = RedisStoreMutationRecording(deleteMode)
+        recording.block()
+        val operations = recording.operations
+        if (operations.isEmpty()) return
+
+        val script = operations.toLuaScript()
+        conn.coroutines().eval<Long>(
+            script.source,
+            ScriptOutputType.INTEGER,
+            script.keys.toTypedArray(),
+            *script.args.toTypedArray(),
+        )
+    }
+
+    override suspend fun <R> runWithDistributedSingleFlight(
+        key: String,
+        lockLease: Duration,
+        waitTimeout: Duration,
+        pollInterval: Duration,
+        readCached: suspend () -> R?,
+        loadAndSave: suspend () -> R,
+    ): R {
+        val lockKey = "__kacheable:singleflight:$key"
+        val ownerToken = java.util.UUID.randomUUID().toString()
+        val deadline = TimeSource.Monotonic.markNow() + waitTimeout
+
+        while (deadline.hasNotPassedNow()) {
+            readCached()?.let { return it }
+
+            if (tryAcquireLock(lockKey, ownerToken, lockLease)) {
+                return try {
+                    readCached() ?: loadAndSave()
+                } finally {
+                    releaseLock(lockKey, ownerToken)
                 }
             }
+
+            delay(pollInterval)
         }
+
+        readCached()?.let { return it }
+        throw CacheLoadTimeoutException("Timed out waiting for distributed single-flight lock for '$key'.")
+    }
+
+    private suspend fun tryAcquireLock(lockKey: String, ownerToken: String, lockLease: Duration): Boolean =
+        conn.coroutines().set(lockKey, ownerToken, SetArgs.Builder.nx().px(lockLease.inWholeMilliseconds)) == "OK"
+
+    private suspend fun releaseLock(lockKey: String, ownerToken: String) {
+        conn.coroutines().eval<Long>(
+            RELEASE_SINGLE_FLIGHT_LOCK_SCRIPT,
+            ScriptOutputType.INTEGER,
+            arrayOf(lockKey),
+            ownerToken,
+        )
     }
 }
+
+private const val SET_HASH_VALUE_WITH_EXPIRE_SCRIPT = """
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+redis.call('PEXPIRE', KEYS[1], ARGV[3])
+return 1
+"""
 
 private const val REPLACE_SET_MEMBERSHIP_SCRIPT = """
 redis.call('SREM', KEYS[1], ARGV[1])
@@ -203,39 +243,134 @@ end
 return 1
 """
 
-private class RedisStoreMutationScope(
-    private val commands: RedisCommands<String, String>,
+private const val RELEASE_SINGLE_FLIGHT_LOCK_SCRIPT = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
+
+private class RedisStoreMutationRecording(
     private val deleteMode: RedisDeleteMode,
 ) : StoreMutationScope {
+    val operations = mutableListOf<RedisMutationOperation>()
+
     override suspend fun delete(key: String) {
         require(!key.contains("*")) { "Pattern deletes are not supported inside atomic Redis mutations." }
-        when (deleteMode) {
-            RedisDeleteMode.Del -> commands.del(key)
-            RedisDeleteMode.Unlink -> commands.unlink(key)
-        }
+        operations += RedisMutationOperation.Delete(key, deleteMode)
     }
 
     override suspend fun deleteHashValue(key: String, field: String) {
-        commands.hdel(key, field)
+        operations += RedisMutationOperation.DeleteHashValue(key, field)
     }
 
     override suspend fun deleteSetMember(key: String, member: String) {
-        commands.srem(key, member)
+        operations += RedisMutationOperation.DeleteSetMember(key, member)
     }
 
     override suspend fun set(key: String, value: String) {
-        commands.set(key, value)
+        operations += RedisMutationOperation.Set(key, value)
     }
 
     override suspend fun setHashValue(key: String, field: String, value: String) {
-        commands.hset(key, field, value)
+        operations += RedisMutationOperation.SetHashValue(key, field, value)
     }
 
     override suspend fun addSetMember(key: String, member: String) {
-        commands.sadd(key, member)
+        operations += RedisMutationOperation.AddSetMember(key, member)
     }
 
     override suspend fun setExpire(key: String, expiry: Duration) {
-        commands.pexpire(key, expiry.inWholeMilliseconds)
+        operations += RedisMutationOperation.SetExpire(key, expiry)
     }
 }
+
+private sealed interface RedisMutationOperation {
+    fun append(script: RedisMutationScriptBuilder)
+
+    data class Delete(val key: String, val deleteMode: RedisDeleteMode) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('${deleteMode.command}', ${script.key(key)})")
+        }
+    }
+
+    data class DeleteHashValue(val key: String, val field: String) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('HDEL', ${script.key(key)}, ${script.arg(field)})")
+        }
+    }
+
+    data class DeleteSetMember(val key: String, val member: String) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('SREM', ${script.key(key)}, ${script.arg(member)})")
+        }
+    }
+
+    data class Set(val key: String, val value: String) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('SET', ${script.key(key)}, ${script.arg(value)})")
+        }
+    }
+
+    data class SetHashValue(val key: String, val field: String, val value: String) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('HSET', ${script.key(key)}, ${script.arg(field)}, ${script.arg(value)})")
+        }
+    }
+
+    data class AddSetMember(val key: String, val member: String) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('SADD', ${script.key(key)}, ${script.arg(member)})")
+        }
+    }
+
+    data class SetExpire(val key: String, val expiry: Duration) : RedisMutationOperation {
+        override fun append(script: RedisMutationScriptBuilder) {
+            script.line("redis.call('PEXPIRE', ${script.key(key)}, ${script.arg(expiry.inWholeMilliseconds.toString())})")
+        }
+    }
+}
+
+private val RedisDeleteMode.command: String
+    get() = when (this) {
+        RedisDeleteMode.Del -> "DEL"
+        RedisDeleteMode.Unlink -> "UNLINK"
+    }
+
+private data class RedisMutationScript(
+    val source: String,
+    val keys: List<String>,
+    val args: List<String>,
+)
+
+private class RedisMutationScriptBuilder {
+    private val lines = mutableListOf<String>()
+    val keys = mutableListOf<String>()
+    val args = mutableListOf<String>()
+
+    fun key(value: String): String {
+        keys += value
+        return "KEYS[${keys.size}]"
+    }
+
+    fun arg(value: String): String {
+        args += value
+        return "ARGV[${args.size}]"
+    }
+
+    fun line(value: String) {
+        lines += value
+    }
+
+    fun build(): RedisMutationScript =
+        RedisMutationScript(
+            source = (lines + "return 1").joinToString(separator = "\n"),
+            keys = keys,
+            args = args,
+        )
+}
+
+private fun List<RedisMutationOperation>.toLuaScript(): RedisMutationScript =
+    RedisMutationScriptBuilder().also { builder ->
+        forEach { operation -> operation.append(builder) }
+    }.build()

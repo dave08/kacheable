@@ -104,6 +104,7 @@ cache.invalidate(artistSongCache.all())                       // 6
 - Blocking and suspending interfaces
 - In-memory, Redis/Lettuce, and no-op stores
 - Per-cache expiry configuration
+- Opt-in loader resilience for cold-cache pressure
 - Custom cache naming strategies
 
 ## The Mental Model
@@ -451,6 +452,44 @@ val cache = Kacheable(
 Use nullable key parts when `null` is a real part of the repository call identity. For example, `filter = null` can mean “no filter selected”, which is different from omitting the filter from the key.
 
 6. The null key placeholder is configurable in the naming strategy.
+
+## Resilience
+
+Kacheable does not add loader coordination by default. Plain cache misses keep the simple behavior: if ten callers miss the same key at the same time, all ten loaders may run.
+
+For expensive loaders, configure resilience globally or per cache:
+
+```kotlin
+val cache = Kacheable(
+    store = redisStore,
+    defaultResilience = CacheResilienceConfig(
+        singleFlight = SingleFlightMode.Local, // 1
+        maxConcurrentLoads = 8,                // 2
+        loadTimeout = 2.seconds,               // 3
+        staleOnTimeout = true,                 // 4
+    ),
+    configs = mapOf(
+        "artist-page" to CacheConfig(
+            name = "artist-page",
+            expiryType = ExpiryType.after_write,
+            expiry = 10.minutes,
+            resilience = CacheResilienceConfig(
+                singleFlight = SingleFlightMode.Redis,
+                maxConcurrentLoads = 3,
+            ),
+        ),
+    ),
+)
+```
+
+1. `Local` runs one loader per cache key per JVM; concurrent callers await the same result.
+2. `maxConcurrentLoads` limits how many different cold keys can load for that cache at once.
+3. `loadTimeout` bounds the loader path. It does not change Redis command timeouts.
+4. `staleOnTimeout` and `staleOnFailure` may return a previously cached value when one exists.
+
+`SingleFlightMode.Redis` coordinates across processes with Redis lock keys. It requires a store that supports distributed coordination, such as the Lettuce store. Kacheable fails fast during startup if Redis single-flight is configured against a store that cannot provide it.
+
+Use `Redis` single-flight for multi-pod cold-cache stampedes. Use `Local` for a cheaper per-process guard. Keep `None` for cheap loaders or when duplicate work is acceptable.
 
 ## Raw Escape Hatch
 

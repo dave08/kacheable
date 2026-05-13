@@ -22,6 +22,8 @@ class RedisFixture private constructor(
     val commands: RedisCommands<String, String>
         get() = connection.sync()
 
+    fun newConnection(): StatefulRedisConnection<String, String> = client.connect()
+
     fun suspendFixture(vararg configs: CacheConfig): SuspendRedisFixture =
         SuspendRedisFixture(
             redis = this,
@@ -47,8 +49,8 @@ class RedisFixture private constructor(
     }
 
     companion object {
-        fun start(): RedisFixture {
-            val container = GenericContainer<Nothing>("redis:5.0.3-alpine").apply {
+        fun start(imageName: String = "redis:5.0.3-alpine"): RedisFixture {
+            val container = GenericContainer<Nothing>(imageName).apply {
                 withExposedPorts(6379)
                 start()
             }

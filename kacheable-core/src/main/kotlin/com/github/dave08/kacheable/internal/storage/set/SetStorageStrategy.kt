@@ -7,6 +7,8 @@ import com.github.dave08.kacheable.ExpiryType
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
+import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.CacheLoadTimeoutException
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.classificationInvalidationPlan
 import com.github.dave08.kacheable.internal.storage.invalidationPlan
@@ -15,6 +17,8 @@ import com.github.dave08.kacheable.internal.storage.setMembershipEntry
 import com.github.dave08.kacheable.internal.storage.shouldWriteSetMembershipResult
 import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.store.KacheableStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 
 internal object SetStorageStrategy {
     val storage: CacheStorage.Set = CacheStorage.Set
@@ -78,35 +82,61 @@ internal object SetStorageStrategy {
         cacheArgs: PrimarySecondaryCacheArgs,
         cacheFalse: Boolean,
         saveResultIf: (Boolean) -> Boolean,
+        loadCoordinator: CacheLoadCoordinator,
         block: suspend () -> Boolean,
     ): Boolean {
         val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val member = membershipEntry.requiredMember
         val config = configs[name]
+        val resilience = loadCoordinator.resilienceFor(config)
 
-        if (store.isSetMember(membershipEntry.membersKey, member)) {
-            if (config?.expiryType == ExpiryType.after_access) store.setExpire(membershipEntry.membersKey, config.expiry)
-            return true
+        suspend fun readCached(): Boolean? {
+            if (store.isSetMember(membershipEntry.membersKey, member)) {
+                if (config?.expiryType == ExpiryType.after_access) store.setExpire(membershipEntry.membersKey, config.expiry)
+                return true
+            }
+
+            if (cacheFalse && store.isSetMember(membershipEntry.nonMembersKey, member)) {
+                if (config?.expiryType == ExpiryType.after_access) store.setExpire(membershipEntry.nonMembersKey, config.expiry)
+                return false
+            }
+
+            return null
         }
 
-        if (cacheFalse && store.isSetMember(membershipEntry.nonMembersKey, member)) {
-            if (config?.expiryType == ExpiryType.after_access) store.setExpire(membershipEntry.nonMembersKey, config.expiry)
-            return false
-        }
+        readCached()?.let { return it }
 
-        val blockResult = block()
-        if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
-            store.replaceSetMembership(
-                member = member,
-                membersKey = membershipEntry.membersKey,
-                nonMembersKey = membershipEntry.nonMembersKey,
-                isMember = blockResult,
-                expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
-                cacheFalse = cacheFalse,
-            )
-        }
+        return try {
+            loadCoordinator.load(
+                cacheName = name,
+                entryKey = "${membershipEntry.membersKey}:$member",
+                store = store,
+                config = config,
+                readCached = ::readCached,
+            ) {
+                val blockResult = block()
+                if (shouldWriteSetMembershipResult(blockResult, cacheFalse, saveResultIf)) {
+                    store.replaceSetMembership(
+                        member = member,
+                        membersKey = membershipEntry.membersKey,
+                        nonMembersKey = membershipEntry.nonMembersKey,
+                        isMember = blockResult,
+                        expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
+                        cacheFalse = cacheFalse,
+                    )
+                }
 
-        return blockResult
+                blockResult
+            }
+        } catch (t: TimeoutCancellationException) {
+            readCached().takeIf { resilience.staleOnTimeout } ?: throw t
+        } catch (t: CacheLoadTimeoutException) {
+            readCached().takeIf { resilience.staleOnTimeout } ?: throw t
+        } catch (t: CancellationException) {
+            throw t
+        } catch (t: Throwable) {
+            readCached().takeIf { resilience.staleOnFailure } ?: throw t
+        }
     }
 
     suspend fun <R : Any> invokeClassification(
@@ -118,33 +148,59 @@ internal object SetStorageStrategy {
         values: List<R>,
         valueName: (R) -> String,
         saveResultIf: (R) -> Boolean,
+        loadCoordinator: CacheLoadCoordinator,
         block: suspend () -> R,
     ): R {
         require(values.isNotEmpty()) { "Set classification caches require at least one possible value." }
         val membershipEntry = setMembershipEntry(name, cacheArgs, namingStrategy)
         val member = membershipEntry.requiredMember
         val config = configs[name]
+        val resilience = loadCoordinator.resilienceFor(config)
 
-        values.forEach { value ->
-            val key = membershipEntry.classifiedKey(valueName(value))
-            if (store.isSetMember(key, member)) {
-                if (config?.expiryType == ExpiryType.after_access) store.setExpire(key, config.expiry)
-                return value
+        suspend fun readCached(): R? {
+            values.forEach { value ->
+                val key = membershipEntry.classifiedKey(valueName(value))
+                if (store.isSetMember(key, member)) {
+                    if (config?.expiryType == ExpiryType.after_access) store.setExpire(key, config.expiry)
+                    return value
+                }
             }
+
+            return null
         }
 
-        val blockResult = block()
-        if (saveResultIf(blockResult)) {
-            val keyToWrite = membershipEntry.keyForClassificationResult(blockResult, values, valueName)
-            store.replaceClassifiedMembership(
-                member = member,
-                targetKey = keyToWrite,
-                candidateKeys = values.map { value -> membershipEntry.classifiedKey(valueName(value)) },
-                expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
-            )
-        }
+        readCached()?.let { return it }
 
-        return blockResult
+        return try {
+            loadCoordinator.load(
+                cacheName = name,
+                entryKey = "${membershipEntry.membersKey}:$member",
+                store = store,
+                config = config,
+                readCached = ::readCached,
+            ) {
+                val blockResult = block()
+                if (saveResultIf(blockResult)) {
+                    val keyToWrite = membershipEntry.keyForClassificationResult(blockResult, values, valueName)
+                    store.replaceClassifiedMembership(
+                        member = member,
+                        targetKey = keyToWrite,
+                        candidateKeys = values.map { value -> membershipEntry.classifiedKey(valueName(value)) },
+                        expiry = config?.takeIf { it.expiryType != ExpiryType.none }?.expiry,
+                    )
+                }
+
+                blockResult
+            }
+        } catch (t: TimeoutCancellationException) {
+            readCached().takeIf { resilience.staleOnTimeout } ?: throw t
+        } catch (t: CacheLoadTimeoutException) {
+            readCached().takeIf { resilience.staleOnTimeout } ?: throw t
+        } catch (t: CancellationException) {
+            throw t
+        } catch (t: Throwable) {
+            readCached().takeIf { resilience.staleOnFailure } ?: throw t
+        }
     }
 
     fun <R> invalidateMembership(

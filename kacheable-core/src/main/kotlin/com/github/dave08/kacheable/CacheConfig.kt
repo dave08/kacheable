@@ -15,4 +15,5 @@ data class CacheConfig(
      * If this is `null`, real null results are returned to the caller but not written to the cache.
      */
     val nullPlaceholder: String? = null,
+    val resilience: CacheResilienceConfig? = null,
 )

@@ -55,6 +55,17 @@ val RedisStoreMutationSpec by testSuite {
         }
     }
 
+    test("suspend Redis store can write a hash value with expiry in one semantic operation") {
+        RedisFixture.start().use { fixture ->
+            val store = RedisKacheableStore(fixture.connection)
+
+            store.setHashValueWithExpire("songs", "9", """{"id":9}""", 2.minutes)
+
+            expectThat(fixture.commands.hget("songs", "9")).isEqualTo("""{"id":9}""")
+            expectThat(fixture.commands.ttl("songs")).isEqualTo(2.minutes.inWholeSeconds)
+        }
+    }
+
     test("suspend Redis store can replace boolean membership state semantically") {
         RedisFixture.start().use { fixture ->
             val store = RedisKacheableStore(fixture.connection)

@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheReturn
@@ -10,6 +11,7 @@ import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
+import com.github.dave08.kacheable.SingleFlightMode
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.TypedStorages
 import com.github.dave08.kacheable.internal.storage.hash.HashMapTypedStorage
@@ -17,6 +19,7 @@ import com.github.dave08.kacheable.internal.storage.set.SetTypedStorage
 import com.github.dave08.kacheable.internal.storage.string.StringTypedStorage
 import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.cacheValueCodec
+import com.github.dave08.kacheable.store.DistributedSingleFlightStore
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -30,14 +33,13 @@ internal class KacheableImpl(
         configs: Map<String, CacheConfig>,
         namingStrategy: CacheNamingStrategy,
         jsonParser: Json,
+        defaultResilience: CacheResilienceConfig,
     ) : this(
-        storages = TypedStorages(
-            string = StringTypedStorage(store, configs, namingStrategy),
-            hashMap = HashMapTypedStorage(store, configs, namingStrategy),
-            set = SetTypedStorage(store, configs, namingStrategy),
-        ),
+        storages = createTypedStorages(store, configs, namingStrategy, defaultResilience),
         jsonParser = jsonParser,
-    )
+    ) {
+        validateResilience(store, configs, defaultResilience)
+    }
 
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
         storages.string.invalidate(*keys, block = block)
@@ -108,4 +110,36 @@ internal class KacheableImpl(
         saveResultIf = cacheIf,
         block = block,
     )
+
+    companion object {
+        private fun createTypedStorages(
+            store: KacheableStore,
+            configs: Map<String, CacheConfig>,
+            namingStrategy: CacheNamingStrategy,
+            defaultResilience: CacheResilienceConfig,
+        ): TypedStorages {
+            val loadCoordinator = CacheLoadCoordinator(defaultResilience)
+            return TypedStorages(
+                string = StringTypedStorage(store, configs, loadCoordinator, namingStrategy),
+                hashMap = HashMapTypedStorage(store, configs, loadCoordinator, namingStrategy),
+                set = SetTypedStorage(store, configs, loadCoordinator, namingStrategy),
+            )
+        }
+    }
+}
+
+private fun validateResilience(
+    store: KacheableStore,
+    configs: Map<String, CacheConfig>,
+    defaultResilience: CacheResilienceConfig,
+) {
+    val redisSingleFlightConfigured =
+        defaultResilience.singleFlight == SingleFlightMode.Redis ||
+            configs.values.any { it.resilience?.singleFlight == SingleFlightMode.Redis }
+
+    if (redisSingleFlightConfigured && store !is DistributedSingleFlightStore) {
+        throw IllegalArgumentException(
+            "Redis single-flight requires a store that implements DistributedSingleFlightStore.",
+        )
+    }
 }
