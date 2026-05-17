@@ -16,8 +16,8 @@ Use this before tagging a new public version.
 7. Tag the release, for example:
 
    ```bash
-   git tag v0.2.0-alpha01
-   git push origin v0.2.0-alpha01
+   git tag v0.2.0-alpha03
+   git push origin v0.2.0-alpha03
    ```
 
 8. Confirm JitPack resolves the new tag.
