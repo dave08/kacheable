@@ -8,13 +8,13 @@
 
 # Kacheable
 
-Kacheable is a Kotlin caching library for wrapping computations behind typed cache keys.
+Kacheable is a Kotlin caching library for wrapping loader lambdas behind typed cache keys.
 
 The core idea is:
 
-> One cache key describes one logical cached result. Storage is an optimization plan.
+> Keep the repository call simple. Put identity, storage, loading, fallback, and cold-start recovery around the lambda.
 
-That means the call site talks about what the repository returns, while Kacheable can choose an exact value, hash/indexed value, boolean membership set, or enum classification set behind the scenes.
+That means the call site talks about what the repository returns, while Kacheable can choose an exact value, hash/indexed value, boolean membership set, or enum classification set behind the scenes. Expensive misses can opt into single-flight, timeouts, fallbacks, background refresh, and durable snapshots without turning the repository method into cache plumbing.
 
 ## Quick Start
 
@@ -101,10 +101,12 @@ cache.invalidate(artistSongCache.all())                       // 6
 - Single-partition caches for top-level paginated result families
 - Nullable results and nullable key parts
 - Conditional writes with `cacheIf`
+- Typed miss policies for fallback and background loading
 - Blocking and suspending interfaces
 - In-memory, Redis/Lettuce, and no-op stores
 - Per-cache expiry configuration
 - Opt-in loader resilience for cold-cache pressure
+- Durable snapshots for indexed/hash-style cache families
 - Custom cache naming strategies
 
 ## The Mental Model
@@ -491,6 +493,132 @@ val cache = Kacheable(
 
 Use `Redis` single-flight for multi-pod cold-cache stampedes. Use `Local` for a cheaper per-process guard. Keep `None` for cheap loaders or when duplicate work is acceptable.
 
+## Miss Policies
+
+Most cache calls can stay as simple read-through lambdas:
+
+```kotlin
+cache(songCache(songIdValue)) {
+    repository.song(songIdValue)
+}
+```
+
+When a real miss should behave differently, use `CacheMissPolicy` at the call site:
+
+```kotlin
+val productId = keyPart<String>("productId")
+
+val productCardCache = cacheKey(
+    "product-cards",
+    returns<ProductCard?>(),
+    key = partitioned(key = productId),
+)
+
+cache(
+    productCardCache(productIdValue),
+    missPolicy = CacheMissPolicy.loadInBackground(
+        fallback = { ProductCard.placeholder(productIdValue) }, // 1
+    ),
+    storeResultIf = { it != null },                              // 2
+) {
+    catalogClient.fetchProductCard(productIdValue)              // 3
+}
+```
+
+1. `loadInBackground` returns the fallback immediately. The fallback is not stored.
+2. `storeResultIf` only decides whether the lambda result is cached. It never changes what the caller receives.
+3. The lambda remains the source of truth and runs in the background after the fallback is returned.
+
+Available miss policies:
+
+| Policy | Behavior |
+| --- | --- |
+| `CacheMissPolicy.load()` | Normal read-through caching. Run the lambda in the request path and return its result. |
+| `CacheMissPolicy.load(fallbackOnFailure = ...)` | Run the lambda in the request path and return a fallback only if it fails or times out. |
+| `CacheMissPolicy.loadInBackground(fallback = ...)` | Return fallback immediately, then run the lambda in the background. |
+
+Storage decisions are separate from miss behavior:
+
+```kotlin
+cache(
+    expensiveCache(id),
+    missPolicy = CacheMissPolicy.load(),
+    refreshPolicy = CacheRefreshPolicy.refreshIf(inBackground = true) { cached -> cached.isStale },
+    storeResultIf = { result -> result.isStable },
+) { previous ->
+    repository.loadExpensiveValue(id, previous)
+}
+```
+
+`CacheRefreshPolicy.neverRefresh()` returns present cached values normally. `refreshIf(...)` reruns the lambda only when a cached value is considered stale; with `inBackground = true`, callers keep getting the previous cached value while the refresh runs.
+
+The existing `cacheIf` overload remains available:
+
+```kotlin
+cache(expensiveCache(id), cacheIf = { it.isStable }) {
+    repository.loadExpensiveValue(id)
+}
+```
+
+It maps to normal read-through loading with `storeResultIf = cacheIf`.
+
+## Cache Snapshots
+
+Snapshots are opt-in durable warm-cache snapshots for expensive indexed/hash-style cache families. They are useful when a cache is too expensive to recreate after a cold Redis start, but the loader lambda should remain the source of truth.
+
+```kotlin
+val productId = keyPart<String>("productId")
+
+val productCardCache = cacheKey(
+    "product-cards",
+    returns<ProductCard?>(),
+    key = partitioned(key = productId),
+    storage = indexedValueStorage(), // 1
+)
+
+val cache = Kacheable(
+    store = redisStore,
+    snapshotStore = S3CacheSnapshotStore(
+        bucket = "app-cache-snapshots",
+        prefix = "catalog/product-cards/v1",
+        readObject = { bucket, key -> s3.getObjectBytes(bucket, key) },
+        writeObject = { bucket, key, bytes -> s3.putObjectBytes(bucket, key, bytes) },
+    ),
+    configs = mapOf(
+        "product-cards" to CacheConfig(
+            name = "product-cards",
+            snapshot = persistentSnapshot(
+                restore = SnapshotRestore.BackgroundWithOnDemandChunks, // 2
+                flushInterval = 15.minutes,                             // 3
+                retention = SnapshotRetention.LatestAndPrevious,         // 4
+            ),
+        ),
+    ),
+)
+```
+
+1. V1 snapshots export/import indexed/hash-style caches.
+2. Background restore starts immediately, and an early request miss can restore just the relevant snapshot chunk before running the miss policy.
+3. Periodic flush exports the hot cache to the configured snapshot store.
+4. Keeping latest and previous lets restore fall back when the latest snapshot is missing or corrupt.
+
+Restore modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `SnapshotRestore.Blocking` | Restore before `Kacheable(...)` returns. |
+| `SnapshotRestore.Background` | Start restoring immediately in the background. |
+| `SnapshotRestore.BackgroundWithOnDemandChunks` | Restore in the background, and on a miss try the relevant chunk before running the miss policy. |
+
+Retention modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `SnapshotRetention.LatestOnly` | Write and restore only the latest snapshot slot. |
+| `SnapshotRetention.LatestAndPrevious` | Rotate latest to previous on flush, and fall back to previous when latest is missing or corrupt. |
+
+Current snapshot support is intentionally narrow: indexed/hash-style values first. Exact string values and set-membership snapshots can be added later without changing the public snapshot vocabulary.
+
 ## Raw Escape Hatch
 
 The raw API remains available for low-level or migration cases:
@@ -539,4 +667,4 @@ Custom naming strategies can change the generated strings while keeping that exa
 
 ## More
 
-See [docs/cache-key.md](docs/cache-key.md) for the full cache-key guide, including blocking APIs, custom naming strategies, matchable invalidation, and storage planning details.
+See [docs/cache-key.md](docs/cache-key.md) for the full cache-key guide, including blocking APIs, custom naming strategies, matchable invalidation, miss policies, snapshots, and storage planning details.

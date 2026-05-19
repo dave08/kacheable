@@ -2,6 +2,7 @@ package com.github.dave08.kacheable.redis
 
 import com.github.dave08.kacheable.internal.CacheLoadTimeoutException
 import com.github.dave08.kacheable.store.DistributedSingleFlightStore
+import com.github.dave08.kacheable.store.HashFieldEntry
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.StoreMutationScope
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
@@ -61,6 +62,45 @@ class RedisKacheableStore(
 
     override suspend fun deleteHashValue(key: String, field: String) {
         conn.coroutines().hdel(key, field)
+    }
+
+    override suspend fun scanHashFields(keyPattern: String): List<HashFieldEntry> {
+        val commands = conn.coroutines()
+        val entries = mutableListOf<HashFieldEntry>()
+        var keyCursor: ScanCursor = ScanCursor.INITIAL
+        do {
+            val keyScan = checkNotNull(commands.scan(keyCursor, ScanArgs().match(keyPattern).limit(deleteScanCount)))
+            keyScan.keys.forEach { key ->
+                if (commands.type(key) != "hash") return@forEach
+                var hashCursor: ScanCursor = ScanCursor.INITIAL
+                do {
+                    val hashScan = checkNotNull(commands.hscan(key, hashCursor, ScanArgs().limit(deleteScanCount)))
+                    entries += hashScan.map.map { (field, value) ->
+                        HashFieldEntry(key, field, value)
+                    }
+                    hashCursor = hashScan
+                } while (!hashCursor.isFinished)
+            }
+            keyCursor = keyScan
+        } while (!keyCursor.isFinished)
+        return entries
+    }
+
+    override suspend fun writeHashFields(
+        entries: Iterable<HashFieldEntry>,
+        expiry: Duration?,
+    ) {
+        val commands = conn.coroutines()
+        val touchedKeys = mutableSetOf<String>()
+        entries.chunked(500).forEach { chunk ->
+            chunk.forEach { entry ->
+                commands.hset(entry.key, entry.field, entry.value)
+                touchedKeys += entry.key
+            }
+        }
+        expiry?.let { duration ->
+            touchedKeys.forEach { key -> commands.pexpire(key, duration.inWholeMilliseconds) }
+        }
     }
 
     override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) {

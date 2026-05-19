@@ -1,7 +1,9 @@
 package com.github.dave08.kacheable.internal.storage.set
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
@@ -12,12 +14,14 @@ import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.store.KacheableStore
+import kotlinx.coroutines.CoroutineScope
 
 internal class SetTypedStorage(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
     private val loadCoordinator: CacheLoadCoordinator,
     private val namingStrategy: CacheNamingStrategy,
+    private val backgroundScope: () -> CoroutineScope,
 ) : TypedStorage<CacheStorage.Set> {
     override val storage: CacheStorage.Set = CacheStorage.Set
     private val entryNamer = com.github.dave08.kacheable.internal.storage.CacheEntryNamer(namingStrategy)
@@ -52,8 +56,10 @@ internal class SetTypedStorage(
     override suspend fun <R> invoke(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
-        block: suspend () -> R,
+        missPolicy: CacheMissPolicy<R>,
+        refreshPolicy: CacheRefreshPolicy<R>,
+        storeResultIf: (R) -> Boolean,
+        block: suspend (previous: R?) -> R,
     ): R = when (returnView) {
         is IsMemberCacheReturn -> SetStorageStrategy.invokeMembership(
             store = store,
@@ -62,9 +68,12 @@ internal class SetTypedStorage(
             name = entryRef.name,
             cacheArgs = entryRef.cacheArgs,
             cacheFalse = returnView.cacheFalse,
-            saveResultIf = saveResultIf as (Boolean) -> Boolean,
+            missPolicy = missPolicy as CacheMissPolicy<Boolean>,
+            refreshPolicy = refreshPolicy as CacheRefreshPolicy<Boolean>,
+            storeResultIf = storeResultIf as (Boolean) -> Boolean,
             loadCoordinator = loadCoordinator,
-            block = block as suspend () -> Boolean,
+            backgroundScope = backgroundScope,
+            block = block as suspend (Boolean?) -> Boolean,
         ) as R
 
         is EnumMemberCacheReturn<*> -> {
@@ -77,9 +86,12 @@ internal class SetTypedStorage(
                 cacheArgs = entryRef.cacheArgs,
                 values = typedReturn.values,
                 valueName = typedReturn.valueName,
-                saveResultIf = saveResultIf as (Any) -> Boolean,
+                missPolicy = missPolicy as CacheMissPolicy<Any>,
+                refreshPolicy = refreshPolicy as CacheRefreshPolicy<Any>,
+                storeResultIf = storeResultIf as (Any) -> Boolean,
                 loadCoordinator = loadCoordinator,
-                block = block as suspend () -> Any,
+                backgroundScope = backgroundScope,
+                block = block as suspend (Any?) -> Any,
             ) as R
         }
 

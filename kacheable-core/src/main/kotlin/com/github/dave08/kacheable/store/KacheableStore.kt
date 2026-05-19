@@ -3,6 +3,15 @@ package com.github.dave08.kacheable.store
 import kotlin.time.Duration
 
 /**
+ * One field/value entry inside a hash-like storage key.
+ */
+data class HashFieldEntry(
+    val key: String,
+    val field: String,
+    val value: String,
+)
+
+/**
  * Suspended storage adapter used by Kacheable.
  *
  * Store implementations provide string, hash, and optionally set-membership operations. Default
@@ -38,6 +47,33 @@ interface KacheableStore {
 
     suspend fun isSetMember(key: String, member: String): Boolean {
         unsupportedSetMembership()
+    }
+
+    /**
+     * Returns hash fields under keys matching [keyPattern].
+     *
+     * This is a low-level store capability used by features such as snapshot export. Stores that
+     * cannot scan hash fields can leave the default unsupported implementation.
+     */
+    suspend fun scanHashFields(keyPattern: String): List<HashFieldEntry> {
+        unsupportedHashScanning()
+    }
+
+    /**
+     * Writes hash fields, optionally applying [expiry] to each touched hash key.
+     */
+    suspend fun writeHashFields(
+        entries: Iterable<HashFieldEntry>,
+        expiry: Duration? = null,
+    ) {
+        val touchedKeys = mutableSetOf<String>()
+        entries.forEach { entry ->
+            setHashValue(entry.key, entry.field, entry.value)
+            touchedKeys += entry.key
+        }
+        expiry?.let { duration ->
+            touchedKeys.forEach { key -> setExpire(key, duration) }
+        }
     }
 
     suspend fun setExpire(key: String, expiry: Duration)
@@ -105,4 +141,7 @@ interface KacheableStore {
 
     private fun unsupportedSetMembership(): Nothing =
         throw UnsupportedOperationException("This KacheableStore does not support set membership storage.")
+
+    private fun unsupportedHashScanning(): Nothing =
+        throw UnsupportedOperationException("This KacheableStore does not support scanning hash fields.")
 }

@@ -34,9 +34,18 @@ internal object NoopKacheable : Kacheable {
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        cacheIf: (R) -> Boolean,
-        block: suspend () -> R,
-    ): R = block()
+        missPolicy: CacheMissPolicy<R>,
+        refreshPolicy: CacheRefreshPolicy<R>,
+        storeResultIf: (R) -> Boolean,
+        block: suspend (previous: R?) -> R,
+    ): R = when (missPolicy) {
+        is CacheMissPolicy.Load -> runCatching { block(null) }
+            .getOrElse { error ->
+                missPolicy.fallbackOnFailure?.invoke(error) ?: throw error
+            }
+
+        is CacheMissPolicy.LoadInBackground -> missPolicy.fallback()
+    }
 
     override suspend fun <R> invoke(
         name: String,

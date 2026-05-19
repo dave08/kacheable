@@ -1,25 +1,31 @@
 package com.github.dave08.kacheable.internal.storage.string
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.delete
 import com.github.dave08.kacheable.internal.storage.invokeAtAddress
 import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.KacheableStore
+import kotlinx.coroutines.CoroutineScope
 
 internal class StringTypedStorage(
     private val store: KacheableStore,
     private val configs: Map<String, CacheConfig>,
     private val loadCoordinator: CacheLoadCoordinator,
     namingStrategy: CacheNamingStrategy,
+    private val snapshotCoordinator: CacheSnapshotCoordinator?,
+    private val backgroundScope: () -> CoroutineScope,
 ) : TypedStorage<CacheStorage.String> {
     override val storage: CacheStorage.String = CacheStorage.String
     private val entryNamer = CacheEntryNamer(namingStrategy)
@@ -45,15 +51,21 @@ internal class StringTypedStorage(
     override suspend fun <R> invoke(
         entryRef: StoredCacheEntryRef<CacheStorage.String>,
         returnView: CacheReturn<R, *>,
-        saveResultIf: (R) -> Boolean,
-        block: suspend () -> R,
+        missPolicy: CacheMissPolicy<R>,
+        refreshPolicy: CacheRefreshPolicy<R>,
+        storeResultIf: (R) -> Boolean,
+        block: suspend (previous: R?) -> R,
     ): R = store.invokeAtAddress(
         entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
         loadCoordinator = loadCoordinator,
+        snapshotCoordinator = snapshotCoordinator,
+        backgroundScope = backgroundScope,
         codec = returnView.codec,
-        saveResultIf = saveResultIf,
+        missPolicy = missPolicy,
+        refreshPolicy = refreshPolicy,
+        storeResultIf = storeResultIf,
         block = block,
     )
 
@@ -68,10 +80,13 @@ internal class StringTypedStorage(
         cacheName = name,
         configs = configs,
         loadCoordinator = loadCoordinator,
+        snapshotCoordinator = snapshotCoordinator,
+        backgroundScope = backgroundScope,
         codec = codec,
-        saveResultIf = saveResultIf,
-        block = block,
-    )
+        missPolicy = CacheMissPolicy.load(),
+        refreshPolicy = CacheRefreshPolicy.neverRefresh(),
+        storeResultIf = saveResultIf,
+    ) { block() }
 
     suspend fun <R> invalidate(
         vararg keys: Pair<String, List<Any>>,

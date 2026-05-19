@@ -63,6 +63,15 @@ class InMemoryKacheableStore(
 
     override suspend fun isSetMember(key: String, member: String): Boolean = sets[key]?.contains(member) == true
 
+    override suspend fun scanHashFields(keyPattern: String): List<HashFieldEntry> {
+        val regex = wildcardRegex(keyPattern)
+        return hashMap.entries
+            .filter { (key, _) -> regex.matches(key) }
+            .flatMap { (key, fields) ->
+                fields.map { (field, value) -> HashFieldEntry(key, field, value) }
+            }
+    }
+
     override suspend fun setExpire(key: String, expiry: Duration) {
         expiries[key] = expiry
         expireCalls += key to expiry

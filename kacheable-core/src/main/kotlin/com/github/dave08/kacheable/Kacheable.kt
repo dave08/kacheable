@@ -66,6 +66,45 @@ interface Kacheable {
         returnView: CacheReturn<R, *>,
         cacheIf: (R) -> Boolean,
         block: suspend () -> R,
+    ): R = invoke(
+        entryRef = entryRef,
+        returnView = returnView,
+        missPolicy = CacheMissPolicy.load(),
+        refreshPolicy = CacheRefreshPolicy.neverRefresh(),
+        storeResultIf = cacheIf,
+    ) { block() }
+
+    /**
+     * Reads a typed cache entry or applies [missPolicy] when no hot cache or snapshot value exists.
+     *
+     * The [block] lambda remains the authoritative loader. Miss policies only decide whether the
+     * caller waits for it, gets a fallback first, or receives a fallback after a loader failure.
+     */
+    suspend fun <S : CacheStorage, R> invoke(
+        entryRef: StoredCacheEntryRef<S>,
+        returnView: CacheReturn<R, *>,
+        missPolicy: CacheMissPolicy<R>,
+        block: suspend () -> R,
+    ): R = invoke(
+        entryRef = entryRef,
+        returnView = returnView,
+        missPolicy = missPolicy,
+        refreshPolicy = CacheRefreshPolicy.neverRefresh(),
+        storeResultIf = { true },
+    ) { block() }
+
+    /**
+     * Reads a typed cache entry, optionally refreshes stale cached values, or applies [missPolicy]
+     * when no value exists. The loader receives the previous cached value on refresh and `null` on
+     * a true miss.
+     */
+    suspend fun <S : CacheStorage, R> invoke(
+        entryRef: StoredCacheEntryRef<S>,
+        returnView: CacheReturn<R, *>,
+        missPolicy: CacheMissPolicy<R>,
+        refreshPolicy: CacheRefreshPolicy<R>,
+        storeResultIf: (R) -> Boolean,
+        block: suspend (previous: R?) -> R,
     ): R
 }
 

@@ -13,7 +13,16 @@ data class CacheConfig(
      * Serialized marker used to cache a nullable result.
      *
      * If this is `null`, real null results are returned to the caller but not written to the cache.
-     */
+    */
     val nullPlaceholder: String? = null,
     val resilience: CacheResilienceConfig? = null,
+    /**
+     * Optional durable snapshot behavior for this cache family.
+     *
+     * Snapshots are useful for expensive indexed/hash-style caches that should survive a cold
+     * Redis or in-memory restart. Kacheable still treats the loader lambda as the source of truth:
+     * restored snapshot values are just warm cache entries, and misses still run the configured
+     * miss policy.
+     */
+    val snapshot: CacheSnapshotConfig? = null,
 )

@@ -1,17 +1,24 @@
+@file:OptIn(kotlin.time.ExperimentalTime::class)
+
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheEntryPartRef
+import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
+import com.github.dave08.kacheable.CacheSnapshotStore
+import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.NoopCacheSnapshotStore
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.SingleFlightMode
+import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.TypedStorages
 import com.github.dave08.kacheable.internal.storage.hash.HashMapTypedStorage
@@ -21,24 +28,51 @@ import com.github.dave08.kacheable.store.CacheValueCodec
 import com.github.dave08.kacheable.store.cacheValueCodec
 import com.github.dave08.kacheable.store.DistributedSingleFlightStore
 import com.github.dave08.kacheable.store.KacheableStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 
 internal class KacheableImpl(
-    private val storages: TypedStorages,
+    store: KacheableStore,
+    configs: Map<String, CacheConfig>,
+    namingStrategy: CacheNamingStrategy,
     private val jsonParser: Json,
+    defaultResilience: CacheResilienceConfig,
+    snapshotStore: CacheSnapshotStore = NoopCacheSnapshotStore,
+    backgroundScope: CoroutineScope? = null,
+    snapshotClock: Clock = Clock.System,
 ) : Kacheable {
-    constructor(
-        store: KacheableStore,
-        configs: Map<String, CacheConfig>,
-        namingStrategy: CacheNamingStrategy,
-        jsonParser: Json,
-        defaultResilience: CacheResilienceConfig,
-    ) : this(
-        storages = createTypedStorages(store, configs, namingStrategy, defaultResilience),
-        jsonParser = jsonParser,
-    ) {
+    private val backgroundScopeProvider = BackgroundScopeProvider(backgroundScope)
+
+    private val snapshotCoordinator = if (configs.values.any { it.snapshot != null }) {
+        CacheSnapshotCoordinator(
+            store = store,
+            snapshotStore = snapshotStore,
+            configs = configs,
+            namingStrategy = namingStrategy,
+            scope = backgroundScopeProvider.get(),
+            clock = snapshotClock,
+        )
+    } else {
+        null
+    }
+
+    private val storages: TypedStorages =
+        createTypedStorages(
+            store,
+            configs,
+            namingStrategy,
+            defaultResilience,
+            snapshotCoordinator,
+            backgroundScopeProvider::get,
+        )
+
+    init {
         validateResilience(store, configs, defaultResilience)
+        snapshotCoordinator?.start()
     }
 
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
@@ -90,11 +124,20 @@ internal class KacheableImpl(
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
         returnView: CacheReturn<R, *>,
-        cacheIf: (R) -> Boolean,
-        block: suspend () -> R,
+        missPolicy: CacheMissPolicy<R>,
+        refreshPolicy: CacheRefreshPolicy<R>,
+        storeResultIf: (R) -> Boolean,
+        block: suspend (previous: R?) -> R,
     ): R {
         @Suppress("UNCHECKED_CAST")
-        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(entryRef, returnView, cacheIf, block)
+        return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(
+            entryRef = entryRef,
+            returnView = returnView,
+            missPolicy = missPolicy,
+            refreshPolicy = refreshPolicy,
+            storeResultIf = storeResultIf,
+            block = block,
+        )
     }
 
     override suspend fun <R> invoke(
@@ -117,15 +160,27 @@ internal class KacheableImpl(
             configs: Map<String, CacheConfig>,
             namingStrategy: CacheNamingStrategy,
             defaultResilience: CacheResilienceConfig,
+            snapshotCoordinator: CacheSnapshotCoordinator?,
+            backgroundScope: () -> CoroutineScope,
         ): TypedStorages {
             val loadCoordinator = CacheLoadCoordinator(defaultResilience)
             return TypedStorages(
-                string = StringTypedStorage(store, configs, loadCoordinator, namingStrategy),
-                hashMap = HashMapTypedStorage(store, configs, loadCoordinator, namingStrategy),
-                set = SetTypedStorage(store, configs, loadCoordinator, namingStrategy),
+                string = StringTypedStorage(store, configs, loadCoordinator, namingStrategy, snapshotCoordinator, backgroundScope),
+                hashMap = HashMapTypedStorage(store, configs, loadCoordinator, namingStrategy, snapshotCoordinator, backgroundScope),
+                set = SetTypedStorage(store, configs, loadCoordinator, namingStrategy, backgroundScope),
             )
         }
     }
+}
+
+private class BackgroundScopeProvider(
+    private val provided: CoroutineScope?,
+) {
+    private val created: CoroutineScope by lazy {
+        provided ?: CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
+
+    fun get(): CoroutineScope = created
 }
 
 private fun validateResilience(

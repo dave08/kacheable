@@ -2,7 +2,7 @@
 
 Typed cache keys use one public model:
 
-> One cache key describes one cached result. Storage is an optimization plan.
+> One cache key describes one cached result. Storage, loading, fallback, and warmup are configuration around the loader lambda.
 
 ## Defining A Cache
 
@@ -299,6 +299,106 @@ val followCache = cacheKey(
     storage = membershipStorage(cacheFalse = false),
 )
 ```
+
+## Miss Policies
+
+Use `CacheMissPolicy` when a cold miss should do more than normal read-through caching.
+
+```kotlin
+val productId = keyPart<String>("productId")
+
+val productCardCache = cacheKey(
+    "product-cards",
+    returns<ProductCard?>(),
+    key = partitioned(key = productId),
+)
+
+cache(
+    productCardCache(productIdValue),
+    missPolicy = CacheMissPolicy.loadInBackground(
+        fallback = { ProductCard.placeholder(productIdValue) },
+    ),
+    storeResultIf = { it != null },
+) {
+    catalogClient.fetchProductCard(productIdValue)
+}
+```
+
+Miss behavior, refresh behavior, and storage decisions are deliberately separate:
+
+| Configuration | What caller gets | What is stored |
+| --- | --- | --- |
+| `CacheMissPolicy.load()` | The lambda result. | The lambda result when `storeResultIf` returns true. |
+| `CacheMissPolicy.load(fallbackOnFailure = ...)` | The lambda result, or `fallback(error)` after loader failure/timeout. | The lambda result when loading succeeds and `storeResultIf` returns true. |
+| `CacheMissPolicy.loadInBackground(fallback = ...)` | The fallback immediately. | The later lambda result when `storeResultIf` returns true. |
+| `CacheRefreshPolicy.refreshIf(inBackground = false)` | The refreshed value, or the previous cached value on refresh failure. | The refreshed lambda result when `storeResultIf` returns true. |
+| `CacheRefreshPolicy.refreshIf(inBackground = true)` | The previous cached value immediately. | The later refreshed lambda result when `storeResultIf` returns true. |
+
+Fallback values are never stored. `storeResultIf` only controls whether the lambda result is cached; it does not change what value is returned. Expired backend values are treated as misses, not refresh candidates.
+
+The simple `cacheIf` overload is still the right choice when the loader is cheap enough to run in the request path:
+
+```kotlin
+cache(expensiveCache(id), cacheIf = { it.isStable }) {
+    repository.loadExpensiveValue(id)
+}
+```
+
+That is equivalent to normal read-through loading with `storeResultIf = { it.isStable }`.
+
+## Cache Snapshots
+
+Snapshots are durable warm-cache exports for selected cache families. They are configured per cache, but the snapshot storage is configured once on `Kacheable(...)`.
+
+```kotlin
+val page = keyPart<Page>("page", Page::offset, Page::limit)
+
+val homePageCache = cacheKey(
+    "home-pages",
+    returns<HomePage>(),
+    key = partitioned(key = page),
+    storage = indexedValueStorage(), // 1
+)
+
+val cache = Kacheable(
+    store = redisStore,
+    snapshotStore = FileCacheSnapshotStore(snapshotRoot),
+    configs = mapOf(
+        "home-pages" to CacheConfig(
+            name = "home-pages",
+            snapshot = persistentSnapshot(
+                restore = SnapshotRestore.BackgroundWithOnDemandChunks, // 2
+                flushInterval = 15.minutes,                             // 3
+                retention = SnapshotRetention.LatestAndPrevious,         // 4
+            ),
+        ),
+    ),
+)
+```
+
+1. V1 snapshots support indexed/hash-style caches.
+2. Background restore starts immediately. If a request misses before restore finishes, Kacheable can try the relevant snapshot chunk before running the miss policy.
+3. Each flush writes a new snapshot from the hot cache.
+4. Keeping latest and previous gives restore a fallback if the latest snapshot is missing or corrupt.
+
+Restore mode is part of the cache's snapshot config:
+
+| Mode | Behavior |
+| --- | --- |
+| `SnapshotRestore.Blocking` | Restore before `Kacheable(...)` returns. |
+| `SnapshotRestore.Background` | Start restoring immediately in the background. |
+| `SnapshotRestore.BackgroundWithOnDemandChunks` | Restore in the background, and try the relevant snapshot chunk on an early miss. |
+
+Retention controls whether restore may fall back to a previous snapshot:
+
+| Mode | Behavior |
+| --- | --- |
+| `SnapshotRetention.LatestOnly` | Write and restore only the latest snapshot slot. |
+| `SnapshotRetention.LatestAndPrevious` | Rotate latest to previous on flush, and fall back to previous when latest is missing or corrupt. |
+
+The snapshot store is intentionally lower-level than the cache model. Users normally pick `FileCacheSnapshotStore`, `S3CacheSnapshotStore`, or `NoopCacheSnapshotStore`. Custom stores implement object-style read/write operations; cache-specific export/import stays inside Kacheable.
+
+Snapshots and miss policies are separate but complementary. A restored snapshot gives normal warm-cache hits after a cold Redis start. A miss policy decides what to do when neither the hot cache nor the snapshot has the requested value.
 
 ## Legacy Raw Invalidation
 

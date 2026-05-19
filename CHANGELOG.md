@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.3.0-alpha01
+
+This release broadens Kacheable from typed cache identity into typed cache miss handling and cold-start recovery. The main direction is still simple: wrap a lambda, keep the call site type-safe, and configure the loading/caching behavior around that lambda instead of moving cache logic into every repository.
+
+### Added
+
+- `CacheMissPolicy` for typed miss behavior:
+  - `load(...)` for normal read-through caching.
+  - `load(fallbackOnFailure = ...)` to run the lambda in the request path and return a fallback if loading fails or times out.
+  - `loadInBackground(...)` to return a fallback immediately and warm the cache in the background.
+- `CacheRefreshPolicy` for typed stale-value behavior:
+  - `neverRefresh()` to return present cached values normally.
+  - `refreshIf(inBackground = ...)` to rerun the lambda when a cached value is considered stale.
+- Typed `cache(..., missPolicy = ..., refreshPolicy = ..., storeResultIf = ...)` overloads. Existing `cacheIf` overloads remain and map to normal read-through loading with `storeResultIf = cacheIf`.
+- Cache snapshots for expensive indexed/hash-style cache families:
+  - `CacheConfig(snapshot = persistentSnapshot(...))`
+  - `SnapshotRestore.Blocking`
+  - `SnapshotRestore.Background`
+  - `SnapshotRestore.BackgroundWithOnDemandChunks`
+  - `SnapshotRetention.LatestOnly`
+  - `SnapshotRetention.LatestAndPrevious`
+- `CacheSnapshotStore` with `FileCacheSnapshotStore`, `S3CacheSnapshotStore`, and `NoopCacheSnapshotStore`.
+- Low-level store hash scan/write primitives used by snapshot export/import.
+- Redis and in-memory snapshot export/import for indexed/hash-style caches.
+- Stress coverage for restoring a 1,000-entry indexed Redis cache from snapshots after a cold Redis reset.
+
+### Changed
+
+- `Kacheable(...)` accepts an optional `backgroundScope`. Kacheable only creates an internal scope when background work is actually needed, such as snapshots or `loadInBackground`.
+- Snapshot timestamps use Kotlin time internally, without exposing a public clock parameter.
+- Store APIs speak storage primitives (`scanHashFields`, `writeHashFields`) instead of snapshot-specific concepts.
+
+### Current Limits
+
+- V1 snapshots cover indexed/hash-style caches. Exact string values and set-membership storage are not snapshotted yet.
+- `S3CacheSnapshotStore` is an SDK-agnostic adapter that delegates object reads/writes to user-provided functions. A dedicated S3/LocalStack integration module can still be added later if provider-specific testing earns its keep.
+- Fallback values are never stored. Only lambda results are stored, and only when `storeResultIf` allows.
+
+### Verification
+
+- `./gradlew :kacheable-core:test :kacheable-lettuce:test`
+
 ## 0.2.0-alpha03
 
 This release adds opt-in resilience controls for cold-cache pressure and hardens the Redis/Lettuce store after production rollout testing.

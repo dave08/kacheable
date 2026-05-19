@@ -1850,6 +1850,43 @@ suspend operator fun <R> Kacheable.invoke(
 ): R = invoke(entryRef.entryRef, entryRef.returnView, cacheIf, block)
 
 /**
+ * Caches a typed cache entry using an explicit miss policy.
+ */
+suspend operator fun <R> Kacheable.invoke(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    block: suspend () -> R,
+): R = invoke(entryRef.entryRef, entryRef.returnView, missPolicy, block)
+
+/**
+ * Caches a typed cache entry using an explicit miss policy and store-result predicate.
+ */
+suspend operator fun <R> Kacheable.invoke(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    storeResultIf: (R) -> Boolean,
+    block: suspend () -> R,
+): R = invoke(
+    entryRef.entryRef,
+    entryRef.returnView,
+    missPolicy,
+    CacheRefreshPolicy.neverRefresh(),
+    storeResultIf,
+) { block() }
+
+/**
+ * Caches a typed cache entry using explicit miss, refresh, and store-result policies. The loader
+ * receives the previous cached value on refresh and `null` on a true miss.
+ */
+suspend operator fun <R> Kacheable.invoke(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    refreshPolicy: CacheRefreshPolicy<R>,
+    storeResultIf: (R) -> Boolean,
+    block: suspend (previous: R?) -> R,
+): R = invoke(entryRef.entryRef, entryRef.returnView, missPolicy, refreshPolicy, storeResultIf, block)
+
+/**
  * Named equivalent of invoking a typed cache entry.
  */
 suspend fun <R> Kacheable.cache(
@@ -1857,6 +1894,38 @@ suspend fun <R> Kacheable.cache(
     cacheIf: (R) -> Boolean = { true },
     block: suspend () -> R,
 ): R = invoke(entryRef, cacheIf, block)
+
+/**
+ * Named equivalent of invoking a typed cache entry with an explicit miss policy.
+ */
+suspend fun <R> Kacheable.cache(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    block: suspend () -> R,
+): R = invoke(entryRef, missPolicy, block)
+
+/**
+ * Named equivalent of invoking a typed cache entry with an explicit miss policy and store-result
+ * predicate.
+ */
+suspend fun <R> Kacheable.cache(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    storeResultIf: (R) -> Boolean,
+    block: suspend () -> R,
+): R = invoke(entryRef, missPolicy, storeResultIf, block)
+
+/**
+ * Named equivalent of invoking a typed cache entry with explicit miss, refresh, and store-result
+ * policies. The loader receives the previous cached value on refresh and `null` on a true miss.
+ */
+suspend fun <R> Kacheable.cache(
+    entryRef: CacheEntryRef<R>,
+    missPolicy: CacheMissPolicy<R>,
+    refreshPolicy: CacheRefreshPolicy<R>,
+    storeResultIf: (R) -> Boolean,
+    block: suspend (previous: R?) -> R,
+): R = invoke(entryRef, missPolicy, refreshPolicy, storeResultIf, block)
 
 /**
  * Invalidates one or more typed cache entries.
