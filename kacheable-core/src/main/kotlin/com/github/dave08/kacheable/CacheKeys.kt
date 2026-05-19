@@ -1860,6 +1860,9 @@ suspend operator fun <R> Kacheable.invoke(
 
 /**
  * Caches a typed cache entry using an explicit miss policy and store-result predicate.
+ *
+ * [storeResultIf] applies only to the loader result. A fallback returned by [missPolicy] is not
+ * written by this overload.
  */
 suspend operator fun <R> Kacheable.invoke(
     entryRef: CacheEntryRef<R>,
@@ -1877,6 +1880,23 @@ suspend operator fun <R> Kacheable.invoke(
 /**
  * Caches a typed cache entry using explicit miss, refresh, and store-result policies. The loader
  * receives the previous cached value on refresh and `null` on a true miss.
+ *
+ * This is the full policy overload for expensive cached computations:
+ *
+ * ```kotlin
+ * cache(
+ *     productCardCache(productId),
+ *     missPolicy = CacheMissPolicy.loadInBackground {
+ *         ProductCard.placeholder(productId)
+ *     },
+ *     refreshPolicy = CacheRefreshPolicy.refreshIf(inBackground = true) { cached ->
+ *         cached.isStale
+ *     },
+ *     storeResultIf = { it.isUsable },
+ * ) { previous ->
+ *     catalogClient.fetchProductCard(productId, previous?.version)
+ * }
+ * ```
  */
 suspend operator fun <R> Kacheable.invoke(
     entryRef: CacheEntryRef<R>,

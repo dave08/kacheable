@@ -9,10 +9,26 @@ import kotlin.time.Duration.Companion.minutes
  * Snapshots are not a second source of truth. They are a cold-start optimization for expensive
  * cache families that would otherwise need to be rebuilt entirely through loader lambdas after a
  * Redis flush, deployment, or process restart.
+ *
+ * Configure snapshots per cache:
+ *
+ * ```kotlin
+ * CacheConfig(
+ *     name = "product-cards",
+ *     snapshot = persistentSnapshot(
+ *         restore = SnapshotRestore.BackgroundWithOnDemandChunks,
+ *         flushInterval = 15.minutes,
+ *         retention = SnapshotRetention.LatestAndPrevious,
+ *     ),
+ * )
+ * ```
  */
 data class CacheSnapshotConfig(
     /**
      * How aggressively Kacheable restores this cache from the snapshot store at startup.
+     *
+     * `BackgroundWithOnDemandChunks` is useful for large caches: startup can continue while early
+     * requests still get a chance to restore the chunk containing their key before running a loader.
      */
     val restore: SnapshotRestore = SnapshotRestore.Blocking,
     /**
@@ -30,6 +46,7 @@ data class CacheSnapshotConfig(
      * Number of SHA-256 hex characters used to group indexed entries into chunk files.
      *
      * Longer values create more, smaller chunks. Shorter values create fewer, larger chunks.
+     * The default keeps configuration simple for most cache families.
      */
     val chunkHashLength: Int = 2,
 )
@@ -67,11 +84,13 @@ fun persistentSnapshot(
  */
 enum class SnapshotRestore {
     /**
-     * Restore the configured snapshot before the `Kacheable(...)` factory returns.
+     * Restore the configured snapshot before the `Kacheable(...)` factory returns. Use this when the
+     * application should not serve requests until the cache family is warm.
      */
     Blocking,
     /**
-     * Start restoring immediately in the background.
+     * Start restoring immediately in the background. Misses that arrive before restore reaches their
+     * entry still use the configured miss policy.
      */
     Background,
     /**

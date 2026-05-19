@@ -43,10 +43,19 @@ data class CacheSnapshotRef(
  *
  * Implementations should treat [CacheSnapshotRef] as an object address and store opaque bytes.
  * Snapshot encoding, chunking, retention, and restore semantics are owned by Kacheable.
+ *
+ * Most applications should use [S3CacheSnapshotStore] or [FileCacheSnapshotStore]. Implement this
+ * interface only when adapting another object store.
  */
 interface CacheSnapshotStore {
+    /**
+     * Returns the stored bytes for [ref], or `null` when that object does not exist.
+     */
     suspend fun read(ref: CacheSnapshotRef): ByteArray?
 
+    /**
+     * Writes [bytes] to [ref], replacing any existing object at the same address.
+     */
     suspend fun write(ref: CacheSnapshotRef, bytes: ByteArray)
 }
 
@@ -61,6 +70,15 @@ object NoopCacheSnapshotStore : CacheSnapshotStore {
 
 /**
  * File-system snapshot store, useful for local development and tests.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val cache = Kacheable(
+ *     store = inMemoryStore,
+ *     snapshotStore = FileCacheSnapshotStore(Path("/tmp/my-cache-snapshots")),
+ * )
+ * ```
  */
 class FileCacheSnapshotStore(
     private val root: Path,
@@ -81,6 +99,17 @@ class FileCacheSnapshotStore(
  *
  * This class deliberately does not depend on an AWS SDK. Apps provide the object read/write
  * functions for their S3, MinIO, LocalStack, or compatible client.
+ *
+ * Example:
+ *
+ * ```kotlin
+ * val snapshotStore = S3CacheSnapshotStore(
+ *     bucket = "app-cache-snapshots",
+ *     prefix = "product-cards/v1",
+ *     readObject = { bucket, key -> s3.readBytesOrNull(bucket, key) },
+ *     writeObject = { bucket, key, bytes -> s3.writeBytes(bucket, key, bytes) },
+ * )
+ * ```
  */
 class S3CacheSnapshotStore(
     private val bucket: String,

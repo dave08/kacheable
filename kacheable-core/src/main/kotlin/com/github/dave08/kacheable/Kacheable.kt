@@ -79,6 +79,8 @@ interface Kacheable {
      *
      * The [block] lambda remains the authoritative loader. Miss policies only decide whether the
      * caller waits for it, gets a fallback first, or receives a fallback after a loader failure.
+     *
+     * For storage decisions, use the overload with `storeResultIf`.
      */
     suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
@@ -97,6 +99,26 @@ interface Kacheable {
      * Reads a typed cache entry, optionally refreshes stale cached values, or applies [missPolicy]
      * when no value exists. The loader receives the previous cached value on refresh and `null` on
      * a true miss.
+     *
+     * [storeResultIf] is evaluated for loader results from both misses and refreshes. It never
+     * changes the value returned to the caller, and it is not applied to miss-policy fallback values.
+     *
+     * Example:
+     *
+     * ```kotlin
+     * cache.cache(
+     *     productCardCache(productId),
+     *     missPolicy = CacheMissPolicy.loadInBackground {
+     *         ProductCard.placeholder(productId)
+     *     },
+     *     refreshPolicy = CacheRefreshPolicy.refreshIf(inBackground = true) { cached ->
+     *         cached.isStale(clock.now())
+     *     },
+     *     storeResultIf = { it.isUsable },
+     * ) { previous ->
+     *     catalogClient.fetchProductCard(productId, previous?.version)
+     * }
+     * ```
      */
     suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
