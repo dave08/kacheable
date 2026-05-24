@@ -3,6 +3,26 @@
 These are design notes for ideas that may be useful later, but are not committed
 roadmap items yet.
 
+## Large Source Loading And Hydration
+
+Keep Kacheable centered on caching lambda results. The core story is typed cache
+keys, a lambda that computes a value, policies for miss/refresh/fallback
+behavior, and optional snapshots for durable warm-cache recovery.
+
+Kacheable should avoid becoming a Redis/S3 client or a background job framework.
+Large-source loading should first be modeled as ordinary cached lambda results:
+cache a page, chunk, or inventory result with a short TTL, then let app code use
+that result to answer a specific request.
+
+Do not add `.view(...)`, fanout writes, `getOrNull`, `putIfAbsent`, startup
+backfill config, or cursor/lease orchestration to public Kacheable unless a real
+app-level implementation proves the need and clarifies the API.
+
+If a future feature is promoted, prefer a small, understandable concept around
+cached pages/chunks or an advanced, explicitly separate hydration/backfill API.
+It must preserve the mental model that the lambda returns what Kacheable stores,
+and orchestration remains visible instead of hidden in normal `cache(...)` calls.
+
 ## Cache Schema Versioning
 
 Kacheable may eventually make cache schema versioning a first-class
