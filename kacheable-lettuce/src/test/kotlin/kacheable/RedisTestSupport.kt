@@ -5,11 +5,29 @@ import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.redis.RedisBlockingKacheableStore
 import com.github.dave08.kacheable.redis.RedisKacheableStore
+import de.infix.testBalloon.framework.core.TestSuiteScope
+import de.infix.testBalloon.framework.shared.TestElementName
+import de.infix.testBalloon.framework.shared.TestRegistering
 import io.lettuce.core.RedisClient
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands
 import kotlinx.serialization.Serializable
 import org.testcontainers.containers.GenericContainer
+
+@TestRegistering
+internal fun TestSuiteScope.testWithRedis(
+    @TestElementName name: String,
+    imageName: String = "redis:5.0.3-alpine",
+    content: suspend RedisFixture.() -> Unit,
+) {
+    testFixture {
+        RedisFixture.start(imageName)
+    } asContextForEach {
+        test(name) {
+            content()
+        }
+    }
+}
 
 @Serializable
 data class Bar(val id: Int, val name: String)
