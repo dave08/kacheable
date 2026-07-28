@@ -26,6 +26,8 @@ import io.lettuce.core.api.StatefulRedisConnection
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -88,6 +90,38 @@ val RedisBackgroundSingleFlightSpec by testSuite(
             assertEquals(listOf(FALLBACK_VALUE, FALLBACK_VALUE), fallbacks)
             firstInstance.awaitCachedValue()
             assertEquals(1, loaderCalls.get())
+        }
+    }
+
+    testWithRedis(
+        name = "background misses keep filling after the initiating caller is cancelled",
+        imageName = "redis:7-alpine",
+    ) {
+        val loaderStarted = CompletableDeferred<Unit>()
+        val finishLoader = CompletableDeferred<Unit>()
+        val initiatingCaller = CoroutineScope(Job())
+        val cache = backgroundCache(connection)
+
+        try {
+            val fallback = initiatingCaller.async(start = CoroutineStart.UNDISPATCHED) {
+                cache.cache(
+                    backgroundValue("cancelled-caller"),
+                    missPolicy = CacheMissPolicy.loadInBackground { FALLBACK_VALUE },
+                ) {
+                    loaderStarted.complete(Unit)
+                    finishLoader.await()
+                    LOADED_VALUE
+                }
+            }.await()
+
+            assertEquals(FALLBACK_VALUE, fallback)
+            initiatingCaller.cancel()
+            loaderStarted.await()
+            finishLoader.complete(Unit)
+
+            cache.awaitCachedValue("cancelled-caller")
+        } finally {
+            initiatingCaller.cancel()
         }
     }
 
@@ -258,11 +292,11 @@ private class RedisJoinWaitSignalTelemetry(
         }
 }
 
-private suspend fun Kacheable.awaitCachedValue() {
+private suspend fun Kacheable.awaitCachedValue(entry: String = "same-entry") {
     val cached = withTimeout(5.seconds) {
         while (true) {
             val value = cache(
-                backgroundValue("same-entry"),
+                backgroundValue(entry),
                 cacheIf = { false },
             ) { "not-cached" }
 
