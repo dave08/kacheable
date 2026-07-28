@@ -30,14 +30,20 @@ fun Kacheable(
     defaultResilience: CacheResilienceConfig = CacheResilienceConfig(),
     snapshotStore: CacheSnapshotStore = NoopCacheSnapshotStore,
     backgroundScope: CoroutineScope? = null,
+    telemetry: CacheTelemetry = NoopCacheTelemetry,
+    correlationProvider: CacheCorrelationProvider? = null,
+    loadConcurrency: LoadConcurrencySettings = LoadConcurrencySettings(),
 ): Kacheable = KacheableImpl(
     store,
     configs,
     namingStrategy,
     jsonParser,
     defaultResilience,
+    loadConcurrency,
     snapshotStore,
     backgroundScope,
+    telemetry = telemetry,
+    correlationProvider = correlationProvider,
 )
 
 @Deprecated(

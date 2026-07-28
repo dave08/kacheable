@@ -15,3 +15,21 @@ interface DistributedSingleFlightStore {
         loadAndSave: suspend () -> R,
     ): R
 }
+
+/**
+ * Optional refinement that lets Kacheable coordinate local load admission before claiming
+ * distributed single-flight leadership.
+ *
+ * Implementations must return immediately with `null` when another process owns [key]. A returned
+ * lease must release only its own ownership token.
+ */
+interface AdmissionAwareDistributedSingleFlightStore : DistributedSingleFlightStore {
+    suspend fun tryAcquireDistributedLoadLease(
+        key: String,
+        lockLease: Duration,
+    ): DistributedLoadLease?
+}
+
+interface DistributedLoadLease {
+    suspend fun release()
+}

@@ -18,6 +18,10 @@ import kotlinx.serialization.serializer
  *
  * Prefer the typed `cacheKey(...)` APIs for new code. The raw string-key calls remain available
  * for simple exact caches and migration cases.
+ *
+ * Load concurrency groups enforce total and queued-load limits. Background-specific limits and
+ * coroutine-context execution propagation belong only to the suspending runtime because this API
+ * has no background miss or refresh operations.
  */
 interface BlockingKacheable {
     /**

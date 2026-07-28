@@ -12,6 +12,7 @@ import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ internal class SetTypedStorage(
     private val loadCoordinator: CacheLoadCoordinator,
     private val namingStrategy: CacheNamingStrategy,
     private val backgroundScope: () -> CoroutineScope,
+    private val telemetryRuntime: CacheTelemetryRuntime,
 ) : TypedStorage<CacheStorage.Set> {
     override val storage: CacheStorage.Set = CacheStorage.Set
     private val entryNamer = com.github.dave08.kacheable.internal.storage.CacheEntryNamer(namingStrategy)
@@ -60,7 +62,11 @@ internal class SetTypedStorage(
         refreshPolicy: CacheRefreshPolicy<R>,
         storeResultIf: (R) -> Boolean,
         block: suspend (previous: R?) -> R,
-    ): R = when (returnView) {
+    ): R = telemetryRuntime.observe(
+        entryRef.name,
+        com.github.dave08.kacheable.CacheStorageKind.Set,
+        entryRef.loadConcurrency,
+    ) { observation -> when (returnView) {
         is IsMemberCacheReturn -> SetStorageStrategy.invokeMembership(
             store = store,
             configs = configs,
@@ -72,7 +78,9 @@ internal class SetTypedStorage(
             refreshPolicy = refreshPolicy as CacheRefreshPolicy<Boolean>,
             storeResultIf = storeResultIf as (Boolean) -> Boolean,
             loadCoordinator = loadCoordinator,
+            loadConcurrency = entryRef.loadConcurrency,
             backgroundScope = backgroundScope,
+            observation = observation,
             block = block as suspend (Boolean?) -> Boolean,
         ) as R
 
@@ -90,11 +98,13 @@ internal class SetTypedStorage(
                 refreshPolicy = refreshPolicy as CacheRefreshPolicy<Any>,
                 storeResultIf = storeResultIf as (Any) -> Boolean,
                 loadCoordinator = loadCoordinator,
+                loadConcurrency = entryRef.loadConcurrency,
                 backgroundScope = backgroundScope,
+                observation = observation,
                 block = block as suspend (Any?) -> Any,
             ) as R
         }
 
         else -> error("Set storage does not support return view ${returnView::class.simpleName}.")
-    }
+    } }
 }

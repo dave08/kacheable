@@ -3,6 +3,9 @@ package com.github.dave08
 import com.github.dave08.kacheable.Kacheable
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheNamingStrategy
+import com.github.dave08.kacheable.CacheCorrelationProvider
+import com.github.dave08.kacheable.CacheTelemetry
+import com.github.dave08.kacheable.NoopCacheTelemetry
 import com.github.dave08.kacheable.defaultCacheNamingStrategy
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
@@ -13,8 +16,16 @@ class SuspendCacheFixture(
     val store: InMemoryKacheableStore = InMemoryKacheableStore(),
     namingStrategy: CacheNamingStrategy = defaultCacheNamingStrategy(),
     configs: Map<String, CacheConfig> = emptyMap(),
+    telemetry: CacheTelemetry = NoopCacheTelemetry,
+    correlationProvider: CacheCorrelationProvider? = null,
 ) {
-    val cache = Kacheable(store, configs = configs, namingStrategy = namingStrategy)
+    val cache = Kacheable(
+        store,
+        configs = configs,
+        namingStrategy = namingStrategy,
+        telemetry = telemetry,
+        correlationProvider = correlationProvider,
+    )
 }
 
 class InMemoryBlockingKacheableStore(
@@ -87,6 +98,13 @@ class InMemoryBlockingKacheableStore(
 class BlockingCacheFixture(
     val store: InMemoryBlockingKacheableStore = InMemoryBlockingKacheableStore(),
     namingStrategy: CacheNamingStrategy = defaultCacheNamingStrategy(),
+    telemetry: CacheTelemetry = NoopCacheTelemetry,
+    correlationProvider: CacheCorrelationProvider? = null,
 ) {
-    val cache = BlockingKacheable(store, namingStrategy = namingStrategy)
+    val cache = BlockingKacheable(
+        store,
+        namingStrategy = namingStrategy,
+        telemetry = telemetry,
+        correlationProvider = correlationProvider,
+    )
 }

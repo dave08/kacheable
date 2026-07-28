@@ -1,7 +1,8 @@
 package com.github.dave08.kacheable.redis
 
 import com.github.dave08.kacheable.internal.CacheLoadTimeoutException
-import com.github.dave08.kacheable.store.DistributedSingleFlightStore
+import com.github.dave08.kacheable.store.AdmissionAwareDistributedSingleFlightStore
+import com.github.dave08.kacheable.store.DistributedLoadLease
 import com.github.dave08.kacheable.store.HashFieldEntry
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.StoreMutationScope
@@ -24,7 +25,7 @@ class RedisKacheableStore(
     private val deleteFromPatternInChunksOf: Int = 20,
     private val deleteScanCount: Long = 1000,
     private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
-) : KacheableStore, DistributedSingleFlightStore {
+) : KacheableStore, AdmissionAwareDistributedSingleFlightStore {
     override suspend fun delete(key: String) {
         if (!key.contains("*"))
             deleteKeys(key)
@@ -218,18 +219,17 @@ class RedisKacheableStore(
         readCached: suspend () -> R?,
         loadAndSave: suspend () -> R,
     ): R {
-        val lockKey = "__kacheable:singleflight:$key"
-        val ownerToken = java.util.UUID.randomUUID().toString()
         val deadline = TimeSource.Monotonic.markNow() + waitTimeout
 
         while (deadline.hasNotPassedNow()) {
             readCached()?.let { return it }
 
-            if (tryAcquireLock(lockKey, ownerToken, lockLease)) {
+            val lease = tryAcquireDistributedLoadLease(key, lockLease)
+            if (lease != null) {
                 return try {
                     readCached() ?: loadAndSave()
                 } finally {
-                    releaseLock(lockKey, ownerToken)
+                    lease.release()
                 }
             }
 
@@ -238,6 +238,16 @@ class RedisKacheableStore(
 
         readCached()?.let { return it }
         throw CacheLoadTimeoutException("Timed out waiting for distributed single-flight lock for '$key'.")
+    }
+
+    override suspend fun tryAcquireDistributedLoadLease(
+        key: String,
+        lockLease: Duration,
+    ): DistributedLoadLease? {
+        val lockKey = "__kacheable:singleflight:$key"
+        val ownerToken = java.util.UUID.randomUUID().toString()
+        if (!tryAcquireLock(lockKey, ownerToken, lockLease)) return null
+        return RedisDistributedLoadLease(lockKey, ownerToken)
     }
 
     private suspend fun tryAcquireLock(lockKey: String, ownerToken: String, lockLease: Duration): Boolean =
@@ -250,6 +260,19 @@ class RedisKacheableStore(
             arrayOf(lockKey),
             ownerToken,
         )
+    }
+
+    private inner class RedisDistributedLoadLease(
+        private val lockKey: String,
+        private val ownerToken: String,
+    ) : DistributedLoadLease {
+        private val released = java.util.concurrent.atomic.AtomicBoolean()
+
+        override suspend fun release() {
+            if (released.compareAndSet(false, true)) {
+                releaseLock(lockKey, ownerToken)
+            }
+        }
     }
 }
 

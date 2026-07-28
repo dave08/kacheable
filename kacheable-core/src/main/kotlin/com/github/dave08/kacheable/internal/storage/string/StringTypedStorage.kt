@@ -10,6 +10,7 @@ import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
@@ -26,6 +27,7 @@ internal class StringTypedStorage(
     namingStrategy: CacheNamingStrategy,
     private val snapshotCoordinator: CacheSnapshotCoordinator?,
     private val backgroundScope: () -> CoroutineScope,
+    private val telemetryRuntime: CacheTelemetryRuntime,
 ) : TypedStorage<CacheStorage.String> {
     override val storage: CacheStorage.String = CacheStorage.String
     private val entryNamer = CacheEntryNamer(namingStrategy)
@@ -55,19 +57,27 @@ internal class StringTypedStorage(
         refreshPolicy: CacheRefreshPolicy<R>,
         storeResultIf: (R) -> Boolean,
         block: suspend (previous: R?) -> R,
-    ): R = store.invokeAtAddress(
-        entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
-        cacheName = entryRef.name,
-        configs = configs,
-        loadCoordinator = loadCoordinator,
-        snapshotCoordinator = snapshotCoordinator,
-        backgroundScope = backgroundScope,
-        codec = returnView.codec,
-        missPolicy = missPolicy,
-        refreshPolicy = refreshPolicy,
-        storeResultIf = storeResultIf,
-        block = block,
-    )
+    ): R = telemetryRuntime.observe(
+        entryRef.name,
+        com.github.dave08.kacheable.CacheStorageKind.String,
+        entryRef.loadConcurrency,
+    ) { observation ->
+        store.invokeAtAddress(
+            entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
+            cacheName = entryRef.name,
+            configs = configs,
+            loadCoordinator = loadCoordinator,
+            loadConcurrency = entryRef.loadConcurrency,
+            snapshotCoordinator = snapshotCoordinator,
+            backgroundScope = backgroundScope,
+            returnView = returnView,
+            missPolicy = missPolicy,
+            refreshPolicy = refreshPolicy,
+            storeResultIf = storeResultIf,
+            observation = observation,
+            block = block,
+        )
+    }
 
     suspend fun <R> invoke(
         name: String,
@@ -75,18 +85,22 @@ internal class StringTypedStorage(
         params: Array<out Any?>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,
-    ): R = store.invokeAtAddress(
-        entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(name, params)),
-        cacheName = name,
-        configs = configs,
-        loadCoordinator = loadCoordinator,
-        snapshotCoordinator = snapshotCoordinator,
-        backgroundScope = backgroundScope,
-        codec = codec,
-        missPolicy = CacheMissPolicy.load(),
-        refreshPolicy = CacheRefreshPolicy.neverRefresh(),
-        storeResultIf = saveResultIf,
-    ) { block() }
+    ): R = telemetryRuntime.observe(name, com.github.dave08.kacheable.CacheStorageKind.String) { observation ->
+        store.invokeAtAddress(
+            entryName = StringStorageStrategy.storeEntryName(entryNamer.nameEntry(name, params)),
+            cacheName = name,
+            configs = configs,
+            loadCoordinator = loadCoordinator,
+            loadConcurrency = null,
+            snapshotCoordinator = snapshotCoordinator,
+            backgroundScope = backgroundScope,
+            codec = codec,
+            missPolicy = CacheMissPolicy.load(),
+            refreshPolicy = CacheRefreshPolicy.neverRefresh(),
+            storeResultIf = saveResultIf,
+            observation = observation,
+        ) { block() }
+    }
 
     suspend fun <R> invalidate(
         vararg keys: Pair<String, List<Any>>,

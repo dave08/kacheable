@@ -3,20 +3,28 @@
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheCorrelationProvider
 import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.CacheMissPolicy
+import com.github.dave08.kacheable.CacheMaintenanceOperation
+import com.github.dave08.kacheable.CacheMaintenanceResult
+import com.github.dave08.kacheable.CacheStorageKind
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.CacheSnapshotStore
+import com.github.dave08.kacheable.CacheTelemetry
 import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.LoadConcurrencySettings
 import com.github.dave08.kacheable.NoopCacheSnapshotStore
+import com.github.dave08.kacheable.NoopCacheTelemetry
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
+import com.github.dave08.kacheable.toTelemetryKind
 import com.github.dave08.kacheable.SingleFlightMode
 import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.TypedStorage
@@ -41,11 +49,15 @@ internal class KacheableImpl(
     namingStrategy: CacheNamingStrategy,
     private val jsonParser: Json,
     defaultResilience: CacheResilienceConfig,
+    loadConcurrency: LoadConcurrencySettings,
     snapshotStore: CacheSnapshotStore = NoopCacheSnapshotStore,
     backgroundScope: CoroutineScope? = null,
     snapshotClock: Clock = Clock.System,
+    telemetry: CacheTelemetry = NoopCacheTelemetry,
+    correlationProvider: CacheCorrelationProvider? = null,
 ) : Kacheable {
     private val backgroundScopeProvider = BackgroundScopeProvider(backgroundScope)
+    private val telemetryRuntime = CacheTelemetryRuntime(telemetry, correlationProvider)
 
     private val snapshotCoordinator = if (configs.values.any { it.snapshot != null }) {
         CacheSnapshotCoordinator(
@@ -55,6 +67,7 @@ internal class KacheableImpl(
             namingStrategy = namingStrategy,
             scope = backgroundScopeProvider.get(),
             clock = snapshotClock,
+            telemetryRuntime = telemetryRuntime,
         )
     } else {
         null
@@ -66,8 +79,10 @@ internal class KacheableImpl(
             configs,
             namingStrategy,
             defaultResilience,
+            loadConcurrency,
             snapshotCoordinator,
             backgroundScopeProvider::get,
+            telemetryRuntime,
         )
 
     init {
@@ -75,36 +90,97 @@ internal class KacheableImpl(
         snapshotCoordinator?.start()
     }
 
-    override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
-        storages.string.invalidate(*keys, block = block)
+    override suspend fun <R> invalidate(
+        vararg keys: Pair<String, List<Any>>,
+        block: suspend () -> R,
+    ): R {
+        val started = if (telemetryRuntime.enabled) System.nanoTime() else 0L
+        return try {
+            storages.string.invalidate(*keys, block = block).also {
+                keys.map { it.first }.distinct().forEach { cacheName ->
+                    telemetryRuntime.maintenanceResult(
+                        cacheName,
+                        CacheStorageKind.String,
+                        CacheMaintenanceOperation.InvalidateEntry,
+                        CacheMaintenanceResult.Success,
+                        started,
+                    )
+                }
+            }
+        } catch (t: Throwable) {
+            keys.map { it.first }.distinct().forEach { cacheName ->
+                telemetryRuntime.maintenanceResult(
+                    cacheName,
+                    CacheStorageKind.String,
+                    CacheMaintenanceOperation.InvalidateEntry,
+                    CacheMaintenanceResult.Failed,
+                    started,
+                )
+            }
+            throw t
+        }
+    }
 
     override suspend fun invalidate(entryRef: StoredCacheEntryRef<*>) {
-        @Suppress("UNCHECKED_CAST")
-        (storages.any(entryRef.storage) as TypedStorage<CacheStorage>).invalidate(entryRef as StoredCacheEntryRef<CacheStorage>)
+        telemetryRuntime.maintenance(
+            entryRef.name,
+            entryRef.storage.toTelemetryKind(),
+            CacheMaintenanceOperation.InvalidateEntry,
+        ) {
+            @Suppress("UNCHECKED_CAST")
+            (storages.any(entryRef.storage) as TypedStorage<CacheStorage>)
+                .invalidate(entryRef as StoredCacheEntryRef<CacheStorage>)
+        }
     }
 
     override suspend fun invalidate(partRef: CacheEntryPartRef) {
-        @Suppress("UNCHECKED_CAST")
-        (storages.any(partRef.storage) as TypedStorage<CacheStorage>).invalidate(partRef as StoredCachePartRef<CacheStorage>)
+        telemetryRuntime.maintenance(
+            partRef.name,
+            partRef.storage.toTelemetryKind(),
+            CacheMaintenanceOperation.InvalidatePart,
+        ) {
+            @Suppress("UNCHECKED_CAST")
+            (storages.any(partRef.storage) as TypedStorage<CacheStorage>)
+                .invalidate(partRef as StoredCachePartRef<CacheStorage>)
+        }
     }
 
     override suspend fun invalidate(allRef: StoredCacheAllRef<*>) {
-        @Suppress("UNCHECKED_CAST")
-        (storages.any(allRef.storage) as TypedStorage<CacheStorage>).invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+        telemetryRuntime.maintenance(
+            allRef.name,
+            allRef.storage.toTelemetryKind(),
+            CacheMaintenanceOperation.InvalidateAll,
+        ) {
+            @Suppress("UNCHECKED_CAST")
+            (storages.any(allRef.storage) as TypedStorage<CacheStorage>)
+                .invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+        }
     }
 
     override suspend fun <E : Any> invalidate(
         entryRef: StoredCacheEntryRef<CacheStorage.Set>,
         returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(entryRef, returnView)
+        telemetryRuntime.maintenance(
+            entryRef.name,
+            entryRef.storage.toTelemetryKind(),
+            CacheMaintenanceOperation.InvalidateEntry,
+        ) {
+            storages.set.invalidate(entryRef, returnView)
+        }
     }
 
     override suspend fun <E : Any> invalidate(
         partRef: StoredCachePartRef<CacheStorage.Set>,
         returnView: EnumMemberCacheReturn<E>,
     ) {
-        storages.set.invalidate(partRef, returnView)
+        telemetryRuntime.maintenance(
+            partRef.name,
+            partRef.storage.toTelemetryKind(),
+            CacheMaintenanceOperation.InvalidatePart,
+        ) {
+            storages.set.invalidate(partRef, returnView)
+        }
     }
 
     override suspend fun <R> invoke(
@@ -160,14 +236,39 @@ internal class KacheableImpl(
             configs: Map<String, CacheConfig>,
             namingStrategy: CacheNamingStrategy,
             defaultResilience: CacheResilienceConfig,
+            loadConcurrency: LoadConcurrencySettings,
             snapshotCoordinator: CacheSnapshotCoordinator?,
             backgroundScope: () -> CoroutineScope,
+            telemetryRuntime: CacheTelemetryRuntime,
         ): TypedStorages {
-            val loadCoordinator = CacheLoadCoordinator(defaultResilience)
+            val loadCoordinator = CacheLoadCoordinator(defaultResilience, loadConcurrency)
             return TypedStorages(
-                string = StringTypedStorage(store, configs, loadCoordinator, namingStrategy, snapshotCoordinator, backgroundScope),
-                hashMap = HashMapTypedStorage(store, configs, loadCoordinator, namingStrategy, snapshotCoordinator, backgroundScope),
-                set = SetTypedStorage(store, configs, loadCoordinator, namingStrategy, backgroundScope),
+                string = StringTypedStorage(
+                    store,
+                    configs,
+                    loadCoordinator,
+                    namingStrategy,
+                    snapshotCoordinator,
+                    backgroundScope,
+                    telemetryRuntime,
+                ),
+                hashMap = HashMapTypedStorage(
+                    store,
+                    configs,
+                    loadCoordinator,
+                    namingStrategy,
+                    snapshotCoordinator,
+                    backgroundScope,
+                    telemetryRuntime,
+                ),
+                set = SetTypedStorage(
+                    store,
+                    configs,
+                    loadCoordinator,
+                    namingStrategy,
+                    backgroundScope,
+                    telemetryRuntime,
+                ),
             )
         }
     }

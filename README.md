@@ -28,6 +28,40 @@ When that result becomes costly enough to deserve more care, the same lambda can
 background loading, refresh, single-flight, and snapshots without turning the repository method into
 cache plumbing.
 
+## Installation
+
+Releases are available from JitPack. Add the repository after Maven Central:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven(url = "https://jitpack.io")
+    }
+}
+```
+
+For the in-memory store and core API:
+
+```kotlin
+dependencies {
+    implementation("com.github.dave08.kacheable:kacheable-core:0.3.0-alpha02")
+}
+```
+
+For Redis, use the Lettuce module instead; it brings in `kacheable-core` transitively:
+
+```kotlin
+dependencies {
+    implementation("com.github.dave08.kacheable:kacheable-lettuce:0.3.0-alpha02")
+}
+```
+
+Release tags now match the dependency version exactly and do not use a `v` prefix. Historical
+releases whose Git tags start with `v` remain available under their existing coordinates. The
+`/v/` segment in the JitPack badge URL at the top of this page names the badge endpoint; it is not
+part of the current version.
+
 ## Quick Start
 
 Define reusable key parts, then compose them into cache keys:
@@ -119,6 +153,8 @@ cache.invalidate(artistSongCache.all())                       // 6
 - Per-cache expiry configuration
 - Opt-in loader resilience for cold-cache pressure
 - Durable snapshots for indexed/hash-style cache families
+- Dependency-free telemetry with bounded in-memory diagnostics
+- Typed load-concurrency groups with foreground-aware admission
 - Custom cache naming strategies
 
 ## Why It Exists
@@ -527,6 +563,96 @@ val cache = Kacheable(
 
 Use `Redis` single-flight for multi-pod cold-cache stampedes. Use `Local` for a cheaper per-process guard. Keep `None` for cheap loaders or when duplicate work is acceptable.
 
+### Load concurrency groups
+
+When several cache families load from the same constrained dependency, declare a typed group on
+their cache keys:
+
+```kotlin
+val databaseLoads = loadConcurrencyGroup(
+    name = "database",
+    defaults = LoadConcurrencyConfig(
+        maxConcurrentLoads = 12,
+        maxConcurrentBackgroundLoads = 4,
+        maxQueuedLoads = 100,
+        queueTimeout = 500.milliseconds,
+    ),
+)
+
+val artistCache = cacheKey(
+    "artist",
+    returns<Artist>(),
+    key = exact(artistId),
+    loadConcurrency = databaseLoads,
+)
+
+val albumCache = cacheKey(
+    "album",
+    returns<Album>(),
+    key = exact(albumId),
+    loadConcurrency = databaseLoads,
+)
+```
+
+Both cache keys now compete for the same 12 permits. The smaller background limit prevents
+background refreshes from occupying every permit, leaving capacity for caller-facing misses.
+Suspending loaders invoked from a background loader inherit background execution, so the limit also
+applies through orchestration such as an availability probe that calls other cache keys.
+When work queues, foreground admission takes priority. Kacheable admits background work after a
+bounded foreground burst so sustained request traffic cannot starve maintenance indefinitely.
+`maxQueuedLoads` rejects excess work with `CacheLoadRejectedException`; normal miss and stale
+policies can handle that loader failure.
+
+With the Lettuce store and Redis single-flight, admission happens before distributed leadership.
+The admitted caller rechecks the cache and tries to claim the Redis lease. If another pod already
+owns that entry, the caller releases its local permit immediately and waits as a joiner. A
+background load therefore cannot own a distributed lease while it is merely queued for local
+capacity. Custom stores implementing only `DistributedSingleFlightStore` retain the compatibility
+path; stores can opt into the improved ordering with
+`AdmissionAwareDistributedSingleFlightStore`.
+
+Redis single-flight makes loader execution unique per cache entry across instances that share the
+same Redis namespace. Each instance may still schedule a background attempt, but only the lease
+holder runs the loader; the others wait for the stored result. It is not a cluster-wide background
+job scheduler, and it does not coordinate instances using different stores or namespaces.
+
+Admission does not preempt a loader that already owns a local or Redis single-flight entry. A
+foreground request may legitimately join an actively executing background loader for the same
+entry. The priority rule prevents queued background work from claiming leadership ahead of
+foreground work; it does not cancel or promote work that is already running.
+
+Do not put an orchestration cache and the nested resource caches it awaits in the same group. The
+outer loader retains its permit while awaiting the nested cache; a small or exhausted group can
+therefore deadlock. Give orchestration work its own group, such as `home-probes`, and put the
+loaders that actually consume database connections in a resource group such as `odoo-db`.
+
+Applications can override a declared group without replacing its typed identity, and can specify
+an independent per-cache default for keys that do not opt into a group:
+
+```kotlin
+val cache = Kacheable(
+    store = redisStore,
+    loadConcurrency = LoadConcurrencySettings(
+        default = LoadConcurrencyConfig(maxConcurrentLoads = 4),
+        overrides = mapOf(
+            databaseLoads to LoadConcurrencyConfig(
+                maxConcurrentLoads = 20,
+                maxConcurrentBackgroundLoads = 5,
+            ),
+        ),
+    ),
+)
+```
+
+Precedence is: explicit group override, then the group’s declared defaults. Ungrouped cache
+families use `LoadConcurrencySettings.default`, with a separate limiter per cache name. The older
+`CacheResilienceConfig.maxConcurrentLoads` remains supported for ungrouped suspending caches, but
+must not be combined with a load concurrency group.
+
+`BlockingKacheable` applies total concurrency, queue-size, and queue-timeout settings. It has no
+background miss or refresh API and no coroutine context, so `maxConcurrentBackgroundLoads` and
+background-execution propagation apply only to the suspending runtime.
+
 ## Miss Policies
 
 Most cache calls can stay as simple read-through lambdas:
@@ -705,6 +831,47 @@ Retention modes:
 | `SnapshotRetention.LatestOnly` | Write and restore only the latest snapshot slot. |
 | `SnapshotRetention.LatestAndPrevious` | Rotate latest to previous on flush, and fall back to previous when latest is missing or corrupt. |
 
+## Local cache telemetry
+
+Kacheable can report semantic cache behavior without depending on a metrics backend. The built-in
+in-memory implementation is intended for tests and local diagnostics:
+
+```kotlin
+val telemetry = InMemoryCacheTelemetry(recentEventCapacity = 1_000)
+
+val cache = Kacheable(
+    store = redisStore,
+    telemetry = telemetry,
+    correlationProvider = { currentTraceId() },
+)
+
+val snapshot = telemetry.snapshot()
+val events = telemetry.recentEvents()
+val slowest = telemetry.summary(sortBy = CacheSummarySort.TotalWait)
+```
+
+Snapshots separate physical reads, usable cached values, loader execution, concurrency and
+single-flight waits, writes, fallbacks, stale values, and caller-visible outcomes. Diagnostic events
+carry generated operation and parent-operation identifiers so nested cache calls can be
+reconstructed. Optional external correlation identifiers are diagnostic data and must never be
+used as metric tags.
+
+Use `withCacheCorrelation(requestId) { ... }` to correlate sibling and nested cache calls in one
+coroutine request scope. A `CacheCorrelationProvider` remains useful when the host already exposes
+trace context through another mechanism. Ranked summaries can identify cache families with the
+largest cumulative waits or loader times, while activity snapshots expose current and peak
+foreground loaders, background loaders, and waiters.
+Summary rows report admission, local single-flight, and Redis single-flight wait totals separately,
+making capacity pressure distinguishable from same-key coordination.
+
+Event retention is disabled by default. When enabled, it is bounded and never records cache keys,
+arguments, payloads, returned values, or failures. Use `telemetry.snapshots(interval)` for a
+periodic `Flow`; callers that need a `StateFlow` can apply `stateIn` with an application-owned
+scope. `reset(resetIdentifiers = true)` is available for isolated local diagnostic sessions.
+
+The same `CacheTelemetry` contract can back future Micrometer or tracing adapters. With the default
+`NoopCacheTelemetry`, Kacheable does not create diagnostic events or read stage timers.
+
 ## Raw Escape Hatch
 
 The raw API remains available for low-level or migration cases:
@@ -754,3 +921,7 @@ Custom naming strategies can change the generated strings while keeping that exa
 ## More
 
 See [docs/cache-key.md](docs/cache-key.md) for the full cache-key guide, including blocking APIs, custom naming strategies, matchable invalidation, miss policies, snapshots, and storage planning details.
+
+Contributors should follow [docs/testing-guidelines.md](docs/testing-guidelines.md)
+for TestBalloon test structure, deterministic coroutine coverage, fixture
+boundaries, and core-versus-Redis integration responsibilities.

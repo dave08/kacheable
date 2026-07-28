@@ -603,6 +603,36 @@ The modes are intentionally explicit:
 
 Redis single-flight is a store capability. Kacheable fails fast during startup if a cache asks for `SingleFlightMode.Redis` but the configured store cannot provide distributed coordination.
 
+When multiple cache keys load from the same constrained dependency, prefer a typed
+`LoadConcurrencyGroup` on those `cacheKey(...)` declarations. The group provides safe defaults;
+`LoadConcurrencySettings.overrides` can replace them at runtime, while
+`LoadConcurrencySettings.default` applies independently to ungrouped cache names. Groups can also
+bound queued loads and background loads. Do not combine a group with the legacy per-cache
+`CacheResilienceConfig.maxConcurrentLoads` setting.
+
+In the suspending runtime, nested cache loads inherit background execution from a background loader.
+This lets a resource group reserve foreground capacity even when background work is an orchestration
+loader that calls several other cache keys. Keep that orchestration cache in a different group from
+the nested resource caches: the outer loader retains its permit while it awaits them, so sharing a
+small group can deadlock. Blocking caches support total and queued-load limits, but have no
+background policies or coroutine-context propagation.
+
+Queued suspending loads use foreground-priority admission with bounded foreground bursts to prevent
+background starvation. When a store implements `AdmissionAwareDistributedSingleFlightStore`,
+Kacheable admits locally before attempting distributed leadership, rechecks the cache after
+admission, and releases the permit immediately if another process already owns the entry. The
+Lettuce store implements this capability. The older `DistributedSingleFlightStore` contract remains
+supported as a compatibility path.
+
+Across instances sharing the same Redis namespace, Redis single-flight permits one loader execution
+per cache entry. Multiple instances may schedule background attempts, but non-owners wait for the
+lease holder's stored result. This is per-entry load coordination, not a cluster-wide job scheduler.
+Instances using different stores or namespaces are not coordinated.
+
+Priority admission does not preempt an already executing local or Redis leader. A foreground caller
+can still join an active background load for the same entry. The priority rule changes who may
+claim leadership while queued; it does not cancel or promote a loader after it has started.
+
 ## Hidden Dependencies
 
 A cache key should normally describe the inputs that decide one cached result. Some results also depend on hidden inputs: database views, ranking formulas, visibility rules, background counters, or other data read inside a query but not present at the call site.

@@ -8,9 +8,14 @@ import com.github.dave08.kacheable.CacheSnapshotPart
 import com.github.dave08.kacheable.CacheSnapshotRef
 import com.github.dave08.kacheable.CacheSnapshotSlot
 import com.github.dave08.kacheable.CacheSnapshotStore
+import com.github.dave08.kacheable.CacheMaintenanceOperation
+import com.github.dave08.kacheable.CacheMaintenanceResult
+import com.github.dave08.kacheable.CacheStorageKind
+import com.github.dave08.kacheable.NoopCacheTelemetry
 import com.github.dave08.kacheable.SnapshotRestore
 import com.github.dave08.kacheable.SnapshotRetention
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
+import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.storage.StoreEntryName
 import com.github.dave08.kacheable.primaryKey
 import com.github.dave08.kacheable.store.HashFieldEntry
@@ -39,6 +44,7 @@ internal class CacheSnapshotCoordinator(
     namingStrategy: CacheNamingStrategy,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
+    private val telemetryRuntime: CacheTelemetryRuntime = CacheTelemetryRuntime(NoopCacheTelemetry, null),
 ) {
     private val entryNamer = CacheEntryNamer(namingStrategy)
     private val restoredChunks = ConcurrentHashMap<String, MutableSet<String>>()
@@ -78,22 +84,88 @@ internal class CacheSnapshotCoordinator(
         if (entryName !is StoreEntryName.Layered) return
 
         val chunkId = chunkId(entryName.key, entryName.entry, snapshot.chunkHashLength)
-        restoreChunk(cacheName, chunkId)
+        val started = if (telemetryRuntime.enabled) System.nanoTime() else 0L
+        try {
+            val restored = restoreChunk(cacheName, chunkId)
+            telemetryRuntime.maintenanceResult(
+                cacheName,
+                CacheStorageKind.HashMap,
+                CacheMaintenanceOperation.SnapshotRestore,
+                if (restored) CacheMaintenanceResult.Success else CacheMaintenanceResult.Skipped,
+                started,
+            )
+        } catch (t: Throwable) {
+            telemetryRuntime.maintenanceResult(
+                cacheName,
+                CacheStorageKind.HashMap,
+                CacheMaintenanceOperation.SnapshotRestore,
+                CacheMaintenanceResult.Failed,
+                started,
+            )
+            throw t
+        }
     }
 
     suspend fun restoreCache(cacheName: String): Boolean {
         val config = configs[cacheName] ?: return false
         if (config.snapshot == null) return false
 
-        return restoreFromConfiguredSlots(config) { slot -> restoreCache(cacheName, slot) }
+        val started = if (telemetryRuntime.enabled) System.nanoTime() else 0L
+        return try {
+            restoreFromConfiguredSlots(config) { slot -> restoreCache(cacheName, slot) }.also { restored ->
+                telemetryRuntime.maintenanceResult(
+                    cacheName,
+                    CacheStorageKind.HashMap,
+                    CacheMaintenanceOperation.SnapshotRestore,
+                    if (restored) CacheMaintenanceResult.Success else CacheMaintenanceResult.Skipped,
+                    started,
+                )
+            }
+        } catch (t: Throwable) {
+            telemetryRuntime.maintenanceResult(
+                cacheName,
+                CacheStorageKind.HashMap,
+                CacheMaintenanceOperation.SnapshotRestore,
+                CacheMaintenanceResult.Failed,
+                started,
+            )
+            throw t
+        }
     }
 
     suspend fun flush(cacheName: String): Boolean {
         val config = configs[cacheName] ?: return false
         val snapshot = config.snapshot ?: return false
+        val started = if (telemetryRuntime.enabled) System.nanoTime() else 0L
+        return try {
+            flush(cacheName, config, snapshot).also { flushed ->
+                telemetryRuntime.maintenanceResult(
+                    cacheName,
+                    CacheStorageKind.HashMap,
+                    CacheMaintenanceOperation.SnapshotFlush,
+                    if (flushed) CacheMaintenanceResult.Success else CacheMaintenanceResult.Skipped,
+                    started,
+                )
+            }
+        } catch (t: Throwable) {
+            telemetryRuntime.maintenanceResult(
+                cacheName,
+                CacheStorageKind.HashMap,
+                CacheMaintenanceOperation.SnapshotFlush,
+                CacheMaintenanceResult.Failed,
+                started,
+            )
+            throw t
+        }
+    }
+
+    private suspend fun flush(
+        cacheName: String,
+        config: CacheConfig,
+        snapshot: com.github.dave08.kacheable.CacheSnapshotConfig,
+    ): Boolean {
         val entries = scanIndexedEntries(cacheName)
         if (entries.isEmpty()) return false
-
         if (snapshot.retention == SnapshotRetention.LatestAndPrevious) {
             rotateLatestToPrevious(cacheName)
         }

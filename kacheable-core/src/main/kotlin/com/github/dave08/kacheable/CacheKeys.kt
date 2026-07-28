@@ -213,7 +213,12 @@ class CacheResult<R> @PublishedApi internal constructor(
 internal data class PlannedStorage<R>(
     val storage: CacheStorage,
     val returnView: CacheReturn<R, *>,
+    val loadConcurrency: LoadConcurrencyGroup? = null,
 )
+
+private fun <R> PlannedStorage<R>.withLoadConcurrency(
+    group: LoadConcurrencyGroup?,
+): PlannedStorage<R> = copy(loadConcurrency = group)
 
 @PublishedApi
 internal inline fun <reified R> cacheResult(): CacheResult<R> =
@@ -718,6 +723,7 @@ internal inline fun <reified R> enumMemberReturnOrNull(): EnumMemberCacheReturn<
 private fun entryRef(
     name: String,
     storage: CacheStorage,
+    loadConcurrency: LoadConcurrencyGroup?,
     partitionPartArgs: List<CacheArgs>,
     partitionPartNames: List<String?>,
     itemKeyPartArgs: List<CacheArgs> = emptyList(),
@@ -731,6 +737,7 @@ private fun entryRef(
         secondaryPartNames = itemKeyPartNames,
     ),
     storage = storage,
+    loadConcurrency = loadConcurrency,
 )
 
 private fun partRef(
@@ -761,6 +768,7 @@ private fun <R> cacheEntryRef(
     entryRef = entryRef(
         name = name,
         storage = plannedStorage.storage,
+        loadConcurrency = plannedStorage.loadConcurrency,
         partitionPartArgs = partitionPartArgs,
         partitionPartNames = partitionPartNames,
         itemKeyPartArgs = itemKeyPartArgs,
@@ -801,49 +809,56 @@ fun <R> cacheKey(
     returns: CacheResult<R>,
     key: ExactKeyShape0,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey0<R> = ExactCacheKey0(name, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey0<R> = ExactCacheKey0(name, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape1<P1>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey1<P1, R> = ExactCacheKey1(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey1<P1, R> = ExactCacheKey1(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1, P2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape2<P1, P2>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey2<P1, P2, R> = ExactCacheKey2(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey2<P1, P2, R> = ExactCacheKey2(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1, P2, P3> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape3<P1, P2, P3>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey3<P1, P2, P3, R> = ExactCacheKey3(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey3<P1, P2, P3, R> = ExactCacheKey3(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1, P2, P3, P4> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape4<P1, P2, P3, P4>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey4<P1, P2, P3, P4, R> = ExactCacheKey4(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey4<P1, P2, P3, P4, R> = ExactCacheKey4(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1, P2, P3, P4, P5> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape5<P1, P2, P3, P4, P5>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey5<P1, P2, P3, P4, P5, R> = ExactCacheKey5(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey5<P1, P2, P3, P4, P5, R> = ExactCacheKey5(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 fun <R, P1, P2, P3, P4, P5, P6> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: ExactKeyShape6<P1, P2, P3, P4, P5, P6>,
     storage: ExactStoragePlan<R> = auto(),
-): ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> = ExactCacheKey6(name, key.key, planExact(returns, storage))
+    loadConcurrency: LoadConcurrencyGroup? = null,
+): ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> = ExactCacheKey6(name, key.key, planExact(returns, storage).withLoadConcurrency(loadConcurrency))
 
 /**
  * Creates a typed cache key. Partitioned shapes allow invalidating a partition or matching entry
@@ -854,8 +869,9 @@ fun <R, I1, K1> cacheKey(
     returns: CacheResult<R>,
     key: PartitionedKeyShape1x1<I1, K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey1x1<I1, K1, R> =
-    PartitionedCacheKey1x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey1x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 /**
  * Creates a typed single-partition cache key. Entries share one implicit cache-wide partition.
@@ -865,160 +881,180 @@ fun <R, K1> cacheKey(
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape1<K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey1<K1, R> =
-    SinglePartitionCacheKey1(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey1(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape2<K1, K2>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey2<K1, K2, R> =
-    SinglePartitionCacheKey2(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey2(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape3<K1, K2, K3>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey3<K1, K2, K3, R> =
-    SinglePartitionCacheKey3(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey3(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape4<K1, K2, K3, K4>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey4<K1, K2, K3, K4, R> =
-    SinglePartitionCacheKey4(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey4(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2, K3, K4, K5> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape5<K1, K2, K3, K4, K5>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey5<K1, K2, K3, K4, K5, R> =
-    SinglePartitionCacheKey5(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey5(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2, K3, K4, K5, K6> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: SinglePartitionKeyShape6<K1, K2, K3, K4, K5, K6>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> =
-    SinglePartitionCacheKey6(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    SinglePartitionCacheKey6(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape1x2<I1, K1, K2>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey1x2<I1, K1, K2, R> =
-    PartitionedCacheKey1x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey1x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape1x3<I1, K1, K2, K3>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey1x3<I1, K1, K2, K3, R> =
-    PartitionedCacheKey1x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey1x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape1x4<I1, K1, K2, K3, K4>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey1x4<I1, K1, K2, K3, K4, R> =
-    PartitionedCacheKey1x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey1x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, K1, K2, K3, K4, K5> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> =
-    PartitionedCacheKey1x5(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey1x5(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape2x1<I1, I2, K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey2x1<I1, I2, K1, R> =
-    PartitionedCacheKey2x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey2x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape2x2<I1, I2, K1, K2>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey2x2<I1, I2, K1, K2, R> =
-    PartitionedCacheKey2x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey2x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape2x3<I1, I2, K1, K2, K3>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey2x3<I1, I2, K1, K2, K3, R> =
-    PartitionedCacheKey2x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey2x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, K1, K2, K3, K4> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> =
-    PartitionedCacheKey2x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey2x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape3x1<I1, I2, I3, K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey3x1<I1, I2, I3, K1, R> =
-    PartitionedCacheKey3x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey3x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape3x2<I1, I2, I3, K1, K2>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey3x2<I1, I2, I3, K1, K2, R> =
-    PartitionedCacheKey3x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey3x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, K1, K2, K3> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> =
-    PartitionedCacheKey3x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey3x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, I4, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape4x1<I1, I2, I3, I4, K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> =
-    PartitionedCacheKey4x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey4x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, I4, K1, K2> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> =
-    PartitionedCacheKey4x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey4x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, I4, I5, K1> cacheKey(
     name: String,
     returns: CacheResult<R>,
     key: PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1>,
     storage: IndexedStoragePlan<R> = auto(),
+    loadConcurrency: LoadConcurrencyGroup? = null,
 ): PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R> =
-    PartitionedCacheKey5x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts))
+    PartitionedCacheKey5x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 class ExactCacheKey0<R> @PublishedApi internal constructor(
     private val name: String,

@@ -4,6 +4,8 @@ interface StoredCacheEntryRef<S : CacheStorage> {
     val name: String
     val cacheArgs: PrimarySecondaryCacheArgs
     val storage: S
+    val loadConcurrency: LoadConcurrencyGroup?
+        get() = null
 }
 
 interface StoredCachePartRef<S : CacheStorage> : CacheEntryPartRef {
@@ -19,6 +21,7 @@ data class StoredEntryRef<S : CacheStorage>(
     override val name: String,
     override val cacheArgs: PrimarySecondaryCacheArgs,
     override val storage: S,
+    override val loadConcurrency: LoadConcurrencyGroup? = null,
 ) : StoredCacheEntryRef<S>
 
 data class StoredPartRef<S : CacheStorage>(

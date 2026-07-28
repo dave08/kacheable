@@ -9,6 +9,8 @@ import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.internal.storage.BlockingTypedStorage
+import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
+import com.github.dave08.kacheable.internal.BlockingLoadConcurrencyCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.invokeAtAddress
 import com.github.dave08.kacheable.store.CacheValueCodec
@@ -17,6 +19,8 @@ internal class BlockingHashMapTypedStorage(
     private val store: BlockingKacheableStore,
     private val configs: Map<String, CacheConfig>,
     namingStrategy: CacheNamingStrategy,
+    private val loadCoordinator: BlockingLoadConcurrencyCoordinator,
+    private val telemetryRuntime: CacheTelemetryRuntime,
 ) : BlockingTypedStorage<CacheStorage.HashMap> {
     override val storage: CacheStorage.HashMap = CacheStorage.HashMap
     private val entryNamer = CacheEntryNamer(namingStrategy)
@@ -38,12 +42,19 @@ internal class BlockingHashMapTypedStorage(
         returnView: CacheReturn<R, *>,
         saveResultIf: (R) -> Boolean,
         block: () -> R,
-    ): R = store.invokeAtAddress(
+    ): R = telemetryRuntime.observeBlocking(
+        entryRef.name,
+        com.github.dave08.kacheable.CacheStorageKind.HashMap,
+        entryRef.loadConcurrency,
+    ) { observation -> store.invokeAtAddress(
         entryName = HashMapStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
         cacheName = entryRef.name,
         configs = configs,
-        codec = returnView.codec,
+        loadCoordinator = loadCoordinator,
+        loadConcurrency = entryRef.loadConcurrency,
+        returnView = returnView,
         saveResultIf = saveResultIf,
+        observation = observation,
         block = block,
-    )
+    ) }
 }

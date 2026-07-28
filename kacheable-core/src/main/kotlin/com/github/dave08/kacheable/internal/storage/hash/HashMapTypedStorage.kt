@@ -10,6 +10,7 @@ import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
@@ -24,6 +25,7 @@ internal class HashMapTypedStorage(
     namingStrategy: CacheNamingStrategy,
     private val snapshotCoordinator: CacheSnapshotCoordinator?,
     private val backgroundScope: () -> CoroutineScope,
+    private val telemetryRuntime: CacheTelemetryRuntime,
 ) : TypedStorage<CacheStorage.HashMap> {
     override val storage: CacheStorage.HashMap = CacheStorage.HashMap
     private val entryNamer = CacheEntryNamer(namingStrategy)
@@ -53,17 +55,25 @@ internal class HashMapTypedStorage(
         refreshPolicy: CacheRefreshPolicy<R>,
         storeResultIf: (R) -> Boolean,
         block: suspend (previous: R?) -> R,
-    ): R = store.invokeAtAddress(
-        entryName = HashMapStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
-        cacheName = entryRef.name,
-        configs = configs,
-        loadCoordinator = loadCoordinator,
-        snapshotCoordinator = snapshotCoordinator,
-        backgroundScope = backgroundScope,
-        codec = returnView.codec,
-        missPolicy = missPolicy,
-        refreshPolicy = refreshPolicy,
-        storeResultIf = storeResultIf,
-        block = block,
-    )
+    ): R = telemetryRuntime.observe(
+        entryRef.name,
+        com.github.dave08.kacheable.CacheStorageKind.HashMap,
+        entryRef.loadConcurrency,
+    ) { observation ->
+        store.invokeAtAddress(
+            entryName = HashMapStorageStrategy.storeEntryName(entryNamer.nameEntry(entryRef.name, entryRef.cacheArgs)),
+            cacheName = entryRef.name,
+            configs = configs,
+            loadCoordinator = loadCoordinator,
+            loadConcurrency = entryRef.loadConcurrency,
+            snapshotCoordinator = snapshotCoordinator,
+            backgroundScope = backgroundScope,
+            returnView = returnView,
+            missPolicy = missPolicy,
+            refreshPolicy = refreshPolicy,
+            storeResultIf = storeResultIf,
+            observation = observation,
+            block = block,
+        )
+    }
 }

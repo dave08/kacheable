@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.3.0-alpha02
+
+This release adds dependency-free cache telemetry and resource-aware load admission. It is informed
+by a real service workload using Redis single-flight in a multi-pod deployment, where speculative
+background cache loads could claim distributed leadership before obtaining local database capacity
+and cause foreground requests to inherit background queue delays.
+
+### Added
+
+- `CacheTelemetry`, a backend-neutral semantic observation contract with no-op defaults for
+  forwards-compatible adapters.
+- `InMemoryCacheTelemetry` for bounded local diagnostics, recent operation timelines, activity
+  snapshots, ranked summaries, resettable counters, and periodic `Flow` snapshots.
+- Generated operation and parent-operation identifiers for reconstructing nested cache work, plus
+  optional external correlation that is deliberately excluded from metric tags.
+- Typed `LoadConcurrencyGroup` declarations on cache keys.
+- `LoadConcurrencySettings` with:
+  - a default applied independently to each ungrouped cache family;
+  - typed group overrides;
+  - total and background concurrency limits;
+  - bounded queues and queue timeouts.
+- `AdmissionAwareDistributedSingleFlightStore`, implemented by the Lettuce store, for non-blocking
+  distributed lease attempts after local admission.
+- Separate summary totals for admission, local single-flight, and Redis single-flight waits.
+- Project testing guidelines covering TestBalloon fixtures, narrow fakes, deterministic coroutine
+  barriers, core-versus-adapter coverage, and incremental adoption.
+
+### Changed
+
+- Suspending background execution now propagates through nested cache calls.
+- Queued suspending loads prioritize foreground work while periodically admitting background work
+  to prevent starvation.
+- Local and admission-aware Redis single-flight recheck the cache after admission.
+- Lettuce Redis single-flight acquires local admission before distributed leadership. Callers that
+  find another lease owner release local capacity immediately while joining.
+- Blocking caches support total concurrency, queue size, and queue timeout, but intentionally do
+  not expose background classification or coroutine-context propagation.
+- Release tags now match the Gradle and dependency version exactly, without a `v` prefix. Existing
+  prefixed tags remain unchanged.
+
+### Fixed
+
+- Prevented queued background work from owning a Redis lease while waiting for local resource
+  capacity.
+- Prevented local and Redis single-flight joiners from retaining load permits while waiting.
+- Made queue cancellation, permit release, local in-flight cleanup, and Redis lease cleanup safe
+  against coroutine cancellation.
+- Kept foreground priority from starving background maintenance under sustained request traffic.
+
+### Current Limits
+
+- The built-in telemetry implementation is intended for tests and local diagnostics. Metrics and
+  tracing backends should implement `CacheTelemetry`; no Micrometer adapter is bundled yet.
+- `snapshots(interval)` returns a cold periodic `Flow`. Applications that require a `StateFlow`
+  should apply `stateIn` with an application-owned scope and lifecycle.
+- Redis single-flight coordinates loader execution per cache entry; it is not a cluster-wide
+  background scheduler.
+- Priority admission does not preempt or promote a background loader that already owns a
+  single-flight entry.
+- Custom stores implementing only `DistributedSingleFlightStore` retain the previous compatibility
+  path. They must implement `AdmissionAwareDistributedSingleFlightStore` to use
+  admission-before-leadership.
+
+### Verification
+
+- Full `kacheable-core` and `kacheable-lettuce` suites: 153 tests, 0 failures.
+- Deterministic coverage for foreground priority, bounded background starvation, queue
+  cancellation, background propagation, and separated wait telemetry.
+- Redis integration coverage proves queued background work does not claim leadership before
+  admission and joiners release local capacity.
+- A real Hadran consumer compiled and exercised the release locally. In the controlled contention
+  scenario, foreground Redis single-flight wait fell to zero and request time improved from 9.97s
+  to 4.77s; remaining latency was attributable to foreground admission and loader work.
+
 ## 0.3.0-alpha01
 
 This release broadens Kacheable from typed cache identity into typed cache miss handling and cold-start recovery. The main direction is still simple: wrap a lambda, keep the call site type-safe, and configure the loading/caching behavior around that lambda instead of moving cache logic into every repository.

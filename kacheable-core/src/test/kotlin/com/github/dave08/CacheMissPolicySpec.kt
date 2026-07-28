@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Duration.Companion.milliseconds
 
 @Serializable
 private data class MissPolicyValue(val id: Int, val value: String)
@@ -261,9 +262,9 @@ val CacheMissPolicySpec by testSuite {
 
 private suspend fun eventually(condition: suspend () -> Boolean) {
     withContext(Dispatchers.Default) {
-        withTimeout(1_000) {
+        withTimeout(1_000.milliseconds) {
             while (!condition()) {
-                delay(10)
+                delay(10.milliseconds)
             }
         }
     }
