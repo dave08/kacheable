@@ -45,7 +45,7 @@ For the in-memory store and core API:
 
 ```kotlin
 dependencies {
-    implementation("com.github.dave08.kacheable:kacheable-core:0.3.0-alpha02")
+    implementation("com.github.dave08.kacheable:kacheable-core:0.3.0-alpha03")
 }
 ```
 
@@ -53,7 +53,7 @@ For Redis, use the Lettuce module instead; it brings in `kacheable-core` transit
 
 ```kotlin
 dependencies {
-    implementation("com.github.dave08.kacheable:kacheable-lettuce:0.3.0-alpha02")
+    implementation("com.github.dave08.kacheable:kacheable-lettuce:0.3.0-alpha03")
 }
 ```
 

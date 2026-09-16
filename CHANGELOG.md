@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-alpha03
 
 This release adds optional guarded loading to existing hash caches. Loaders can read published
 siblings lazily, while atomic version checks prevent results based on retired partition state
@@ -25,16 +25,23 @@ from being published. See the [partition loading guide](docs/partition-loading.m
   possible. Cache factories copy caller-owned configuration maps.
 - In-memory guarded data is private and cannot be erased by mutating ordinary backing maps.
 - Fixed Lettuce scripts use cached `SCRIPT LOAD`/`EVALSHA`, recovering from script eviction.
-  Generated mutations and queued blocking transactions use `EVAL` without replaying failed work.
-- Ordinary Redis hash operations now use atomic collision guards even with partition loading
-  disabled. Warm hits retain one network round trip but add server work. See the
-  [measured performance review](docs/performance-review.md) for costs and limitations.
+  Generated suspending mutations use uncached `EVAL`; blocking transactions queue native commands.
+  Failed mutations are not replayed.
+- Redis ordinary and guarded operations use separate namespaces. Ordinary hash hits and writes
+  use native commands; guarded operations retain atomic scripts. Raw ordinary scans and
+  wildcard deletions exclude reserved guarded keys. See the
+  [measured performance review](docs/performance-review.md) for the comparison.
 
 ### Fixed
 
+- Published dependency metadata exposes core APIs through the Lettuce module, including the
+  serialization and coroutine types used in public signatures. The documented single-dependency
+  Redis installation now compiles without manually adding those dependencies.
 - Suspending refresh loaders and fallback results use the latest value found during coordination,
   including a published null. A fresh null found during recheck does not trigger another load.
-- Ordinary Redis hash scans exclude guarded data even when a hash changes between scan steps.
+- Ordinary Redis hash scans exclude guarded data through namespace isolation.
+- Guarded `.all()` invalidation handles keys without an outer partition and honors custom naming
+  for both root hashes and partitioned families.
 
 ### Compatibility and upgrading
 
@@ -48,9 +55,12 @@ from being published. See the [partition loading guide](docs/partition-loading.m
 - Telemetry enums include new read and wait categories; update exhaustive `when` expressions.
   Forward the new default `partitionConflict` callback in composite adapters to expose retries.
   See [telemetry and tracing](docs/telemetry-and-tracing.md).
-- Before enabling a partition policy on an existing ordinary hash, invalidate its data or use a
-  new cache name. Stop older ordinary writers before reusing that name. Also invalidate before
-  enabling enumeration on entries written without logical-key metadata.
+- Guarded Redis data now lives under `__kacheable:versioned-hash:v1:`. Enabling a partition policy
+  starts a cold cache; ordinary values remain independent. Earlier experimental unprefixed guarded
+  entries are not reused or migrated. Coordinate writers before cleaning up old data.
+- Custom versioned store capabilities must implement `deleteHashes(keyPattern)` and keep ordinary
+  and guarded namespaces independent. Also invalidate guarded entries before enabling enumeration
+  when they were written without logical-key metadata.
 - Ordinary caches keep their existing behavior when `partition` is unset.
 
 ### Current limits
@@ -61,6 +71,9 @@ from being published. See the [partition loading guide](docs/partition-loading.m
   invalidation, snapshots, explicit miss/refresh policies, stale fallback, and raw entry access.
 - Blocking guarded calls reject non-default coroutine resilience settings. Distributed
   coordination requires Redis single-flight on the suspending API.
+- Contextual loaders require the factory-created runtime; no-op caches and external decorators
+  do not support that overload. Partition coordination is not reentrant: use the context and
+  sequential policy instead of recursively loading the same partition.
 - Key/configuration mismatches still fail at the call boundary because key definitions are
   supplied separately from runtime configuration. See the guide for validation and retry rules.
 
