@@ -170,6 +170,9 @@ class InMemoryCacheTelemetry(
 
                         CacheWaitReason.RedisSingleFlight ->
                             row.redisSingleFlightWaitDurationNanos += stage.durationNanos
+
+                        CacheWaitReason.PartitionCoordination ->
+                            row.partitionWaitDurationNanos += stage.durationNanos
                     }
                 }
 
@@ -298,6 +301,11 @@ class InMemoryCacheTelemetry(
             append(context, CacheDiagnosticStage.LoaderCompleted(trigger, execution, result, durationNanos))
         }
 
+        override fun partitionConflict(attempt: Int, willRetry: Boolean) {
+            update(context) { partitionConflicts++ }
+            append(context, CacheDiagnosticStage.PartitionConflict(attempt, willRetry))
+        }
+
         override fun storageWrite(result: CacheWriteResult, durationNanos: Long) {
             update(context) {
                 storageWrites[result] = storageWrites.getValue(result) + 1
@@ -365,6 +373,7 @@ data class CacheSeriesSnapshot(
     val foregroundLoaders: CacheActivitySnapshot,
     val backgroundLoaders: CacheActivitySnapshot,
     val waiters: CacheActivitySnapshot,
+    val partitionConflicts: Long = 0,
 )
 
 data class CacheActivitySnapshot(
@@ -462,6 +471,7 @@ data class CacheDiagnosticSummaryRow(
     val redisSingleFlightWaitDurationNanos: Long,
     val maxWaitDurationNanos: Long,
     val maxLoaderDurationNanos: Long,
+    val partitionWaitDurationNanos: Long = 0,
 )
 
 data class CacheDiagnosticSummary(
@@ -486,6 +496,7 @@ data class CacheDiagnosticSummary(
             append(" admission-wait=").append(formatNanos(row.admissionWaitDurationNanos))
             append(" local-single-flight-wait=").append(formatNanos(row.localSingleFlightWaitDurationNanos))
             append(" redis-single-flight-wait=").append(formatNanos(row.redisSingleFlightWaitDurationNanos))
+            append(" partition-wait=").append(formatNanos(row.partitionWaitDurationNanos))
             append(" max-wait=").append(formatNanos(row.maxWaitDurationNanos))
             append(" max-loader=").append(formatNanos(row.maxLoaderDurationNanos))
         }
@@ -524,6 +535,8 @@ interface CacheDiagnosticStage {
         val durationNanos: Long,
     ) : CacheDiagnosticStage
 
+    data class PartitionConflict(val attempt: Int, val willRetry: Boolean) : CacheDiagnosticStage
+
     data class StorageWrite(
         val result: CacheWriteResult,
         val durationNanos: Long,
@@ -555,6 +568,7 @@ fun InMemoryCacheTelemetry.snapshots(
 }
 
 private class MutableCacheSeries {
+    var partitionConflicts = 0L
     val operations = CacheOperationResult.entries.associateWithTo(linkedMapOf()) { 0L }
     val storageReads = CacheReadResult.entries.associateWithTo(linkedMapOf()) { 0L }
     val loadWaits = linkedMapOf<CacheWaitMetric, Long>()
@@ -587,6 +601,7 @@ private class MutableCacheSeries {
         foregroundLoaders = foregroundLoaders.snapshot(),
         backgroundLoaders = backgroundLoaders.snapshot(),
         waiters = waiters.snapshot(),
+        partitionConflicts = partitionConflicts,
     )
 }
 
@@ -608,6 +623,7 @@ private class MutableCacheDiagnosticSummaryRow {
     var redisSingleFlightWaitDurationNanos = 0L
     var maxWaitDurationNanos = 0L
     var maxLoaderDurationNanos = 0L
+    var partitionWaitDurationNanos = 0L
 
     fun snapshot(key: CacheDiagnosticSummaryKey): CacheDiagnosticSummaryRow =
         CacheDiagnosticSummaryRow(
@@ -625,6 +641,7 @@ private class MutableCacheDiagnosticSummaryRow {
             redisSingleFlightWaitDurationNanos = redisSingleFlightWaitDurationNanos,
             maxWaitDurationNanos = maxWaitDurationNanos,
             maxLoaderDurationNanos = maxLoaderDurationNanos,
+            partitionWaitDurationNanos = partitionWaitDurationNanos,
         )
 }
 
@@ -675,6 +692,9 @@ private fun CacheDiagnosticStage.render(): String = when (this) {
 
     is CacheDiagnosticStage.LoaderCompleted ->
         "loader trigger=$trigger execution=$execution result=$result duration=${formatNanos(durationNanos)}"
+
+    is CacheDiagnosticStage.PartitionConflict ->
+        "partition-conflict attempt=$attempt will-retry=$willRetry"
 
     is CacheDiagnosticStage.StorageWrite ->
         "write result=$result duration=${formatNanos(durationNanos)}"

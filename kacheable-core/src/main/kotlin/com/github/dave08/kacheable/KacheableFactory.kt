@@ -35,7 +35,7 @@ fun Kacheable(
     loadConcurrency: LoadConcurrencySettings = LoadConcurrencySettings(),
 ): Kacheable = KacheableImpl(
     store,
-    configs,
+    configs.toMap(),
     namingStrategy,
     jsonParser,
     defaultResilience,

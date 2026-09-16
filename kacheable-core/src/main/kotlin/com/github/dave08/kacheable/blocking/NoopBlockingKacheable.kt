@@ -9,7 +9,7 @@ import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import kotlinx.serialization.KSerializer
 
 internal object NoopBlockingKacheable : BlockingKacheable {
@@ -34,7 +34,7 @@ internal object NoopBlockingKacheable : BlockingKacheable {
 
     override fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean,
         block: () -> R

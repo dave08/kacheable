@@ -13,7 +13,7 @@ import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.BlockingLoadConcurrencyCoordinator
 import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.invokeAtAddress
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 
 internal class BlockingHashMapTypedStorage(
     private val store: BlockingKacheableStore,

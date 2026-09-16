@@ -1,51 +1,57 @@
 @file:OptIn(kotlin.time.ExperimentalTime::class)
 
+
 package com.github.dave08.kacheable.internal
 
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheCorrelationProvider
-import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheEntryPartRef
-import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheMaintenanceOperation
 import com.github.dave08.kacheable.CacheMaintenanceResult
-import com.github.dave08.kacheable.CacheStorageKind
+import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.CacheReturn
-import com.github.dave08.kacheable.CacheStorage
-import com.github.dave08.kacheable.CacheSnapshotStore
-import com.github.dave08.kacheable.CacheTelemetry
+import com.github.dave08.kacheable.CachePartitionContext
 import com.github.dave08.kacheable.CacheRefreshPolicy
+import com.github.dave08.kacheable.CacheResilienceConfig
+import com.github.dave08.kacheable.CacheReturn
+import com.github.dave08.kacheable.CacheSnapshotStore
+import com.github.dave08.kacheable.CacheStorage
+import com.github.dave08.kacheable.CacheStorageKind
+import com.github.dave08.kacheable.CacheTelemetry
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.KeyPart
 import com.github.dave08.kacheable.LoadConcurrencySettings
 import com.github.dave08.kacheable.NoopCacheSnapshotStore
 import com.github.dave08.kacheable.NoopCacheTelemetry
-import com.github.dave08.kacheable.StoredCacheEntryRef
-import com.github.dave08.kacheable.StoredCacheAllRef
-import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.toTelemetryKind
+import com.github.dave08.kacheable.PartitionCacheEntryRef
 import com.github.dave08.kacheable.SingleFlightMode
+import com.github.dave08.kacheable.StoredCacheAllRef
+import com.github.dave08.kacheable.StoredCacheEntryRef
+import com.github.dave08.kacheable.StoredCachePartRef
 import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.TypedStorages
 import com.github.dave08.kacheable.internal.storage.hash.HashMapTypedStorage
+import com.github.dave08.kacheable.internal.storage.hash.PartitionCacheRoutes
 import com.github.dave08.kacheable.internal.storage.set.SetTypedStorage
 import com.github.dave08.kacheable.internal.storage.string.StringTypedStorage
-import com.github.dave08.kacheable.store.CacheValueCodec
-import com.github.dave08.kacheable.store.cacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import com.github.dave08.kacheable.store.DistributedSingleFlightStore
 import com.github.dave08.kacheable.store.KacheableStore
+import com.github.dave08.kacheable.store.VersionedHashOperations
+import com.github.dave08.kacheable.store.cacheValueCodec
+import com.github.dave08.kacheable.toTelemetryKind
+import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
-import kotlin.time.Clock
 
 internal class KacheableImpl(
     store: KacheableStore,
-    configs: Map<String, CacheConfig>,
+    private val configs: Map<String, CacheConfig>,
     namingStrategy: CacheNamingStrategy,
     private val jsonParser: Json,
     defaultResilience: CacheResilienceConfig,
@@ -55,9 +61,16 @@ internal class KacheableImpl(
     snapshotClock: Clock = Clock.System,
     telemetry: CacheTelemetry = NoopCacheTelemetry,
     correlationProvider: CacheCorrelationProvider? = null,
-) : Kacheable {
+) : Kacheable, PartitionCacheAccess {
+    init {
+        validateConfiguration(store, configs, defaultResilience)
+    }
+
     private val backgroundScopeProvider = BackgroundScopeProvider(backgroundScope)
     private val telemetryRuntime = CacheTelemetryRuntime(telemetry, correlationProvider)
+
+    private val loadCoordinator = CacheLoadCoordinator(defaultResilience, loadConcurrency)
+    private val partitionRoutes = PartitionCacheRoutes.create(configs, { store }, namingStrategy, loadCoordinator, telemetryRuntime)
 
     private val snapshotCoordinator = if (configs.values.any { it.snapshot != null }) {
         CacheSnapshotCoordinator(
@@ -78,22 +91,41 @@ internal class KacheableImpl(
             store,
             configs,
             namingStrategy,
-            defaultResilience,
-            loadConcurrency,
+            loadCoordinator,
             snapshotCoordinator,
             backgroundScopeProvider::get,
             telemetryRuntime,
         )
 
     init {
-        validateResilience(store, configs, defaultResilience)
         snapshotCoordinator?.start()
+    }
+
+    override suspend fun <K, V, P : KeyPart<K>> loadPartition(
+        ref: PartitionCacheEntryRef<K, V, P>,
+        cacheIf: (V) -> Boolean,
+        block: suspend (K, CachePartitionContext<K, V, P>) -> V,
+    ): V = partitionRoutes.load(ref, cacheIf, block)
+
+    override suspend fun <K, V, P : KeyPart<K>> loadPartition(
+        ref: PartitionCacheEntryRef<K, V, P>,
+        cacheIf: (V) -> Boolean,
+        block: suspend () -> V,
+    ): V = partitionRoutes.load(ref, cacheIf, block) {
+        invoke(ref.entryRef, ref.returnView, cacheIf, block)
+    }
+
+    private fun requireOrdinary(name: String) {
+        require(configs[name]?.partition == null) {
+            "GenerationChecked cache '$name' requires a typed partition entry call."
+        }
     }
 
     override suspend fun <R> invalidate(
         vararg keys: Pair<String, List<Any>>,
         block: suspend () -> R,
     ): R {
+        keys.forEach { requireOrdinary(it.first) }
         val started = if (telemetryRuntime.enabled) System.nanoTime() else 0L
         return try {
             storages.string.invalidate(*keys, block = block).also {
@@ -189,13 +221,16 @@ internal class KacheableImpl(
         vararg params: Any,
         cacheIf: (R) -> Boolean,
         block: suspend () -> R
-    ): R = storages.string.invoke(
-        name = name,
-        codec = cacheValueCodec(type, jsonParser),
-        params = params,
-        saveResultIf = cacheIf,
-        block = block,
-    )
+    ): R = run {
+        requireOrdinary(name)
+        storages.string.invoke(
+            name = name,
+            codec = cacheValueCodec(type, jsonParser),
+            params = params,
+            saveResultIf = cacheIf,
+            block = block,
+        )
+    }
 
     override suspend fun <S : CacheStorage, R> invoke(
         entryRef: StoredCacheEntryRef<S>,
@@ -205,6 +240,7 @@ internal class KacheableImpl(
         storeResultIf: (R) -> Boolean,
         block: suspend (previous: R?) -> R,
     ): R {
+        requireOrdinary(entryRef.name)
         @Suppress("UNCHECKED_CAST")
         return (storages.any(entryRef.storage) as TypedStorage<S>).invoke(
             entryRef = entryRef,
@@ -218,30 +254,31 @@ internal class KacheableImpl(
 
     override suspend fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean,
         block: suspend () -> R,
-    ): R = storages.string.invoke(
-        name = name,
-        codec = codec,
-        params = params,
-        saveResultIf = cacheIf,
-        block = block,
-    )
+    ): R = run {
+        requireOrdinary(name)
+        storages.string.invoke(
+            name = name,
+            codec = codec,
+            params = params,
+            saveResultIf = cacheIf,
+            block = block,
+        )
+    }
 
     companion object {
         private fun createTypedStorages(
             store: KacheableStore,
             configs: Map<String, CacheConfig>,
             namingStrategy: CacheNamingStrategy,
-            defaultResilience: CacheResilienceConfig,
-            loadConcurrency: LoadConcurrencySettings,
+            loadCoordinator: CacheLoadCoordinator,
             snapshotCoordinator: CacheSnapshotCoordinator?,
             backgroundScope: () -> CoroutineScope,
             telemetryRuntime: CacheTelemetryRuntime,
         ): TypedStorages {
-            val loadCoordinator = CacheLoadCoordinator(defaultResilience, loadConcurrency)
             return TypedStorages(
                 string = StringTypedStorage(
                     store,
@@ -284,11 +321,20 @@ private class BackgroundScopeProvider(
     fun get(): CoroutineScope = created
 }
 
-private fun validateResilience(
+private fun validateConfiguration(
     store: KacheableStore,
     configs: Map<String, CacheConfig>,
     defaultResilience: CacheResilienceConfig,
 ) {
+    configs.values.filter { it.partition != null }.forEach { config ->
+        require(store is VersionedHashOperations) {
+            "Partition cache '${config.name}' requires a store that implements VersionedHashOperations."
+        }
+        val resilience = config.resilience ?: defaultResilience
+        require(!resilience.staleOnFailure && !resilience.staleOnTimeout) {
+            "Partition cache '${config.name}' does not support stale fallback policies."
+        }
+    }
     val redisSingleFlightConfigured =
         defaultResilience.singleFlight == SingleFlightMode.Redis ||
             configs.values.any { it.resilience?.singleFlight == SingleFlightMode.Redis }

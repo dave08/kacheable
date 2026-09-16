@@ -1,6 +1,6 @@
 package com.github.dave08.kacheable
 
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
@@ -25,7 +25,7 @@ interface Kacheable {
      */
     suspend fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean = { true },
         block: suspend () -> R

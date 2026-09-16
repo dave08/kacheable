@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable
 
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Per-cache runtime configuration.
@@ -46,4 +47,25 @@ data class CacheConfig(
      * miss policy.
      */
     val snapshot: CacheSnapshotConfig? = null,
-)
+    /** Optional generation-checked partition loading; ordinary caches leave this unset. */
+    val partition: CachePartitionPolicy? = null,
+) {
+    init {
+        if (partition != null) {
+            require(expiryType != ExpiryType.after_access) {
+                "Generation-checked partitions support after_write expiry only."
+            }
+            if (expiryType == ExpiryType.after_write) {
+                require(expiry >= 1.milliseconds) {
+                    "Generation-checked partition write expiry must be at least one millisecond or infinite."
+                }
+            }
+            require(resilience?.staleOnFailure != true && resilience?.staleOnTimeout != true) {
+                "Generation-checked caches do not support stale fallback policies."
+            }
+            require(snapshot == null) {
+                "Generation-checked caches do not support snapshot restoration."
+            }
+        }
+    }
+}

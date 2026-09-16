@@ -128,12 +128,17 @@ class RawCacheRef internal constructor(
 /**
  * Ref to one logical cached result.
  */
-class CacheEntryRef<R> internal constructor(
+sealed class CacheEntryRef<R> protected constructor(
     internal val entryRef: StoredCacheEntryRef<CacheStorage>,
     internal val returnView: CacheReturn<R, *>,
 ) : CacheInvalidationRef {
     override fun toString(): String = entryRef.toDebugString()
 }
+
+internal class ValueCacheEntryRef<R>(
+    entryRef: StoredCacheEntryRef<CacheStorage>,
+    returnView: CacheReturn<R, *>,
+) : CacheEntryRef<R>(entryRef, returnView)
 
 /**
  * Ref to a partition or matching subset of a partitioned cache key.
@@ -355,8 +360,8 @@ class ExactKeyShape6<P1, P2, P3, P4, P5, P6> @PublishedApi internal constructor(
     @PublishedApi internal val key: KeyPartComposition6<P1, P2, P3, P4, P5, P6>,
 ) : ExactKeyShape
 
-class SinglePartitionKeyShape1<K1> @PublishedApi internal constructor(
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+class SinglePartitionKeyShape1<K1, P : KeyPart<K1>> @PublishedApi internal constructor(
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -391,9 +396,9 @@ class SinglePartitionKeyShape6<K1, K2, K3, K4, K5, K6> @PublishedApi internal co
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-class PartitionedKeyShape1x1<I1, K1> @PublishedApi internal constructor(
+class PartitionedKeyShape1x1<I1, K1, P : KeyPart<K1>> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPart<I1>,
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -426,9 +431,9 @@ class PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-class PartitionedKeyShape2x1<I1, I2, K1> @PublishedApi internal constructor(
+class PartitionedKeyShape2x1<I1, I2, K1, P : KeyPart<K1>> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition2<I1, I2>,
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -454,9 +459,9 @@ class PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-class PartitionedKeyShape3x1<I1, I2, I3, K1> @PublishedApi internal constructor(
+class PartitionedKeyShape3x1<I1, I2, I3, K1, P : KeyPart<K1>> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition3<I1, I2, I3>,
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -475,9 +480,9 @@ class PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-class PartitionedKeyShape4x1<I1, I2, I3, I4, K1> @PublishedApi internal constructor(
+class PartitionedKeyShape4x1<I1, I2, I3, I4, K1, P : KeyPart<K1>> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition4<I1, I2, I3, I4>,
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -489,9 +494,9 @@ class PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2> @PublishedApi internal cons
     override val hasMatchableEntryParts: Boolean = itemKey.parts().any { it.isMatchable() }
 }
 
-class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> @PublishedApi internal constructor(
+class PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1, P : KeyPart<K1>> @PublishedApi internal constructor(
     @PublishedApi internal val partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
-    @PublishedApi internal val itemKey: KeyPart<K1>,
+    @PublishedApi internal val itemKey: P,
 ) : PartitionedKeyShape {
     override val hasMatchableEntryParts: Boolean = itemKey.isMatchable()
 }
@@ -554,10 +559,10 @@ fun <P1, P2, P3, P4, P5, P6> exact(
  * cache.invalidate(pages.partition(artistIdValue))       // all pages for the artist
  * ```
  */
-fun <I1, K1> partitioned(
+fun <I1, K1, P : KeyPart<K1>> partitioned(
     partition: KeyPart<I1>,
-    key: KeyPart<K1>,
-): PartitionedKeyShape1x1<I1, K1> = PartitionedKeyShape1x1(partition, key)
+    key: P,
+): PartitionedKeyShape1x1<I1, K1, P> = PartitionedKeyShape1x1(partition, key)
 
 /**
  * Defines a partitioned cache key with no explicit partition; useful when storage should still
@@ -570,9 +575,9 @@ fun <I1, K1> partitioned(
  * cache.invalidate(newest.partition()) // all pages in the cache family
  * ```
  */
-fun <K1> partitioned(
-    key: KeyPart<K1>,
-): SinglePartitionKeyShape1<K1> = SinglePartitionKeyShape1(key)
+fun <K1, P : KeyPart<K1>> partitioned(
+    key: P,
+): SinglePartitionKeyShape1<K1, P> = SinglePartitionKeyShape1(key)
 
 fun <K1, K2> partitioned(
     key: KeyPartComposition2<K1, K2>,
@@ -614,10 +619,10 @@ fun <I1, K1, K2, K3, K4, K5> partitioned(
     key: KeyPartComposition5<K1, K2, K3, K4, K5>,
 ): PartitionedKeyShape1x5<I1, K1, K2, K3, K4, K5> = PartitionedKeyShape1x5(partition, key)
 
-fun <I1, I2, K1> partitioned(
+fun <I1, I2, K1, P : KeyPart<K1>> partitioned(
     partition: KeyPartComposition2<I1, I2>,
-    key: KeyPart<K1>,
-): PartitionedKeyShape2x1<I1, I2, K1> = PartitionedKeyShape2x1(partition, key)
+    key: P,
+): PartitionedKeyShape2x1<I1, I2, K1, P> = PartitionedKeyShape2x1(partition, key)
 
 fun <I1, I2, K1, K2> partitioned(
     partition: KeyPartComposition2<I1, I2>,
@@ -634,10 +639,10 @@ fun <I1, I2, K1, K2, K3, K4> partitioned(
     key: KeyPartComposition4<K1, K2, K3, K4>,
 ): PartitionedKeyShape2x4<I1, I2, K1, K2, K3, K4> = PartitionedKeyShape2x4(partition, key)
 
-fun <I1, I2, I3, K1> partitioned(
+fun <I1, I2, I3, K1, P : KeyPart<K1>> partitioned(
     partition: KeyPartComposition3<I1, I2, I3>,
-    key: KeyPart<K1>,
-): PartitionedKeyShape3x1<I1, I2, I3, K1> = PartitionedKeyShape3x1(partition, key)
+    key: P,
+): PartitionedKeyShape3x1<I1, I2, I3, K1, P> = PartitionedKeyShape3x1(partition, key)
 
 fun <I1, I2, I3, K1, K2> partitioned(
     partition: KeyPartComposition3<I1, I2, I3>,
@@ -649,20 +654,20 @@ fun <I1, I2, I3, K1, K2, K3> partitioned(
     key: KeyPartComposition3<K1, K2, K3>,
 ): PartitionedKeyShape3x3<I1, I2, I3, K1, K2, K3> = PartitionedKeyShape3x3(partition, key)
 
-fun <I1, I2, I3, I4, K1> partitioned(
+fun <I1, I2, I3, I4, K1, P : KeyPart<K1>> partitioned(
     partition: KeyPartComposition4<I1, I2, I3, I4>,
-    key: KeyPart<K1>,
-): PartitionedKeyShape4x1<I1, I2, I3, I4, K1> = PartitionedKeyShape4x1(partition, key)
+    key: P,
+): PartitionedKeyShape4x1<I1, I2, I3, I4, K1, P> = PartitionedKeyShape4x1(partition, key)
 
 fun <I1, I2, I3, I4, K1, K2> partitioned(
     partition: KeyPartComposition4<I1, I2, I3, I4>,
     key: KeyPartComposition2<K1, K2>,
 ): PartitionedKeyShape4x2<I1, I2, I3, I4, K1, K2> = PartitionedKeyShape4x2(partition, key)
 
-fun <I1, I2, I3, I4, I5, K1> partitioned(
+fun <I1, I2, I3, I4, I5, K1, P : KeyPart<K1>> partitioned(
     partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
-    key: KeyPart<K1>,
-): PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1> = PartitionedKeyShape5x1(partition, key)
+    key: P,
+): PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1, P> = PartitionedKeyShape5x1(partition, key)
 
 @PublishedApi
 internal fun <R> planExact(
@@ -764,7 +769,7 @@ private fun <R> cacheEntryRef(
     partitionPartNames: List<String?>,
     itemKeyPartArgs: List<CacheArgs> = emptyList(),
     itemKeyPartNames: List<String?> = emptyList(),
-): CacheEntryRef<R> = CacheEntryRef(
+): CacheEntryRef<R> = ValueCacheEntryRef(
     entryRef = entryRef(
         name = name,
         storage = plannedStorage.storage,
@@ -864,25 +869,25 @@ fun <R, P1, P2, P3, P4, P5, P6> cacheKey(
  * Creates a typed cache key. Partitioned shapes allow invalidating a partition or matching entry
  * parts inside a partition.
  */
-fun <R, I1, K1> cacheKey(
+fun <R, I1, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: PartitionedKeyShape1x1<I1, K1>,
+    key: PartitionedKeyShape1x1<I1, K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): PartitionedCacheKey1x1<I1, K1, R> =
+): PartitionedCacheKey1x1<I1, K1, R, P> =
     PartitionedCacheKey1x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 /**
  * Creates a typed single-partition cache key. Entries share one implicit cache-wide partition.
  */
-fun <R, K1> cacheKey(
+fun <R, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: SinglePartitionKeyShape1<K1>,
+    key: SinglePartitionKeyShape1<K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): SinglePartitionCacheKey1<K1, R> =
+): SinglePartitionCacheKey1<K1, R, P> =
     SinglePartitionCacheKey1(name, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, K1, K2> cacheKey(
@@ -966,13 +971,13 @@ fun <R, I1, K1, K2, K3, K4, K5> cacheKey(
 ): PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> =
     PartitionedCacheKey1x5(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
-fun <R, I1, I2, K1> cacheKey(
+fun <R, I1, I2, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: PartitionedKeyShape2x1<I1, I2, K1>,
+    key: PartitionedKeyShape2x1<I1, I2, K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): PartitionedCacheKey2x1<I1, I2, K1, R> =
+): PartitionedCacheKey2x1<I1, I2, K1, R, P> =
     PartitionedCacheKey2x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, K1, K2> cacheKey(
@@ -1002,13 +1007,13 @@ fun <R, I1, I2, K1, K2, K3, K4> cacheKey(
 ): PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> =
     PartitionedCacheKey2x4(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
-fun <R, I1, I2, I3, K1> cacheKey(
+fun <R, I1, I2, I3, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: PartitionedKeyShape3x1<I1, I2, I3, K1>,
+    key: PartitionedKeyShape3x1<I1, I2, I3, K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): PartitionedCacheKey3x1<I1, I2, I3, K1, R> =
+): PartitionedCacheKey3x1<I1, I2, I3, K1, R, P> =
     PartitionedCacheKey3x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, K1, K2> cacheKey(
@@ -1029,13 +1034,13 @@ fun <R, I1, I2, I3, K1, K2, K3> cacheKey(
 ): PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> =
     PartitionedCacheKey3x3(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
-fun <R, I1, I2, I3, I4, K1> cacheKey(
+fun <R, I1, I2, I3, I4, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: PartitionedKeyShape4x1<I1, I2, I3, I4, K1>,
+    key: PartitionedKeyShape4x1<I1, I2, I3, I4, K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> =
+): PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R, P> =
     PartitionedCacheKey4x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 fun <R, I1, I2, I3, I4, K1, K2> cacheKey(
@@ -1047,13 +1052,13 @@ fun <R, I1, I2, I3, I4, K1, K2> cacheKey(
 ): PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> =
     PartitionedCacheKey4x2(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
-fun <R, I1, I2, I3, I4, I5, K1> cacheKey(
+fun <R, I1, I2, I3, I4, I5, K1, P : KeyPart<K1>> cacheKey(
     name: String,
     returns: CacheResult<R>,
-    key: PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1>,
+    key: PartitionedKeyShape5x1<I1, I2, I3, I4, I5, K1, P>,
     storage: IndexedStoragePlan<R> = auto(),
     loadConcurrency: LoadConcurrencyGroup? = null,
-): PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R> =
+): PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R, P> =
     PartitionedCacheKey5x1(name, key.partition, key.itemKey, planIndexed(returns, storage, key.hasMatchableEntryParts).withLoadConcurrency(loadConcurrency))
 
 class ExactCacheKey0<R> @PublishedApi internal constructor(
@@ -1160,20 +1165,25 @@ class ExactCacheKey6<P1, P2, P3, P4, P5, P6, R> @PublishedApi internal construct
     )
 }
 
-class SinglePartitionCacheKey1<K1, R> @PublishedApi internal constructor(
+class SinglePartitionCacheKey1<K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = emptyList(),
-        partitionPartNames = emptyList(),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = emptyList(),
+            partitionPartNames = emptyList(),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(inner) },
+        keyPart = itemKey,
     )
 
     fun partition(): CachePartRef<R> = cachePartRef(
@@ -1338,21 +1348,26 @@ class SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> @PublishedApi internal
     )
 }
 
-class PartitionedCacheKey1x1<I1, K1, R> @PublishedApi internal constructor(
+class PartitionedCacheKey1x1<I1, K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPart<I1>,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(i1: I1, k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = listOf(partition.encodePart(i1)),
-        partitionPartNames = listOf(partition.name),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(i1: I1, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = listOf(partition.encodePart(i1)),
+            partitionPartNames = listOf(partition.name),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(i1, inner) },
+        keyPart = itemKey,
     )
 
     fun partition(i1: I1): CachePartRef<R> = cachePartRef(
@@ -1508,21 +1523,26 @@ class PartitionedCacheKey1x5<I1, K1, K2, K3, K4, K5, R> @PublishedApi internal c
     )
 }
 
-class PartitionedCacheKey2x1<I1, I2, K1, R> @PublishedApi internal constructor(
+class PartitionedCacheKey2x1<I1, I2, K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition2<I1, I2>,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(i1: I1, i2: I2, k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = partition.encodeParts(i1, i2),
-        partitionPartNames = partition.partNames(),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(i1: I1, i2: I2, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = partition.encodeParts(i1, i2),
+            partitionPartNames = partition.partNames(),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(i1, i2, inner) },
+        keyPart = itemKey,
     )
 
     fun partition(i1: I1, i2: I2): CachePartRef<R> = cachePartRef(
@@ -1635,21 +1655,26 @@ class PartitionedCacheKey2x4<I1, I2, K1, K2, K3, K4, R> @PublishedApi internal c
     )
 }
 
-class PartitionedCacheKey3x1<I1, I2, I3, K1, R> @PublishedApi internal constructor(
+class PartitionedCacheKey3x1<I1, I2, I3, K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition3<I1, I2, I3>,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(i1: I1, i2: I2, i3: I3, k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = partition.encodeParts(i1, i2, i3),
-        partitionPartNames = partition.partNames(),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(i1: I1, i2: I2, i3: I3, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = partition.encodeParts(i1, i2, i3),
+            partitionPartNames = partition.partNames(),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(i1, i2, i3, inner) },
+        keyPart = itemKey,
     )
 
     fun partition(i1: I1, i2: I2, i3: I3): CachePartRef<R> = cachePartRef(
@@ -1719,21 +1744,26 @@ class PartitionedCacheKey3x3<I1, I2, I3, K1, K2, K3, R> @PublishedApi internal c
     )
 }
 
-class PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R> @PublishedApi internal constructor(
+class PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition4<I1, I2, I3, I4>,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = partition.encodeParts(i1, i2, i3, i4),
-        partitionPartNames = partition.partNames(),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = partition.encodeParts(i1, i2, i3, i4),
+            partitionPartNames = partition.partNames(),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(i1, i2, i3, i4, inner) },
+        keyPart = itemKey,
     )
 
     fun partition(i1: I1, i2: I2, i3: I3, i4: I4): CachePartRef<R> = cachePartRef(
@@ -1778,21 +1808,26 @@ class PartitionedCacheKey4x2<I1, I2, I3, I4, K1, K2, R> @PublishedApi internal c
     )
 }
 
-class PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R> @PublishedApi internal constructor(
+class PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R, P : KeyPart<K1>> @PublishedApi internal constructor(
     private val name: String,
     private val partition: KeyPartComposition5<I1, I2, I3, I4, I5>,
-    private val itemKey: KeyPart<K1>,
+    private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
-    operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, k1: K1): CacheEntryRef<R> = cacheEntryRef(
-        name = name,
-        plannedStorage = plannedStorage,
-        partitionPartArgs = partition.encodeParts(i1, i2, i3, i4, i5),
-        partitionPartNames = partition.partNames(),
-        itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
-        itemKeyPartNames = listOf(itemKey.name),
+    operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
+        ref = cacheEntryRef(
+            name = name,
+            plannedStorage = plannedStorage,
+            partitionPartArgs = partition.encodeParts(i1, i2, i3, i4, i5),
+            partitionPartNames = partition.partNames(),
+            itemKeyPartArgs = listOf(itemKey.encodePart(k1)),
+            itemKeyPartNames = listOf(itemKey.name),
+        ),
+        key = k1,
+        sibling = { inner -> invoke(i1, i2, i3, i4, i5, inner) },
+        keyPart = itemKey,
     )
 
     fun partition(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5): CachePartRef<R> = cachePartRef(

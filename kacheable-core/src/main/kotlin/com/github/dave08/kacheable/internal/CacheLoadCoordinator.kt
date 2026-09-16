@@ -35,6 +35,8 @@ internal class CacheLoadCoordinator(
     private val loadConcurrency: LoadConcurrencySettings,
 ) {
     private val inFlightMutex = Mutex()
+    private val partitionMutex = Mutex()
+    private val partitionLocks = mutableMapOf<String, PartitionLock>()
     private val inFlightLoads = mutableMapOf<String, CompletableDeferred<Any?>>()
     private val limiterMutex = Mutex()
     private val limiters = mutableMapOf<String, LoadLimiter>()
@@ -53,6 +55,7 @@ internal class CacheLoadCoordinator(
         execution: CacheExecution,
         readCached: suspend () -> R?,
         loadAndSave: suspend (CacheExecution) -> R,
+        coordinationKey: String? = null,
     ): R {
         val resilience = resilienceFor(config)
         val concurrency = resolveLoadConcurrency(cacheName, resilience, loadConcurrencyGroup)
@@ -67,7 +70,10 @@ internal class CacheLoadCoordinator(
         }
         val executeLoad = suspend {
             withContext(CacheExecutionContext(effectiveExecution)) {
-                loadAndSave(effectiveExecution)
+                if (coordinationKey == null) loadAndSave(effectiveExecution)
+                else withPartitionLock(coordinationKey, observation) {
+                    readCached() ?: loadAndSave(effectiveExecution)
+                }
             }
         }
         val limiter = concurrency?.let { (name, resolvedConfig) ->
@@ -106,7 +112,7 @@ internal class CacheLoadCoordinator(
                     runWithLoadTimeout(resilience) {
                         runAdmittedDistributedSingleFlight(
                             store = admissionAwareStore,
-                            key = "$cacheName:$entryKey",
+                            key = "$cacheName:${coordinationKey ?: entryKey}",
                             limiter = limiter,
                             execution = effectiveExecution,
                             resilience = resilience,
@@ -118,7 +124,7 @@ internal class CacheLoadCoordinator(
                 } else {
                     runDistributedSingleFlight(
                         store = store,
-                        key = "$cacheName:$entryKey",
+                        key = "$cacheName:${coordinationKey ?: entryKey}",
                         resilience = resilience,
                         observation = observation,
                         readCached = readCached,
@@ -126,6 +132,40 @@ internal class CacheLoadCoordinator(
                     )
                 }
             }
+        }
+    }
+
+    private class PartitionLock(val mutex: Mutex = Mutex(), var users: Int = 0)
+
+    private suspend fun <R> withPartitionLock(key: String, observation: OperationObservation, block: suspend () -> R): R {
+        val lock = partitionMutex.withLock {
+            partitionLocks.getOrPut(key) { PartitionLock() }.also { it.users++ }
+        }
+        try {
+            acquirePartitionLock(lock.mutex, observation)
+            try {
+                return block()
+            } finally {
+                lock.mutex.unlock()
+            }
+        } finally {
+            withContext(NonCancellable) {
+                partitionMutex.withLock {
+                    lock.users--
+                    if (lock.users == 0) partitionLocks.remove(key)
+                }
+            }
+        }
+    }
+
+    private suspend fun acquirePartitionLock(mutex: Mutex, observation: OperationObservation) {
+        if (mutex.tryLock()) return
+        val started = observation.startTimer()
+        observation.loadWaitStarted(CacheWaitReason.PartitionCoordination, CacheLoadRole.Joiner)
+        try {
+            mutex.lock()
+        } finally {
+            observation.loadWait(CacheWaitReason.PartitionCoordination, CacheLoadRole.Joiner, started)
         }
     }
 

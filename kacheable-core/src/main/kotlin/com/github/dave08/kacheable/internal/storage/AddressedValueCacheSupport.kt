@@ -1,6 +1,7 @@
 package com.github.dave08.kacheable.internal.storage
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheLoadResult
 import com.github.dave08.kacheable.CacheExecution
 import com.github.dave08.kacheable.CacheLoadTrigger
 import com.github.dave08.kacheable.CacheMissPolicy
@@ -20,7 +21,7 @@ import com.github.dave08.kacheable.internal.CacheResultPolicy
 import com.github.dave08.kacheable.internal.ObservationContext
 import com.github.dave08.kacheable.internal.OperationObservation
 import com.github.dave08.kacheable.internal.snapshot.CacheSnapshotCoordinator
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +36,7 @@ internal suspend fun <R> KacheableStore.invokeAtAddress(
     loadConcurrency: LoadConcurrencyGroup?,
     snapshotCoordinator: CacheSnapshotCoordinator?,
     backgroundScope: () -> CoroutineScope,
-    codec: CacheValueCodec<R>,
+    codec: CacheCodec<R>,
     missPolicy: CacheMissPolicy<R>,
     refreshPolicy: CacheRefreshPolicy<R>,
     storeResultIf: (R) -> Boolean,
@@ -112,8 +113,9 @@ private suspend fun <R> KacheableStore.invokeObservedAtAddress(
     block: suspend (previous: R?) -> R,
 ): R {
     val config = configs[cacheName]
-    readDecoded(CacheReadAttempt.Hot)?.let { cachedRead ->
+    suspend fun returnCachedOrRefresh(cachedRead: DecodedRead<R>): R {
         val cached = cachedRead.value
+        var latestCached = cached
         val observed = applyRefreshPolicy(
             cached = cached,
             cacheName = cacheName,
@@ -126,44 +128,25 @@ private suspend fun <R> KacheableStore.invokeObservedAtAddress(
             refreshPolicy = refreshPolicy,
             observation = observation,
             loadAndSave = { trigger, execution ->
-                loadAndSaveObserved(observation, trigger, execution, { block(cached) }, saveResult)
+                loadAndSaveObserved(observation, trigger, execution, { block(latestCached) }, saveResult)
             },
             readFreshCached = {
-                readDecoded(CacheReadAttempt.SingleFlightRecheck)?.value
-                    ?.takeUnless { refreshPolicy is CacheRefreshPolicy.RefreshIf && refreshPolicy.isStale(it) }
+                readDecoded(CacheReadAttempt.SingleFlightRecheck)
+                    ?.also { latestCached = it.value }
+                    ?.takeUnless { refreshPolicy is CacheRefreshPolicy.RefreshIf && refreshPolicy.isStale(it.value) }
             },
+            latestCached = { latestCached },
         )
         observation.complete(observed.result)
         return observed.value
     }
 
+
+    readDecoded(CacheReadAttempt.Hot)?.let { return returnCachedOrRefresh(it) }
     snapshotCoordinator?.restoreEntry(cacheName, entryName)
-    readDecoded(CacheReadAttempt.AfterSnapshot)?.let { cachedRead ->
-        val cached = cachedRead.value
-        val observed = applyRefreshPolicy(
-            cached = cached,
-            cacheName = cacheName,
-            entryName = entryName,
-            store = this,
-            config = config,
-            loadCoordinator = loadCoordinator,
-            loadConcurrency = loadConcurrency,
-            backgroundScope = backgroundScope,
-            refreshPolicy = refreshPolicy,
-            observation = observation,
-            loadAndSave = { trigger, execution ->
-                loadAndSaveObserved(observation, trigger, execution, { block(cached) }, saveResult)
-            },
-            readFreshCached = {
-                readDecoded(CacheReadAttempt.SingleFlightRecheck)?.value
-                    ?.takeUnless { refreshPolicy is CacheRefreshPolicy.RefreshIf && refreshPolicy.isStale(it) }
-            },
-        )
-        observation.complete(observed.result)
-        return observed.value
-    }
+    readDecoded(CacheReadAttempt.AfterSnapshot)?.let { return returnCachedOrRefresh(it) }
 
-    val readCached = suspend { readDecoded(CacheReadAttempt.SingleFlightRecheck)?.value }
+    val readCached = suspend { readDecoded(CacheReadAttempt.SingleFlightRecheck) }
     val loadAndSave: suspend (CacheLoadTrigger, CacheExecution) -> R = { trigger, execution ->
         loadAndSaveObserved(observation, trigger, execution, { block(null) }, saveResult)
     }
@@ -227,7 +210,8 @@ private suspend fun <R> KacheableStore.applyRefreshPolicy(
     refreshPolicy: CacheRefreshPolicy<R>,
     observation: OperationObservation,
     loadAndSave: suspend (CacheLoadTrigger, CacheExecution) -> R,
-    readFreshCached: suspend () -> R?,
+    readFreshCached: suspend () -> DecodedRead<R>?,
+    latestCached: () -> R,
 ): ObservedValue<R> = when (refreshPolicy) {
     is CacheRefreshPolicy.NeverRefresh -> ObservedValue(cached, CacheOperationResult.CachedValue)
     is CacheRefreshPolicy.RefreshIf -> {
@@ -266,7 +250,7 @@ private suspend fun <R> KacheableStore.applyRefreshPolicy(
                 execution = CacheExecution.Foreground,
                 readCached = readFreshCached,
                 loadAndSave = loadAndSave,
-                onFailure = { ObservedValue(cached, CacheOperationResult.Stale) },
+                onFailure = { ObservedValue(latestCached(), CacheOperationResult.Stale) },
             )
         }
     }
@@ -319,7 +303,7 @@ private suspend fun <R> KacheableStore.saveLoaderResult(
     blockResult: R,
     config: CacheConfig?,
     storeResultIf: (R) -> Boolean,
-    codec: CacheValueCodec<R>,
+    codec: CacheCodec<R>,
     observation: OperationObservation,
 ) {
     val resultToSave = CacheResultPolicy.encodeResultToSave(blockResult, config, storeResultIf, codec)
@@ -340,7 +324,7 @@ private suspend fun <R> loadWithPolicy(
     observation: OperationObservation,
     trigger: CacheLoadTrigger,
     execution: CacheExecution,
-    readCached: suspend () -> R?,
+    readCached: suspend () -> DecodedRead<R>?,
     loadAndSave: suspend (CacheLoadTrigger, CacheExecution) -> R,
     onFailure: suspend (Throwable) -> ObservedValue<R>,
 ): ObservedValue<R> {
@@ -355,25 +339,25 @@ private suspend fun <R> loadWithPolicy(
             loadConcurrencyGroup = loadConcurrency,
             execution = execution,
             readCached = readCached,
-            loadAndSave = { effectiveExecution -> loadAndSave(trigger, effectiveExecution) },
+            loadAndSave = { effectiveExecution -> DecodedRead(loadAndSave(trigger, effectiveExecution)) },
         )
         ObservedValue(
-            loaded,
+            loaded.value,
             if (trigger == CacheLoadTrigger.Refresh) CacheOperationResult.Refreshed else CacheOperationResult.Loaded,
         )
     } catch (t: TimeoutCancellationException) {
         readCached().takeIf { resilience.staleOnTimeout }
-            ?.let { ObservedValue(it, CacheOperationResult.Stale) }
+            ?.let { ObservedValue(it.value, CacheOperationResult.Stale) }
             ?: onFailure(t)
     } catch (t: CacheLoadTimeoutException) {
         readCached().takeIf { resilience.staleOnTimeout }
-            ?.let { ObservedValue(it, CacheOperationResult.Stale) }
+            ?.let { ObservedValue(it.value, CacheOperationResult.Stale) }
             ?: onFailure(t)
     } catch (t: CancellationException) {
         throw t
     } catch (t: Throwable) {
         readCached().takeIf { resilience.staleOnFailure }
-            ?.let { ObservedValue(it, CacheOperationResult.Stale) }
+            ?.let { ObservedValue(it.value, CacheOperationResult.Stale) }
             ?: onFailure(t)
     }
 }
@@ -392,7 +376,7 @@ private suspend fun <R> loadAndSaveObserved(
             observation.loaderCompleted(
                 trigger,
                 execution,
-                com.github.dave08.kacheable.CacheLoadResult.Success,
+                CacheLoadResult.Success,
                 started,
             )
         }
@@ -400,10 +384,10 @@ private suspend fun <R> loadAndSaveObserved(
         val loadResult = when (t) {
             is TimeoutCancellationException,
             is CacheLoadTimeoutException,
-            -> com.github.dave08.kacheable.CacheLoadResult.Timeout
+            -> CacheLoadResult.Timeout
 
-            is CancellationException -> com.github.dave08.kacheable.CacheLoadResult.Cancelled
-            else -> com.github.dave08.kacheable.CacheLoadResult.Failure
+            is CancellationException -> CacheLoadResult.Cancelled
+            else -> CacheLoadResult.Failure
         }
         observation.loaderCompleted(trigger, execution, loadResult, started)
         throw t
@@ -430,7 +414,7 @@ internal fun <R> BlockingKacheableStore.invokeAtAddress(
     configs: Map<String, CacheConfig>,
     loadCoordinator: BlockingLoadConcurrencyCoordinator,
     loadConcurrency: LoadConcurrencyGroup?,
-    codec: CacheValueCodec<R>,
+    codec: CacheCodec<R>,
     saveResultIf: (R) -> Boolean,
     observation: OperationObservation,
     block: () -> R,
@@ -512,7 +496,7 @@ private fun <R> BlockingKacheableStore.invokeObservedAtAddress(
                 observation.loaderCompleted(
                     CacheLoadTrigger.Miss,
                     CacheExecution.Foreground,
-                    com.github.dave08.kacheable.CacheLoadResult.Success,
+                    CacheLoadResult.Success,
                     loadStarted,
                 )
             }
@@ -520,7 +504,7 @@ private fun <R> BlockingKacheableStore.invokeObservedAtAddress(
             observation.loaderCompleted(
                 CacheLoadTrigger.Miss,
                 CacheExecution.Foreground,
-                com.github.dave08.kacheable.CacheLoadResult.Failure,
+                CacheLoadResult.Failure,
                 loadStarted,
             )
             throw t

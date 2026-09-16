@@ -28,7 +28,7 @@ fun BlockingKacheable(
     loadConcurrency: LoadConcurrencySettings = LoadConcurrencySettings(),
 ): BlockingKacheable = BlockingKacheableImpl(
     store,
-    configs,
+    configs.toMap(),
     namingStrategy,
     jsonParser,
     loadConcurrency,

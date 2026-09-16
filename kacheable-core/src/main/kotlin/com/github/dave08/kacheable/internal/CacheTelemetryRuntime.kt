@@ -25,6 +25,7 @@ import com.github.dave08.kacheable.SafeCacheTelemetry
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 
@@ -47,12 +48,12 @@ internal class CacheTelemetryRuntime(
         if (!enabled) return block(OperationObservation.noop())
 
         val context = currentCoroutineContext()
-        val parent = context[ObservationContext]?.observation
+        val parent = context[ObservationContext]?.observation ?: blockingParent.get()
         val correlationId = context[CacheCorrelationContext]?.correlationId
             ?: parent?.correlationId
             ?: safelyGetCorrelationId()
         val observation = begin(cacheName, storage, loadConcurrency, parent, correlationId)
-        return withContext(ObservationContext(observation)) {
+        return withContext(ObservationContext(observation) + blockingParent.asContextElement(observation)) {
             try {
                 block(observation)
             } catch (t: Throwable) {
@@ -258,6 +259,11 @@ internal class OperationObservation internal constructor(
     fun storageWrite(result: CacheWriteResult, startedAtNanos: Long) {
         if (!isEnabled) return
         delegate.storageWrite(result, elapsedSince(startedAtNanos))
+    }
+
+    fun partitionConflict(attempt: Int, willRetry: Boolean) {
+        if (!isEnabled) return
+        delegate.partitionConflict(attempt, willRetry)
     }
 
     fun complete(result: CacheOperationResult) {

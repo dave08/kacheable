@@ -16,7 +16,7 @@ import com.github.dave08.kacheable.internal.storage.CacheEntryNamer
 import com.github.dave08.kacheable.internal.storage.TypedStorage
 import com.github.dave08.kacheable.internal.storage.delete
 import com.github.dave08.kacheable.internal.storage.invokeAtAddress
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.coroutines.CoroutineScope
 
@@ -81,7 +81,7 @@ internal class StringTypedStorage(
 
     suspend fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         params: Array<out Any?>,
         saveResultIf: (R) -> Boolean,
         block: suspend () -> R,

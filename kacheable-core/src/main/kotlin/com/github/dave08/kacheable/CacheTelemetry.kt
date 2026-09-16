@@ -63,17 +63,22 @@ enum class CacheReadAttempt {
     Hot,
     AfterSnapshot,
     SingleFlightRecheck,
+    PartitionContext,
+    PartitionMetadata,
 }
 
 enum class CacheReadResult {
     Present,
     Absent,
+    Conflict,
+    Failed,
 }
 
 enum class CacheWaitReason {
     ConcurrencyLimit,
     LocalSingleFlight,
     RedisSingleFlight,
+    PartitionCoordination,
 }
 
 enum class CacheLoadRole {
@@ -191,6 +196,9 @@ interface CacheObservation {
         durationNanos: Long,
     ) = Unit
 
+    /** A generation or revision change rejected this one-based load attempt. */
+    fun partitionConflict(attempt: Int, willRetry: Boolean) = Unit
+
     fun complete(
         result: CacheOperationResult,
         durationNanos: Long,
@@ -269,6 +277,10 @@ private class SafeCacheObservation(
 
     override fun storageWrite(result: CacheWriteResult, durationNanos: Long) {
         safely { delegate.storageWrite(result, durationNanos) }
+    }
+
+    override fun partitionConflict(attempt: Int, willRetry: Boolean) {
+        safely { delegate.partitionConflict(attempt, willRetry) }
     }
 
     override fun complete(result: CacheOperationResult, durationNanos: Long) {

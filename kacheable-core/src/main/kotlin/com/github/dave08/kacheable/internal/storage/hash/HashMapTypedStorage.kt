@@ -31,10 +31,12 @@ internal class HashMapTypedStorage(
     private val entryNamer = CacheEntryNamer(namingStrategy)
 
     override suspend fun invalidate(entryRef: StoredCacheEntryRef<CacheStorage.HashMap>) {
+        requireMutableEntry(entryRef.name)
         HashMapStorageStrategy.invalidate(store, entryNamer, entryRef.name, entryRef.cacheArgs, null) {}
     }
 
     override suspend fun invalidate(partRef: StoredCachePartRef<CacheStorage.HashMap>) {
+        if (partRef.secondaryPatternPartArgs != null) requireMutableEntry(partRef.name)
         HashMapStorageStrategy.invalidate(
             store,
             entryNamer,
@@ -42,6 +44,13 @@ internal class HashMapTypedStorage(
             partRef.cacheArgs,
             partRef.secondaryPatternPartArgs,
         ) {}
+    }
+
+    private fun requireMutableEntry(name: String) {
+        val config = configs[name]
+        require(config?.partition == null) {
+            "Generation-checked caches only support whole-partition or whole-cache invalidation."
+        }
     }
 
     override suspend fun invalidate(allRef: StoredCacheAllRef<CacheStorage.HashMap>) {

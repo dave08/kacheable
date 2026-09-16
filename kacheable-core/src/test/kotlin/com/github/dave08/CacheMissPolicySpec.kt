@@ -1,14 +1,23 @@
 package com.github.dave08
 
+import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheRefreshPolicy
+import com.github.dave08.kacheable.CacheResilienceConfig
+import com.github.dave08.kacheable.Kacheable
+import com.github.dave08.kacheable.SingleFlightMode
 import com.github.dave08.kacheable.cache
 import com.github.dave08.kacheable.cacheKey
 import com.github.dave08.kacheable.keyPart
 import com.github.dave08.kacheable.partitioned
 import com.github.dave08.kacheable.returns
+import com.github.dave08.kacheable.store.InMemoryKacheableStore
 import de.infix.testBalloon.framework.core.testSuite
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -257,6 +266,112 @@ val CacheMissPolicySpec by testSuite {
 
             assertEquals(MissPolicyValue(10, "cached"), result)
         }
+    }
+
+    testFixture {
+        RefreshRaceFixture()
+    } asContextForEach {
+        test("refreshIf passes the latest still-stale value to the loader after waiting") {
+            var loaderPrevious: MissPolicyValue? = null
+            arrangeOldTargetValue()
+
+            coroutineScope {
+                val blocker = async(start = CoroutineStart.UNDISPATCHED) {
+                    cache.cache(missPolicyCache(11, "blocker")) {
+                        holdCompetingLoad()
+                    }
+                }
+                awaitCompetingLoadBlocked()
+                val refresh = async(start = CoroutineStart.UNDISPATCHED) {
+                    cache.cache(
+                        missPolicyCache(11, "target"),
+                        missPolicy = CacheMissPolicy.load(),
+                        refreshPolicy = CacheRefreshPolicy.refreshIf { it.value != "fresh" },
+                        storeResultIf = { true },
+                    ) { previous ->
+                        loaderPrevious = previous
+                        MissPolicyValue(11, "fresh")
+                    }
+                }
+
+                awaitInitialTargetRead()
+                replaceTargetWithNewerValue()
+                releaseCompetingLoad()
+
+                assertEquals(MissPolicyValue(11, "fresh"), refresh.await())
+                blocker.await()
+            }
+
+            assertEquals(MissPolicyValue(11, "newer"), loaderPrevious)
+        }
+
+        test("refreshIf falls back to the latest still-stale value after waiting") {
+            arrangeOldTargetValue()
+
+            val result = coroutineScope {
+                val blocker = async(start = CoroutineStart.UNDISPATCHED) {
+                    cache.cache(missPolicyCache(11, "blocker")) {
+                        holdCompetingLoad()
+                    }
+                }
+                awaitCompetingLoadBlocked()
+                val refresh = async(start = CoroutineStart.UNDISPATCHED) {
+                    cache.cache(
+                        missPolicyCache(11, "target"),
+                        missPolicy = CacheMissPolicy.load(),
+                        refreshPolicy = CacheRefreshPolicy.refreshIf { it.value != "fresh" },
+                        storeResultIf = { true },
+                    ) {
+                        error("refresh failed")
+                    }
+                }
+
+                awaitInitialTargetRead()
+                replaceTargetWithNewerValue()
+                releaseCompetingLoad()
+
+                refresh.await().also { blocker.await() }
+            }
+
+            assertEquals(MissPolicyValue(11, "newer"), result)
+        }
+    }
+}
+
+private class RefreshRaceFixture {
+    private val store = RefreshRaceStore()
+    private val competingLoadBlocked = CompletableDeferred<Unit>()
+    private val releaseCompetingLoad = CompletableDeferred<Unit>()
+
+    val cache = Kacheable(
+        store = store,
+        configs = mapOf(
+            "miss-policy-cache" to CacheConfig(
+                name = "miss-policy-cache",
+                resilience = CacheResilienceConfig(
+                    singleFlight = SingleFlightMode.Local,
+                    maxConcurrentLoads = 1,
+                ),
+            ),
+        ),
+    )
+
+    fun arrangeOldTargetValue() = store.arrangeOldTargetValue()
+
+    suspend fun holdCompetingLoad(): MissPolicyValue {
+        competingLoadBlocked.complete(Unit)
+        releaseCompetingLoad.await()
+        return MissPolicyValue(11, "blocker")
+    }
+
+    suspend fun awaitCompetingLoadBlocked() = competingLoadBlocked.await()
+
+    suspend fun awaitInitialTargetRead() = store.awaitInitialTargetRead()
+
+    fun replaceTargetWithNewerValue() = store.replaceTargetWithNewerValue()
+
+    fun releaseCompetingLoad() {
+        releaseCompetingLoad.complete(Unit)
     }
 }
 

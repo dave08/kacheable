@@ -1,6 +1,6 @@
 package com.github.dave08.kacheable
 
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import com.github.dave08.kacheable.store.cacheValueCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
@@ -36,7 +36,7 @@ sealed interface SupportsPrimarySecondaryKeyStorage : CacheStorageCapability
  */
 interface CacheReturn<R, C : CacheStorageCapability> {
     val serializer: KSerializer<R>
-    val codec: CacheValueCodec<R>
+    val codec: CacheCodec<R>
 }
 
 interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
@@ -46,11 +46,11 @@ interface SetCacheReturn<R> : CacheReturn<R, SupportsMembershipView>
  */
 class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
     private val serializerProvider: () -> KSerializer<R>
-    private val codecProvider: (KSerializer<R>) -> CacheValueCodec<R>
+    private val codecProvider: (KSerializer<R>) -> CacheCodec<R>
 
     constructor(
         serializer: KSerializer<R>,
-        codec: CacheValueCodec<R> = cacheValueCodec(serializer),
+        codec: CacheCodec<R> = cacheValueCodec(serializer),
     ) {
         serializerProvider = { serializer }
         codecProvider = { codec }
@@ -65,7 +65,7 @@ class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
     }
 
     override val serializer: KSerializer<R> by lazy { serializerProvider() }
-    override val codec: CacheValueCodec<R> by lazy { codecProvider(serializer) }
+    override val codec: CacheCodec<R> by lazy { codecProvider(serializer) }
 }
 
 /**
@@ -74,7 +74,7 @@ class ValueCacheReturn<R> : CacheReturn<R, SupportsValueView> {
 data class IsMemberCacheReturn(
     val cacheFalse: Boolean = true,
     override val serializer: KSerializer<Boolean> = serializer<Boolean>(),
-    override val codec: CacheValueCodec<Boolean> = cacheValueCodec(serializer<Boolean>()),
+    override val codec: CacheCodec<Boolean> = cacheValueCodec(serializer<Boolean>()),
 ) : SetCacheReturn<Boolean>
 
 /**
@@ -84,17 +84,17 @@ class EnumMemberCacheReturn<E : Any>(
     val values: List<E>,
     val valueName: (E) -> String,
     private val serializerProvider: () -> KSerializer<E>,
-    private val codecProvider: (KSerializer<E>) -> CacheValueCodec<E> = { serializer -> cacheValueCodec(serializer) },
+    private val codecProvider: (KSerializer<E>) -> CacheCodec<E> = { serializer -> cacheValueCodec(serializer) },
 ) : SetCacheReturn<E> {
     constructor(
         values: List<E>,
         valueName: (E) -> String,
         serializer: KSerializer<E>,
-        codec: CacheValueCodec<E> = cacheValueCodec(serializer),
+        codec: CacheCodec<E> = cacheValueCodec(serializer),
     ) : this(values, valueName, { serializer }, { codec })
 
     override val serializer: KSerializer<E> by lazy(serializerProvider)
-    override val codec: CacheValueCodec<E> by lazy { codecProvider(serializer) }
+    override val codec: CacheCodec<E> by lazy { codecProvider(serializer) }
     val valueNames: List<String> = values.map(valueName)
 }
 

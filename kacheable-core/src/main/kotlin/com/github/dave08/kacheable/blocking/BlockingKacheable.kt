@@ -9,7 +9,7 @@ import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 
@@ -37,7 +37,7 @@ interface BlockingKacheable {
      */
     fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean = { true },
         block: () -> R

@@ -1,6 +1,6 @@
 package com.github.dave08.kacheable
 
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 import kotlinx.serialization.KSerializer
 
 internal object NoopKacheable : Kacheable {
@@ -25,7 +25,7 @@ internal object NoopKacheable : Kacheable {
 
     override suspend fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean,
         block: suspend () -> R

@@ -9,7 +9,7 @@ import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.store.CacheValueCodec
+import com.github.dave08.kacheable.store.CacheCodec
 
 internal interface BlockingTypedCacheRuntime {
     fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: () -> R): R
@@ -32,7 +32,7 @@ internal interface BlockingTypedCacheRuntime {
 
     fun <R> invoke(
         name: String,
-        codec: CacheValueCodec<R>,
+        codec: CacheCodec<R>,
         vararg params: Any,
         cacheIf: (R) -> Boolean,
         block: () -> R,
