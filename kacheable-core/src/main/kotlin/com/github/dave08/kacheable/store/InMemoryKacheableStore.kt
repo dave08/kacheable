@@ -20,23 +20,21 @@ class InMemoryKacheableStore(
                 map.remove(key)
                 hashMap.remove(key)
                 sets.remove(key)
-                versionedHashes.remove(key)
                 return
             }
             val matches = wildcardRegex(key)::matches
             map.keys.removeAll(matches)
             hashMap.keys.removeAll(matches)
             sets.keys.removeAll(matches)
-            versionedHashes.keys.removeAll(matches)
         }
     }
 
-    override suspend fun deleteHashValue(key: String, field: String) = withOrdinaryKey(key) {
+    override suspend fun deleteHashValue(key: String, field: String) = synchronized(storageLock) {
         hashMap[key]?.remove(field)
         Unit
     }
 
-    override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) = withOrdinaryKey(key) {
+    override suspend fun deleteHashValuesMatching(key: String, fieldPattern: String) = synchronized(storageLock) {
         hashMap[key]?.let { fields ->
             if (!fieldPattern.contains('*')) fields.remove(fieldPattern)
             else fields.keys.removeAll(wildcardRegex(fieldPattern)::matches)
@@ -45,46 +43,45 @@ class InMemoryKacheableStore(
         Unit
     }
 
-    override suspend fun deleteSetMember(key: String, member: String) = withOrdinaryKey(key) {
+    override suspend fun deleteSetMember(key: String, member: String) = synchronized(storageLock) {
         sets[key]?.remove(member)
         Unit
     }
 
-    override suspend fun set(key: String, value: String) = withOrdinaryKey(key) {
+    override suspend fun set(key: String, value: String) = synchronized(storageLock) {
         map[key] = value
     }
 
-    override suspend fun setHashValue(key: String, field: String, value: String) = withOrdinaryKey(key) {
+    override suspend fun setHashValue(key: String, field: String, value: String) = synchronized(storageLock) {
         hashMap.getOrPut(key, ::mutableMapOf)[field] = value
     }
 
-    override suspend fun addSetMember(key: String, member: String) = withOrdinaryKey(key) {
+    override suspend fun addSetMember(key: String, member: String) = synchronized(storageLock) {
         sets.getOrPut(key, ::mutableSetOf) += member
     }
 
-    override suspend fun get(key: String): String? = withOrdinaryKey(key) { map[key] }
+    override suspend fun get(key: String): String? = synchronized(storageLock) { map[key] }
 
     override suspend fun getHashValue(key: String, field: String): String? =
-        withOrdinaryKey(key) { hashMap[key]?.get(field) }
+        synchronized(storageLock) { hashMap[key]?.get(field) }
 
     override suspend fun isSetMember(key: String, member: String): Boolean =
-        withOrdinaryKey(key) { sets[key]?.contains(member) == true }
+        synchronized(storageLock) { sets[key]?.contains(member) == true }
 
     override suspend fun scanHashFields(keyPattern: String): List<HashFieldEntry> = synchronized(storageLock) {
         val regex = wildcardRegex(keyPattern)
         hashMap.entries
-            .filter { (key, _) -> regex.matches(key) && liveVersionedHash(key) == null }
+            .filter { (key, _) -> regex.matches(key) }
             .flatMap { (key, fields) -> fields.map { (field, value) -> HashFieldEntry(key, field, value) } }
     }
 
-    override suspend fun setExpire(key: String, expiry: Duration) = withOrdinaryKey(key) {
+    override suspend fun setExpire(key: String, expiry: Duration) = synchronized(storageLock) {
         recordExpiry(key, expiry)
     }
 
     override suspend fun openHash(key: String, expiry: Duration?): HashVersion = synchronized(storageLock) {
         validateHashExpiry(expiry)
         liveVersionedHash(key)?.let { return@synchronized it.version }
-        check(key !in map && key !in hashMap && key !in sets) { "Existing key is not a versioned hash." }
         val state = VersionedHashState(HashVersion(UUID.randomUUID().toString(), 0))
         versionedHashes[key] = state
         applyVersionedExpiry(key, state, expiry)
@@ -123,10 +120,11 @@ class InMemoryKacheableStore(
         HashPublishResult.Published(state.version, value)
     }
 
-    /** Raw string keys cannot establish storage shape statically; guard that boundary in one place. */
-    private fun <T> withOrdinaryKey(key: String, operation: () -> T): T = synchronized(storageLock) {
-        check(liveVersionedHash(key) == null) { "Use versioned hash operations for this key." }
-        operation()
+    override suspend fun deleteHashes(keyPattern: String) {
+        synchronized(storageLock) {
+            if (!keyPattern.contains('*')) versionedHashes.remove(keyPattern)
+            else versionedHashes.keys.removeAll(wildcardRegex(keyPattern)::matches)
+        }
     }
 
     private fun matchingHash(key: String, version: HashVersion): VersionedHashState? =

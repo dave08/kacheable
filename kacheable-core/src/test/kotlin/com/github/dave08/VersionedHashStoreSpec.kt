@@ -53,18 +53,18 @@ val VersionedHashOperationsSpec by testSuite {
 
             assertEquals(written.version, store.openHash(key, null))
             assertEquals(mapOf("page" to "chunk"), store.readHash(key, written.version, null))
-            assertFailsWith<IllegalStateException> { store.getHashValue(key, "page") }
-            assertTrue(store.scanHashFields("*").isEmpty())
+            assertEquals("ordinary", store.getHashValue(key, "page"))
+            assertEquals(listOf(HashFieldEntry(key, "page", "ordinary")), store.scanHashFields("*"))
         }
-        test("whole-key deletion clears versioned state and colliding ordinary backing entries") {
+        test("ordinary whole-key deletion preserves versioned homonyms") {
             val initial = store.openHash(key, null)
             store.hashMap[key] = mutableMapOf("page" to "ordinary")
 
             store.delete(key)
 
-            assertNull(store.readHash(key, initial, null))
+            assertEquals(emptyMap(), store.readHash(key, initial, null))
             assertFalse(key in store.hashMap)
-            assertNotEquals(initial.generation, store.openHash(key, null).generation)
+            assertEquals(initial, store.openHash(key, null))
         }
         test("expired versioned keys can be reused by ordinary storage") {
             val initial = store.openHash(key, 10.seconds)
@@ -79,7 +79,7 @@ val VersionedHashOperationsSpec by testSuite {
             val matching = store.openHash("delivery:one", null)
             val other = store.openHash("image:one", null)
 
-            store.delete("delivery:*")
+            store.deleteHashes("delivery:*")
 
             assertNull(store.readHash("delivery:one", matching, null))
             assertEquals(emptyMap(), store.readHash("image:one", other, null))
@@ -89,10 +89,9 @@ val VersionedHashOperationsSpec by testSuite {
             val written = assertIs<HashPublishResult.Published>(store.publishHash(key, initial, "forward-only", "payload", null, true))
             assertEquals<Map<String, String?>?>(mapOf("forward-only" to null), store.readHashMetadata(key, written.version))
         }
-        test("invalid expiry leaves versioned hash unopened") {
+        test("invalid versioned expiry is rejected without recording expiry") {
             assertFailsWith<IllegalArgumentException> { store.openHash(key, kotlin.time.Duration.ZERO) }
-            store.setHashValue(key, "page", "ordinary")
-            assertEquals("ordinary", store.getHashValue(key, "page"))
+            assertTrue(store.expireCalls.isEmpty())
         }
         test("invalid publication expiry preserves versioned hash data and metadata") {
             val initial = store.openHash(key, null)
@@ -119,19 +118,30 @@ val VersionedHashOperationsSpec by testSuite {
         }
         test("versioned hash rejects old generation after deletion and reopening") {
             val old = store.openHash(key, null)
-            store.delete(key)
+            store.deleteHashes(key)
             val current = store.openHash(key, null)
             assertNotEquals(old.generation, current.generation)
             assertEquals(HashPublishResult.Conflict, store.publishHash(key, old, "field", "stale", null, false))
         }
-        test("versioned hash refuses an ordinary hash") {
-            store.setHashValue(key, "field", "ordinary")
-            assertFails { store.openHash(key, null) }
-        }
-        test("versioned hash rejects unversioned field mutations") {
+        test("versioned deletion preserves an ordinary homonym") {
             val version = store.openHash(key, null)
-            assertFails { store.setHashValue(key, "field", "ordinary") }
-            assertFails { store.deleteHashValue(key, "field") }
+            store.setHashValue(key, "field", "ordinary")
+
+            store.deleteHashes(key)
+
+            assertNull(store.readHash(key, version, null))
+            assertEquals("ordinary", store.getHashValue(key, "field"))
+        }
+        test("versioned hash opens independently of an ordinary homonym") {
+            store.setHashValue(key, "field", "ordinary")
+            val version = store.openHash(key, null)
+            assertEquals(emptyMap(), store.readHash(key, version, null))
+            assertEquals("ordinary", store.getHashValue(key, "field"))
+        }
+        test("ordinary field mutations cannot change a versioned homonym") {
+            val version = store.openHash(key, null)
+            store.setHashValue(key, "field", "ordinary")
+            store.deleteHashValue(key, "field")
             assertEquals(emptyMap(), store.readHash(key, version, null))
         }
     }

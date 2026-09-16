@@ -9,8 +9,17 @@ import io.lettuce.core.api.StatefulRedisConnection
 import java.util.UUID
 import kotlin.time.Duration
 
-internal class RedisVersionedHashes(connection: StatefulRedisConnection<String, String>) : VersionedHashOperations {
+internal class RedisVersionedHashes(
+    connection: StatefulRedisConnection<String, String>,
+    chunkSize: Int,
+    scanCount: Long,
+    deleteMode: RedisDeleteMode,
+) : VersionedHashOperations {
     private val scripts = RedisScriptExecutor(connection)
+    private val deletion = RedisKeyDeletion(connection, chunkSize, scanCount, deleteMode)
+
+    override suspend fun deleteHashes(keyPattern: String) =
+        deletion.delete(versionedRedisKey(keyPattern)) { true }
 
     override suspend fun openHash(key: String, expiry: Duration?): HashVersion =
         parseVersion(execute(OPEN, key, UUID.randomUUID().toString(), expiryArg(expiry)))
@@ -33,11 +42,20 @@ internal class RedisVersionedHashes(connection: StatefulRedisConnection<String, 
         parsePublish(execute(PUBLISH, key, *publishArgs(version, field, value, expiry, ifAbsent, metadata)))
 
     private suspend fun execute(script: String, key: String, vararg args: String): List<String> =
-        checkNotNull(scripts.execute(script, ScriptOutputType.MULTI, arrayOf(key), *args))
+        checkNotNull(scripts.execute(script, ScriptOutputType.MULTI, arrayOf(versionedRedisKey(key)), *args))
 }
 
-internal class RedisBlockingVersionedHashes(connection: StatefulRedisConnection<String, String>) : BlockingVersionedHashOperations {
+internal class RedisBlockingVersionedHashes(
+    connection: StatefulRedisConnection<String, String>,
+    chunkSize: Int,
+    scanCount: Long,
+    deleteMode: RedisDeleteMode,
+) : BlockingVersionedHashOperations {
     private val scripts = RedisScriptExecutor(connection)
+    private val deletion = RedisKeyDeletion(connection, chunkSize, scanCount, deleteMode)
+
+    override fun deleteHashes(keyPattern: String) =
+        deletion.deleteBlocking(versionedRedisKey(keyPattern)) { true }
 
     override fun openHash(key: String, expiry: Duration?): HashVersion =
         parseVersion(execute(OPEN, key, UUID.randomUUID().toString(), expiryArg(expiry)))
@@ -60,7 +78,7 @@ internal class RedisBlockingVersionedHashes(connection: StatefulRedisConnection<
         parsePublish(execute(PUBLISH, key, *publishArgs(version, field, value, expiry, ifAbsent, metadata)))
 
     private fun execute(script: String, key: String, vararg args: String): List<String> =
-        checkNotNull(scripts.executeBlocking(script, ScriptOutputType.MULTI, arrayOf(key), *args))
+        checkNotNull(scripts.executeBlocking(script, ScriptOutputType.MULTI, arrayOf(versionedRedisKey(key)), *args))
 }
 
 private fun expiryArg(expiry: Duration?): String {
@@ -177,34 +195,4 @@ if ARGV[7] == '1' then redis.call('HSET', KEYS[1], 'm:' .. ARGV[3], ARGV[8])
 else redis.call('HDEL', KEYS[1], 'm:' .. ARGV[3]) end
 if ARGV[5] ~= '' then redis.call('PEXPIRE', KEYS[1], ARGV[5]) end
 return {'published', ARGV[1], redis.call('HGET', KEYS[1], '$REVISION'), ARGV[4]}
-"""
-
-/** Guard and mutation execute together, so opening a versioned hash cannot race a raw field write. */
-internal const val ORDINARY_HASH_GUARD = """
-if redis.call('TYPE', KEYS[1]).ok == 'hash' and redis.call('HEXISTS', KEYS[1], '$VERSIONED_HASH_GENERATION') == 1 then
-  return redis.error_reply('Use versioned hash operations for this key')
-end
-"""
-internal const val ORDINARY_HASH_SET = ORDINARY_HASH_GUARD + """
-redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-return 1
-"""
-internal const val ORDINARY_HASH_DELETE = ORDINARY_HASH_GUARD + """
-return redis.call('HDEL', KEYS[1], unpack(ARGV))
-"""
-
-internal const val ORDINARY_HASH_GET = ORDINARY_HASH_GUARD + """
-return redis.call('HGET', KEYS[1], ARGV[1])
-"""
-
-internal const val ORDINARY_VALUE_SET = ORDINARY_HASH_GUARD + """
-redis.call('SET', KEYS[1], ARGV[1])
-return 1
-"""
-internal const val ORDINARY_EXPIRY_SET = ORDINARY_HASH_GUARD + """
-return redis.call('PEXPIRE', KEYS[1], ARGV[1])
-"""
-internal const val ORDINARY_VALUE_SET_WITH_EXPIRE = ORDINARY_HASH_GUARD + """
-redis.call('PSETEX', KEYS[1], ARGV[2], ARGV[1])
-return 1
 """

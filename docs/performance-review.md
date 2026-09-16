@@ -2,20 +2,61 @@
 
 ## Scope and conclusion
 
-This review compares ordinary caches with no partition policy against commit
-`a0e8908ced0c57e95a0710eebeb0efc47bfdfde5`. It measures real calls, including
-in-memory and Redis cache hits, rather than inferring performance from tests.
+Ordinary Redis hash hits now use native `HGET` again. Guarded partitions use a
+separate physical namespace, so ordinary commands no longer need to inspect
+generation metadata. The suspending and blocking adapters share this separation;
+atomic guarded publication still uses Lua.
 
-The review found and fixed an accidental linear scan in exact in-memory key and
-field deletion. It also confirms an ongoing cost: ordinary Redis hash operations
-now execute a collision-guard script even when partition loading is disabled.
-Warm hash hits still require one Redis round trip, but execute more server work.
-These measurements do **not** establish that the change is free of regressions.
+The latest comparison, against checkpoint `8ec575c`, confirms the removed script
+work. It does **not** establish that every new feature is free of overhead or that
+production throughput will improve by the local latency ratio. Construction-time
+routing, local reserved-prefix validation, and in-memory synchronization still
+have costs.
+
+## Namespace strategy comparison
+
+The same committed benchmark ran in an isolated archive of `8ec575c` and in the
+working implementation. Each number is the median of five trial means, in
+microseconds per operation. This is one paired run using the method below.
+
+| Operation | Checkpoint | Namespace strategy |
+| --- | ---: | ---: |
+| Memory hash cache hit, prebuilt reference | 0.243 | 0.237 |
+| Memory string cache hit, prebuilt reference | 0.310 | 0.302 |
+| Memory hash cache call, reference constructed | 0.523 | 0.535 |
+| Memory string cache call, reference constructed | 0.391 | 0.383 |
+| Memory direct hash read | 0.017 | 0.019 |
+| Memory direct string read | 0.012 | 0.009 |
+| Memory exact key deletion beside 10k keys | 0.462 | 0.278 |
+| Memory exact field deletion beside 10k fields | 0.351 | 0.287 |
+| Redis suspending hash cache hit | 413.775 | 386.313 |
+| Redis suspending string cache hit | 392.578 | 329.127 |
+| Redis blocking hash cache hit | 411.285 | 372.233 |
+| Redis blocking string cache hit | 357.027 | 399.440 |
+
+Redis command statistics provide stronger evidence of the specific improvement
+than these noisy client timings:
+
+| 100 warmed cache hits | Checkpoint | Namespace strategy |
+| --- | --- | --- |
+| Ordinary hash | 100 `EVALSHA`, each executing `TYPE`, `HEXISTS`, `HGET` | 100 `HGET` |
+| Ordinary string | 100 `GET` | 100 `GET` |
+
+The checkpoint sample reported 9.92 microseconds per `EVALSHA`, including its
+nested commands; the strategy sample reported 1.04 microseconds per native
+`HGET`. Both use one client round trip. The unchanged string path improved in the
+suspending sample and worsened in the blocking sample, illustrating why this run
+cannot justify a general latency percentage or throughput forecast.
+
+Behavior tests also verify native ordinary hash reads and string writes for both
+adapters, reserved-prefix rejection before mutation execution, and independent
+ordinary/guarded invalidation. See [partition loading](partition-loading.md#backend-contract)
+for the namespace and rollout contract.
 
 ## Method
 
-- Same temporary TestBalloon benchmark source in the current checkout and an
-  isolated `git archive HEAD` baseline; identical Gradle/JDK configuration.
+- Same TestBalloon benchmark source in each checkout and an isolated `git archive`
+  baseline; identical Gradle/JDK configuration.
 - macOS 26.1 on arm64; Redis 5.0.3 in the existing local Testcontainers fixture.
 - Default cache configuration: partition policy unset, telemetry disabled
   (`NoopCacheTelemetry`), no snapshots, expiry or loader resilience, and the same
@@ -34,7 +75,12 @@ compilation, GC, Docker scheduling and machine load affect the timings. The
 unchanged native Redis string path also varies considerably, so a percentage
 change in end-to-end latency alone cannot isolate the hash-script cost.
 
-## Results: two independent comparisons
+## Earlier audit: before namespace separation
+
+The following historical results compare the guarded-partition implementation
+before namespace separation against `a0e8908ced0c57e95a0710eebeb0efc47bfdfde5`.
+In this section, “current” means the earlier implementation with collision-guard
+scripts, retained to explain the issue and the exact-invalidation correction.
 
 Each run reports the median of five trial means. The table shows the range of
 those medians across two runs, in microseconds per operation; ratios compare each
@@ -58,8 +104,9 @@ exact-invalidation fix.
 
 The large apparent improvement in hash reference construction is not a proven
 optimization; this short benchmark does not isolate JIT/allocation effects.
-Likewise the additional in-memory lock and versioned-state lookup remain real
-work even when hit timings overlap the baseline.
+Likewise the additional in-memory lock and versioned-state lookup were real
+work even when hit timings overlapped the baseline. The namespace strategy removes
+the ordinary path’s versioned-state lookup; synchronization remains.
 
 ### Exact invalidation regression fixed
 
@@ -94,7 +141,8 @@ sample as a throughput forecast.
 First use of a fixed script additionally sends `SCRIPT LOAD`. Following eviction,
 recovery sends failed `EVALSHA`, `SCRIPT LOAD`, then successful `EVALSHA`. Generated
 mutation scripts use uncached `EVAL`, avoiding permanent retention of arbitrary
-script shapes in the client cache. Blocking queued mutations retain `EVAL`.
+script shapes in the client cache. At that checkpoint blocking queued mutations
+also used `EVAL`; the namespace strategy restores native queued commands.
 
 ## Reproduction and evidence
 

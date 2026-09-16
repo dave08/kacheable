@@ -12,6 +12,7 @@ internal class BlockingPartitionTestStore : BlockingKacheableStore, BlockingVers
     private val backing = InMemoryKacheableStore()
     var fullReads = 0
         private set
+    override fun deleteHashes(keyPattern: String) = runBlocking { backing.deleteHashes(keyPattern) }
     override fun delete(key: String) = runBlocking { backing.delete(key) }
     override fun deleteHashValue(key: String, field: String) = runBlocking { backing.deleteHashValue(key, field) }
     override fun set(key: String, value: String) = runBlocking { backing.set(key, value) }

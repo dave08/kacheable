@@ -11,9 +11,15 @@ sealed interface HashPublishResult {
     data object Conflict : HashPublishResult
 }
 
-/** Optional atomic hash capability. Metadata and data share one key and lifetime. */
+/**
+ * Optional atomic hash capability. Keys are logical names in an independent namespace from
+ * ordinary storage. Metadata and data share one key and lifetime within that namespace.
+ */
 interface VersionedHashOperations {
-    /** Opens or creates a hash. Existing ordinary storage is rejected; opening never renews its TTL.
+    /** Deletes matching whole hashes in this namespace only; accepts the store's key patterns. */
+    suspend fun deleteHashes(keyPattern: String)
+
+    /** Opens or creates a hash. Ordinary storage is independent; opening never renews its TTL.
      * Non-null expiry must be finite and at least one millisecond.
      */
     suspend fun openHash(key: String, expiry: Duration?): HashVersion

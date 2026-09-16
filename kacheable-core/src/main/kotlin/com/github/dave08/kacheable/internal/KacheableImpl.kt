@@ -171,9 +171,11 @@ internal class KacheableImpl(
             partRef.storage.toTelemetryKind(),
             CacheMaintenanceOperation.InvalidatePart,
         ) {
-            @Suppress("UNCHECKED_CAST")
-            (storages.any(partRef.storage) as TypedStorage<CacheStorage>)
-                .invalidate(partRef as StoredCachePartRef<CacheStorage>)
+            partitionRoutes.invalidate(partRef) {
+                @Suppress("UNCHECKED_CAST")
+                (storages.any(partRef.storage) as TypedStorage<CacheStorage>)
+                    .invalidate(partRef as StoredCachePartRef<CacheStorage>)
+            }
         }
     }
 
@@ -183,9 +185,11 @@ internal class KacheableImpl(
             allRef.storage.toTelemetryKind(),
             CacheMaintenanceOperation.InvalidateAll,
         ) {
-            @Suppress("UNCHECKED_CAST")
-            (storages.any(allRef.storage) as TypedStorage<CacheStorage>)
-                .invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+            partitionRoutes.invalidate(allRef) {
+                @Suppress("UNCHECKED_CAST")
+                (storages.any(allRef.storage) as TypedStorage<CacheStorage>)
+                    .invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+            }
         }
     }
 

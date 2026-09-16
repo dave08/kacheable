@@ -1,10 +1,12 @@
 package com.github.dave08.kacheable.internal.storage.hash
 
 import com.github.dave08.kacheable.CacheConfig
+import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.CacheNamingStrategy
 import com.github.dave08.kacheable.CachePartitionContext
 import com.github.dave08.kacheable.KeyPart
 import com.github.dave08.kacheable.PartitionCacheEntryRef
+import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
 import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.store.KacheableStore
@@ -43,6 +45,26 @@ internal class PartitionCacheRoutes private constructor(
     ): V = requireNotNull(guarded[ref.entryRef.name]) {
         "Contextual partition loads require a partition policy."
     }.load(ref, cacheIf, block)
+
+    suspend fun invalidate(ref: CacheEntryPartRef, ordinary: suspend () -> Unit) {
+        val runtime = guarded[ref.name] ?: return ordinary()
+        runtime.invalidate(ref)
+    }
+
+    fun invalidateBlocking(ref: CacheEntryPartRef, ordinary: () -> Unit) {
+        val runtime = guarded[ref.name] ?: return ordinary()
+        runBlocking { runtime.invalidate(ref) }
+    }
+
+    suspend fun invalidate(ref: StoredCacheAllRef<*>, ordinary: suspend () -> Unit) {
+        val runtime = guarded[ref.name] ?: return ordinary()
+        runtime.invalidate(ref)
+    }
+
+    fun invalidateBlocking(ref: StoredCacheAllRef<*>, ordinary: () -> Unit) {
+        val runtime = guarded[ref.name] ?: return ordinary()
+        runBlocking { runtime.invalidate(ref) }
+    }
 
     companion object {
         fun create(

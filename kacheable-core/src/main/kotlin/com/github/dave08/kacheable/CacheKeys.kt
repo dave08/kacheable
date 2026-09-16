@@ -806,6 +806,13 @@ private fun <R> cacheAllRef(
     allRef = StoredAllRef(name, plannedStorage.storage),
 )
 
+private fun <R> singlePartitionAllRef(
+    name: String,
+    plannedStorage: PlannedStorage<R>,
+): CacheAllRef<R> = CacheAllRef(
+    allRef = SinglePartitionAllRef(name, plannedStorage.storage),
+)
+
 /**
  * Creates a typed cache key. Exact shapes store one complete logical result per key.
  */
@@ -1170,7 +1177,7 @@ class SinglePartitionCacheKey1<K1, R, P : KeyPart<K1>> @PublishedApi internal co
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
         ref = cacheEntryRef(
@@ -1208,7 +1215,7 @@ class SinglePartitionCacheKey2<K1, K2, R> @PublishedApi internal constructor(
     private val itemKey: KeyPartComposition2<K1, K2>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1, k2: K2): CacheEntryRef<R> = cacheEntryRef(
         name = name,
@@ -1241,7 +1248,7 @@ class SinglePartitionCacheKey3<K1, K2, K3, R> @PublishedApi internal constructor
     private val itemKey: KeyPartComposition3<K1, K2, K3>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1, k2: K2, k3: K3): CacheEntryRef<R> = cacheEntryRef(
         name = name,
@@ -1269,7 +1276,7 @@ class SinglePartitionCacheKey4<K1, K2, K3, K4, R> @PublishedApi internal constru
     private val itemKey: KeyPartComposition4<K1, K2, K3, K4>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1, k2: K2, k3: K3, k4: K4): CacheEntryRef<R> = cacheEntryRef(
         name = name,
@@ -1297,7 +1304,7 @@ class SinglePartitionCacheKey5<K1, K2, K3, K4, K5, R> @PublishedApi internal con
     private val itemKey: KeyPartComposition5<K1, K2, K3, K4, K5>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1, k2: K2, k3: K3, k4: K4, k5: K5): CacheEntryRef<R> = cacheEntryRef(
         name = name,
@@ -1325,7 +1332,7 @@ class SinglePartitionCacheKey6<K1, K2, K3, K4, K5, K6, R> @PublishedApi internal
     private val itemKey: KeyPartComposition6<K1, K2, K3, K4, K5, K6>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
-    fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
+    fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1, k2: K2, k3: K3, k4: K4, k5: K5, k6: K6): CacheEntryRef<R> = cacheEntryRef(
         name = name,

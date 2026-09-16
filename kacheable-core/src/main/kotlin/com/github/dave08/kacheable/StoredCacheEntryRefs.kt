@@ -36,3 +36,9 @@ data class StoredAllRef<S : CacheStorage>(
     override val name: String,
     override val storage: S,
 ) : StoredCacheAllRef<S>
+
+/** Retains the root-hash shape of a typed key declared without an outer partition. */
+internal data class SinglePartitionAllRef<S : CacheStorage>(
+    override val name: String,
+    override val storage: S,
+) : StoredCacheAllRef<S>

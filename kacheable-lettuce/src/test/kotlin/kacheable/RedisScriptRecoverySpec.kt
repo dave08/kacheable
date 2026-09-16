@@ -1,12 +1,12 @@
 package kacheable
 
 import com.github.dave08.kacheable.blocking.redis.RedisBlockingKacheableStore
-import com.github.dave08.kacheable.redis.ORDINARY_HASH_SET
 import com.github.dave08.kacheable.redis.RedisKacheableStore
 import com.github.dave08.kacheable.store.HashPublishResult
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.time.Duration.Companion.minutes
 
 val RedisScriptRecoverySpec by testSuite {
     testWithRedis("suspending generated mutation carries its script after Redis script eviction") {
@@ -21,23 +21,21 @@ val RedisScriptRecoverySpec by testSuite {
 
         assertEquals(mapOf("second" to "full size"), commands.hgetall("images"))
     }
-    testWithRedis("suspending hash writes recover after Redis script eviction") {
+    testWithRedis("suspending hash writes with expiry recover after Redis script eviction") {
         val store = RedisKacheableStore(connection)
-        store.setHashValue("images", "first", "thumbnail")
-        assertEquals(listOf(true), commands.scriptExists(commands.digest(ORDINARY_HASH_SET)))
+        store.setHashValueWithExpire("images", "first", "thumbnail", 1.minutes)
 
         commands.scriptFlush()
-        store.setHashValue("images", "second", "full size")
+        store.setHashValueWithExpire("images", "second", "full size", 1.minutes)
 
         assertEquals(mapOf("first" to "thumbnail", "second" to "full size"), commands.hgetall("images"))
     }
-    testWithRedis("blocking hash writes recover after Redis script eviction") {
+    testWithRedis("blocking hash writes with expiry recover after Redis script eviction") {
         val store = RedisBlockingKacheableStore(connection)
-        store.setHashValue("images", "first", "thumbnail")
-        assertEquals(listOf(true), commands.scriptExists(commands.digest(ORDINARY_HASH_SET)))
+        store.setHashValueWithExpire("images", "first", "thumbnail", 1.minutes)
 
         commands.scriptFlush()
-        store.setHashValue("images", "second", "full size")
+        store.setHashValueWithExpire("images", "second", "full size", 1.minutes)
 
         assertEquals(mapOf("first" to "thumbnail", "second" to "full size"), commands.hgetall("images"))
     }
@@ -63,7 +61,7 @@ val RedisScriptRecoverySpec by testSuite {
         assertEquals(initial.copy(revision = 2), second.version)
         assertEquals(mapOf("first" to "one", "second" to "two"), store.readHash("delivery", second.version, null))
     }
-    testWithRedis("blocking mutation carries scripts into EXEC after script eviction") {
+    testWithRedis("blocking native mutation remains independent of the Redis script cache") {
         val store = RedisBlockingKacheableStore(connection)
         store.setHashValue("images", "first", "thumbnail")
         commands.scriptFlush()

@@ -44,7 +44,9 @@ This is the current layering direction for the typed cache-key API.
 - `PartitionCacheRuntime` owns prerequisite loading, lazy sibling access, retries, and publication.
 - `CacheLoadCoordinator` owns admission and load coordination; the partition runtime delegates to it.
 - Stores implement optional `VersionedHashOperations` capabilities. In-memory state and Redis
-  scripts enforce atomicity below the typed API.
+  scripts enforce atomicity below the typed API. Guarded invalidation uses the same capability.
+- Redis ordinary operations use native commands in the ordinary namespace. Versioned operations
+  own the reserved physical prefix; core naming remains logical and storage-agnostic.
 - `CacheCodec` is shared by values and logical-key metadata. Physical key extraction remains
   in the key layer; enumerable metadata does not invert those extractors.
 

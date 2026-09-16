@@ -168,9 +168,11 @@ internal class BlockingKacheableImpl(
             partRef.storage.toTelemetryKind(),
             CacheMaintenanceOperation.InvalidatePart,
         ) {
-            @Suppress("UNCHECKED_CAST")
-            (storages.any(partRef.storage) as BlockingTypedStorage<CacheStorage>)
-                .invalidate(partRef as StoredCachePartRef<CacheStorage>)
+            partitionRoutes.invalidateBlocking(partRef) {
+                @Suppress("UNCHECKED_CAST")
+                (storages.any(partRef.storage) as BlockingTypedStorage<CacheStorage>)
+                    .invalidate(partRef as StoredCachePartRef<CacheStorage>)
+            }
         }
     }
 
@@ -180,9 +182,11 @@ internal class BlockingKacheableImpl(
             allRef.storage.toTelemetryKind(),
             CacheMaintenanceOperation.InvalidateAll,
         ) {
-            @Suppress("UNCHECKED_CAST")
-            (storages.any(allRef.storage) as BlockingTypedStorage<CacheStorage>)
-                .invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+            partitionRoutes.invalidateBlocking(allRef) {
+                @Suppress("UNCHECKED_CAST")
+                (storages.any(allRef.storage) as BlockingTypedStorage<CacheStorage>)
+                    .invalidate(allRef as StoredCacheAllRef<CacheStorage>)
+            }
         }
     }
 

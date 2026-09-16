@@ -27,6 +27,24 @@ internal class PartitionCacheRuntime(
     private val namer = CacheEntryNamer(namingStrategy)
     private val expiry = config.expiry.takeIf { config.expiryType != ExpiryType.none && it.isFinite() }
 
+    suspend fun invalidate(partRef: CacheEntryPartRef) {
+        require(partRef.storage == CacheStorage.HashMap && partRef.secondaryPatternPartArgs == null &&
+            partRef.cacheArgs.secondary == null) {
+            "Generation-checked caches only support whole-partition or whole-cache hash invalidation."
+        }
+        backend.deleteHashes(namer.nameEntry(partRef.name, partRef.cacheArgs).primaryKey)
+    }
+
+    suspend fun invalidate(allRef: StoredCacheAllRef<*>) {
+        require(allRef.storage == CacheStorage.HashMap) { "Partition policies require hash storage." }
+        val entryName = if (allRef is SinglePartitionAllRef<*>) {
+            namer.nameEntry(allRef.name, emptyArray())
+        } else {
+            namer.nameAllEntries(allRef.name)
+        }
+        backend.deleteHashes(entryName.primaryKey)
+    }
+
     suspend fun <K, V, P : KeyPart<K>> load(
         ref: PartitionCacheEntryRef<K, V, P>,
         cacheIf: (V) -> Boolean,

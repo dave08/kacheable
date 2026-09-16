@@ -7,6 +7,9 @@ import kotlin.time.Duration
 
 /** Blocking counterpart of [VersionedHashOperations]. */
 interface BlockingVersionedHashOperations {
+    /** Deletes matching whole hashes in the versioned namespace only. */
+    fun deleteHashes(keyPattern: String)
+
     fun openHash(key: String, expiry: Duration?): HashVersion
     fun readHash(key: String, version: HashVersion, fields: List<String>?): Map<String, String>?
     /** Reads every stored field without fetching payloads. A null map denotes conflict; a null value denotes absent metadata. */

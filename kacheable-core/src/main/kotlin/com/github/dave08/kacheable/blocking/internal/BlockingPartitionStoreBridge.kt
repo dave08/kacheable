@@ -14,6 +14,7 @@ internal class BlockingPartitionStoreBridge(
     private val versioned = requireNotNull(store as? BlockingVersionedHashOperations) {
         "Partition contexts require BlockingVersionedHashOperations."
     }
+    override suspend fun deleteHashes(keyPattern: String) = versioned.deleteHashes(keyPattern)
     override suspend fun delete(key: String) = store.delete(key)
     override suspend fun deleteHashValue(key: String, field: String) = store.deleteHashValue(key, field)
     override suspend fun set(key: String, value: String) = store.set(key, value)

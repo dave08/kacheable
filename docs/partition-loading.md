@@ -1,8 +1,7 @@
 # Partition loading
 
-This guide describes the upcoming release. See the [changelog](../CHANGELOG.md#unreleased)
-for upgrade requirements; the published version in the README installation examples does not
-include these APIs yet.
+Partition loading is available from `0.3.0-alpha03`. See the
+[changelog](../CHANGELOG.md#030-alpha03) for upgrade requirements.
 
 Use a partition policy when a cache loader needs published sibling entries or must reject a
 result computed against an expired or invalidated partition. The feature uses the existing
@@ -149,7 +148,10 @@ write causes the attempt to restart with a new context, up to `maxLoadAttempts`.
 that limit fails the request. Cancellation is propagated without retry.
 
 Loaders must tolerate repeated execution. Read dependencies through the supplied context on
-each attempt; a read from an unrelated connection cannot establish that dependency.
+each attempt; a read from an unrelated connection cannot establish that dependency. Do not
+recursively call `cache(...)` for the same partition from a partition-coordinated loader:
+its lock is not reentrant. Use context reads for published siblings and `SequentialFrom`
+to have Kacheable load prerequisites before invoking your loader.
 
 Optional `after_write` expiry applies to the entire partition. Opening a new empty partition
 starts its TTL; successful publication resets it. Reads, opening an existing partition, and
@@ -206,26 +208,50 @@ prevented by the type system.
 | Whole-partition/family invalidation | Supported |
 | Snapshot restoration, miss/refresh policies, stale fallback | Unsupported |
 | Whole-partition return views, bulk loaders, idle loading | Not implemented |
+| No-op caches and external cache decorators | Contextual overloads are unsupported; they require the factory-created runtime |
+
+## Backend contract
 
 In-memory and Lettuce stores implement `VersionedHashOperations`; custom stores must implement
-it (or `BlockingVersionedHashOperations`) to use this feature. Raw entry reads/writes cannot
-operate on guarded keys. The in-memory store keeps guarded state privately; its public mutable
-maps expose ordinary data only.
+it (or `BlockingVersionedHashOperations`) to use this feature. That capability accepts logical
+key names and owns guarded reads, publication, and `deleteHashes(keyPattern)` invalidation.
+Ordinary and guarded data with the same logical name are independent. The in-memory store keeps
+guarded state privately; its public mutable maps expose ordinary data only.
 
-Lettuce checks and publishes atomically with Lua. Fixed scripts use `SCRIPT LOAD`/`EVALSHA`
-with recovery for `NOSCRIPT`; generated mutation scripts and queued blocking `MULTI` operations
-use `EVAL`. Script failures after execution begins are not replayed. Redis transactions do not
-provide rollback after individual command failures. The raw hash field
-`__kacheable_versioned_hash_generation_v1` is reserved for guarded-hash identification.
+### Redis storage strategies
+
+Cache construction selects ordinary or guarded routing from `CacheConfig.partition`. The public
+cache call and naming strategy remain unchanged. The Redis adapter uses two operation paths:
+
+| Path | Physical key | Commands |
+| --- | --- | --- |
+| Ordinary | The logical name from the naming strategy | Native commands such as `GET`, `HGET`, `SET`, and `HSET` |
+| Guarded | `__kacheable:versioned-hash:v1:` followed by the logical name | Atomic version-check/read/publish scripts |
+
+Ordinary commands do not inspect guarded metadata. Commands targeting the reserved physical
+prefix are rejected locally. Broad ordinary scans and wildcard deletions exclude that prefix. Guarded invalidation uses its own capability and affects
+only guarded data. For keys without an outer partition, `.all()` deletes the root hash; for
+partitioned keys, it deletes the matching family. Custom naming receives the corresponding shape.
+Do not access the reserved namespace through a separate Redis client.
+
+Lua remains where a sequence must be atomic, including guarded publication, hash writes with
+expiry, and grouped suspending mutations. Fixed scripts use `SCRIPT LOAD`/`EVALSHA` with recovery
+for `NOSCRIPT`; generated suspending mutations use uncached `EVAL`. Blocking mutations queue
+native commands in `MULTI`. Script failures after execution begins are not replayed, and Redis
+transactions do not provide rollback after individual command failures.
 
 ## Upgrading existing caches
 
 Recompile clients for the new public signatures. `CacheValueCodec<T>` remains a source alias
 for `CacheCodec<T>`, and the old value-codec factory names remain available.
 
-Before enabling a partition policy on an ordinary hash, invalidate its existing data or choose
-a new cache name. Ordinary hashes do not contain the version metadata required by guarded
-loading. Coordinate deployment so older instances no longer write ordinary data to that name.
+Enabling a partition policy starts a separate, cold guarded cache. Existing ordinary values
+remain in the ordinary namespace and are not reused or deleted. Coordinate deployment because
+old ordinary instances and new guarded instances do not share values or invalidation.
+
+Earlier experimental guarded implementations used unprefixed Redis keys. Those entries are not
+read by this strategy. Let them expire or explicitly remove the old data after old writers have
+stopped. The library does not automatically delete or migrate that namespace.
 
 Also invalidate a guarded partition before changing a forward-only inner key to an enumerable
 one. Entries without logical-key metadata cannot be enumerated; Kacheable rejects incomplete
