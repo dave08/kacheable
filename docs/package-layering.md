@@ -38,6 +38,16 @@ This is the current layering direction for the typed cache-key API.
 - `store` should remain below typed DSL concerns.
 - Blocking code should mirror async behavior, not fork semantics.
 
+## Guarded hash loading
+
+- `internal.storage.hash.PartitionCacheRoutes` selects configured behavior at construction.
+- `PartitionCacheRuntime` owns prerequisite loading, lazy sibling access, retries, and publication.
+- `CacheLoadCoordinator` owns admission and load coordination; the partition runtime delegates to it.
+- Stores implement optional `VersionedHashOperations` capabilities. In-memory state and Redis
+  scripts enforce atomicity below the typed API.
+- `CacheCodec` is shared by values and logical-key metadata. Physical key extraction remains
+  in the key layer; enumerable metadata does not invert those extractors.
+
 ## Next Cleanup Targets
 
 - Move any remaining storage-aware helpers out of public package files when they are not part of the API story.

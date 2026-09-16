@@ -150,6 +150,7 @@ cache.invalidate(artistSongCache.all())                       // 6
 - Typed miss policies for fallback and background loading
 - Blocking and suspending interfaces
 - In-memory, Redis/Lettuce, and no-op stores
+- Optional guarded hash loading with lazy sibling access (upcoming release)
 - Per-cache expiry configuration
 - Opt-in loader resilience for cold-cache pressure
 - Durable snapshots for indexed/hash-style cache families
@@ -299,6 +300,25 @@ That is useful for paginated top-level results: each page is still one logical r
 1. Each lookup returns one page of ids.
 2. There is no outer partition value, but the pages still belong to one cache family.
 3. `partition()` clears that whole family.
+
+### Loading entries with lazy partition access
+
+The upcoming release adds optional guarded loading to the existing hash cache. A loader can
+read published siblings lazily, and Kacheable rejects writes based on expired or changed state.
+
+```kotlin
+// Configure delivery-chunks with CachePartitionPolicy.SequentialFrom(first = 0).
+val chunk = cache(deliveryChunks("D55", page)) { missingPage, partition ->
+    repository.loadChunk(missingPage, partition.entries(0 until missingPage))
+}
+```
+
+This returns one requested chunk. `SequentialFrom` loads missing prerequisites in order;
+`OnDemand` loads only the requested entry. Ordinary caches leave `CacheConfig.partition` unset.
+
+See the [partition loading guide](docs/partition-loading.md) for complete definitions, independent
+chunks, typed enumeration, expiry, retries, and supported operations. Before upgrading, read the
+[compatibility notes](CHANGELOG.md#compatibility-and-upgrading).
 
 ## Matchable Key Parts
 
@@ -832,6 +852,10 @@ Retention modes:
 | `SnapshotRetention.LatestAndPrevious` | Rotate latest to previous on flush, and fall back to previous when latest is missing or corrupt. |
 
 ## Local cache telemetry
+
+For tracing adapters and the new partition hooks, see [telemetry and tracing](docs/telemetry-and-tracing.md).
+The [ordinary-cache performance review](docs/performance-review.md) covers measured overhead
+with optional features disabled.
 
 Kacheable can report semantic cache behavior without depending on a metrics backend. The built-in
 in-memory implementation is intended for tests and local diagnostics:

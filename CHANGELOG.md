@@ -1,5 +1,69 @@
 # Changelog
 
+## Unreleased
+
+This release adds optional guarded loading to existing hash caches. Loaders can read published
+siblings lazily, while atomic version checks prevent results based on retired partition state
+from being published. See the [partition loading guide](docs/partition-loading.md).
+
+### Added
+
+- `CacheConfig.partition` with two policies: `OnDemand` loads the requested entry;
+  `SequentialFrom` loads missing integer prerequisites in order and preserves published entries.
+- Lazy loader contexts for single-entry and selected-entry reads, including nullable values.
+- `enumerableKeyPart<T>()` for typed `keys()` and all-entry `entries()` reads. Reified serializers
+  or explicit codecs retain logical keys independently of their physical address mappings.
+- `VersionedHashOperations` and `BlockingVersionedHashOperations`, optional atomic capabilities
+  implemented by the existing in-memory and Lettuce stores.
+- Partition telemetry for sibling/metadata reads, coordination waits, and conflict attempts;
+  nested suspending/blocking calls retain their cache-operation parent relationship.
+
+### Changed
+
+- Value and enumerable-key codecs share `CacheCodec<T>`.
+- Guarded configuration validates expiry, resilience, and backend support at construction where
+  possible. Cache factories copy caller-owned configuration maps.
+- In-memory guarded data is private and cannot be erased by mutating ordinary backing maps.
+- Fixed Lettuce scripts use cached `SCRIPT LOAD`/`EVALSHA`, recovering from script eviction.
+  Generated mutations and queued blocking transactions use `EVAL` without replaying failed work.
+- Ordinary Redis hash operations now use atomic collision guards even with partition loading
+  disabled. Warm hits retain one network round trip but add server work. See the
+  [measured performance review](docs/performance-review.md) for costs and limitations.
+
+### Fixed
+
+- Suspending refresh loaders and fallback results use the latest value found during coordination,
+  including a published null. A fresh null found during recheck does not trigger another load.
+- Ordinary Redis hash scans exclude guarded data even when a hash changes between scan steps.
+
+### Compatibility and upgrading
+
+- **Recompile all clients.** Public JVM signatures have changed; this is not a binary-compatible
+  upgrade. Update the core and Lettuce modules together.
+- `CacheValueCodec<T>` remains a Kotlin source-compatible alias, and existing value-codec factory
+  names remain available. Java callers must migrate the type name to `CacheCodec<T>`.
+- Typed single-inner-key shapes and cache keys retain the key-part type as an extra generic
+  argument. Inferred declarations keep their syntax; explicit generic declarations need updating.
+- `CacheEntryRef` is now sealed. Create references through cache-key invocation.
+- Telemetry enums include new read and wait categories; update exhaustive `when` expressions.
+  Forward the new default `partitionConflict` callback in composite adapters to expose retries.
+  See [telemetry and tracing](docs/telemetry-and-tracing.md).
+- Before enabling a partition policy on an existing ordinary hash, invalidate its data or use a
+  new cache name. Stop older ordinary writers before reusing that name. Also invalidate before
+  enabling enumeration on entries written without logical-key metadata.
+- Ordinary caches keep their existing behavior when `partition` is unset.
+
+### Current limits
+
+- Guarded loading supports hash values with one typed inner key and returns one requested entry.
+  Whole-partition return views, bulk loaders, and proactive idle loading are not included.
+- Use whole-partition or whole-family invalidation. Guarded caches reject entry/matching
+  invalidation, snapshots, explicit miss/refresh policies, stale fallback, and raw entry access.
+- Blocking guarded calls reject non-default coroutine resilience settings. Distributed
+  coordination requires Redis single-flight on the suspending API.
+- Key/configuration mismatches still fail at the call boundary because key definitions are
+  supplied separately from runtime configuration. See the guide for validation and retry rules.
+
 ## 0.3.0-alpha02
 
 This release adds dependency-free cache telemetry and resource-aware load admission. It is informed

@@ -1,0 +1,12 @@
+allprojects {
+    afterEvaluate {
+        if (project.name == 'kacheable-lettuce') {
+            def sourceDirectory = rootProject.findProperty('performanceSourceDir') ?: rootProject.file('benchmarks/src')
+            kotlin.sourceSets.test.kotlin.srcDir(sourceDirectory)
+            tasks.withType(Test).configureEach {
+                testLogging.showStandardStreams = true
+                maxParallelForks = 1
+            }
+        }
+    }
+}
