@@ -25,7 +25,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.kacheableCore)
+    api(projects.kacheableCore)
 
     implementation(libs.kotlinx.serialization.json)
     api(libs.lettuce.core)

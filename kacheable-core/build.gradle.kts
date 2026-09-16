@@ -25,10 +25,10 @@ kotlin {
 }
 
 dependencies {
-    implementation(libs.kotlinx.serialization.json)
+    api(libs.kotlinx.serialization.json)
 
-    implementation(platform(libs.kotlinx.coroutines.bom))
-    implementation(libs.kotlinx.coroutines.core)
+    api(platform(libs.kotlinx.coroutines.bom))
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.testballoon.framework.core)
     testImplementation(libs.kotlin.test)
