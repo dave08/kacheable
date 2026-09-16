@@ -1,0 +1,78 @@
+package kacheable
+
+import com.github.dave08.kacheable.blocking.redis.RedisBlockingKacheableStore
+import com.github.dave08.kacheable.redis.ORDINARY_HASH_SET
+import com.github.dave08.kacheable.redis.RedisKacheableStore
+import com.github.dave08.kacheable.store.HashPublishResult
+import de.infix.testBalloon.framework.core.testSuite
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+
+val RedisScriptRecoverySpec by testSuite {
+    testWithRedis("suspending generated mutation carries its script after Redis script eviction") {
+        val store = RedisKacheableStore(connection)
+        store.mutate { setHashValue("images", "first", "thumbnail") }
+        commands.scriptFlush()
+
+        store.mutate {
+            setHashValue("images", "second", "full size")
+            deleteHashValue("images", "first")
+        }
+
+        assertEquals(mapOf("second" to "full size"), commands.hgetall("images"))
+    }
+    testWithRedis("suspending hash writes recover after Redis script eviction") {
+        val store = RedisKacheableStore(connection)
+        store.setHashValue("images", "first", "thumbnail")
+        assertEquals(listOf(true), commands.scriptExists(commands.digest(ORDINARY_HASH_SET)))
+
+        commands.scriptFlush()
+        store.setHashValue("images", "second", "full size")
+
+        assertEquals(mapOf("first" to "thumbnail", "second" to "full size"), commands.hgetall("images"))
+    }
+    testWithRedis("blocking hash writes recover after Redis script eviction") {
+        val store = RedisBlockingKacheableStore(connection)
+        store.setHashValue("images", "first", "thumbnail")
+        assertEquals(listOf(true), commands.scriptExists(commands.digest(ORDINARY_HASH_SET)))
+
+        commands.scriptFlush()
+        store.setHashValue("images", "second", "full size")
+
+        assertEquals(mapOf("first" to "thumbnail", "second" to "full size"), commands.hgetall("images"))
+    }
+    testWithRedis("suspending versioned publication advances once after Redis script eviction") {
+        val store = RedisKacheableStore(connection)
+        val initial = store.openHash("delivery", null)
+        val first = assertIs<HashPublishResult.Published>(store.publishHash("delivery", initial, "first", "one", null, true))
+
+        commands.scriptFlush()
+        val second = assertIs<HashPublishResult.Published>(store.publishHash("delivery", first.version, "second", "two", null, true))
+
+        assertEquals(initial.copy(revision = 2), second.version)
+        assertEquals(mapOf("first" to "one", "second" to "two"), store.readHash("delivery", second.version, null))
+    }
+    testWithRedis("blocking versioned publication advances once after Redis script eviction") {
+        val store = RedisBlockingKacheableStore(connection)
+        val initial = store.openHash("delivery", null)
+        val first = assertIs<HashPublishResult.Published>(store.publishHash("delivery", initial, "first", "one", null, true))
+
+        commands.scriptFlush()
+        val second = assertIs<HashPublishResult.Published>(store.publishHash("delivery", first.version, "second", "two", null, true))
+
+        assertEquals(initial.copy(revision = 2), second.version)
+        assertEquals(mapOf("first" to "one", "second" to "two"), store.readHash("delivery", second.version, null))
+    }
+    testWithRedis("blocking mutation carries scripts into EXEC after script eviction") {
+        val store = RedisBlockingKacheableStore(connection)
+        store.setHashValue("images", "first", "thumbnail")
+        commands.scriptFlush()
+
+        store.mutate {
+            setHashValue("images", "second", "full size")
+            deleteHashValue("images", "first")
+        }
+
+        assertEquals(mapOf("second" to "full size"), commands.hgetall("images"))
+    }
+}
