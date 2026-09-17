@@ -4,11 +4,18 @@ import com.github.dave08.kacheable.blocking.store.BlockingVersionedHashOperation
 import com.github.dave08.kacheable.redis.RedisBlockingVersionedHashes
 import com.github.dave08.kacheable.redis.RedisKeyDeletion
 import com.github.dave08.kacheable.redis.RedisScriptExecutor
+import com.github.dave08.kacheable.redis.GET_VALUES_REFRESHING_EXPIRE_SCRIPT
+import com.github.dave08.kacheable.redis.refreshingValuesByRequestedKey
 import com.github.dave08.kacheable.redis.isVersionedRedisKey
 import com.github.dave08.kacheable.redis.ordinaryRedisKey
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingStoreMutationScope
 import com.github.dave08.kacheable.redis.RedisDeleteMode
+import com.github.dave08.kacheable.store.HashPublishManyResult
+import com.github.dave08.kacheable.store.HashPublishResult
+import com.github.dave08.kacheable.store.HashReadSnapshot
+import com.github.dave08.kacheable.store.HashVersion
+import com.github.dave08.kacheable.store.VersionedHashValue
 import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
 import io.lettuce.core.ScanArgs
@@ -26,10 +33,48 @@ class RedisBlockingKacheableStore(
     private val deleteScanCount: Long = 1000,
     private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
 ) : BlockingKacheableStore,
-    BlockingVersionedHashOperations by RedisBlockingVersionedHashes(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode) {
+    BlockingVersionedHashOperations {
     private val scripts = RedisScriptExecutor(conn)
     private val deletion = RedisKeyDeletion(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode)
+    private val versionedHashes = RedisBlockingVersionedHashes(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode)
     private val mutationLock = ReentrantLock()
+
+    override fun deleteHashes(keyPattern: String) = versionedHashes.deleteHashes(keyPattern)
+
+    override fun openHash(key: String, expiry: Duration?): HashVersion = versionedHashes.openHash(key, expiry)
+
+    override fun readHashSnapshot(
+        key: String,
+        expiry: Duration?,
+        fields: List<String>?,
+    ): HashReadSnapshot? = versionedHashes.readHashSnapshot(key, expiry, fields)
+
+    override fun readHash(
+        key: String,
+        version: HashVersion,
+        fields: List<String>?,
+    ): Map<String, String>? = versionedHashes.readHash(key, version, fields)
+
+    override fun readHashMetadata(key: String, version: HashVersion): Map<String, String?>? =
+        versionedHashes.readHashMetadata(key, version)
+
+    override fun publishHash(
+        key: String,
+        version: HashVersion,
+        field: String,
+        value: String,
+        expiry: Duration?,
+        ifAbsent: Boolean,
+        metadata: String?,
+    ): HashPublishResult = versionedHashes.publishHash(key, version, field, value, expiry, ifAbsent, metadata)
+
+    override fun publishHashes(
+        key: String,
+        version: HashVersion,
+        values: Map<String, VersionedHashValue>,
+        expiry: Duration?,
+        ifAbsent: Boolean,
+    ): HashPublishManyResult = versionedHashes.publishHashes(key, version, values, expiry, ifAbsent)
 
     override fun delete(key: String) =
         deletion.deleteBlocking(ordinaryRedisKey(key)) { !isVersionedRedisKey(it) }
@@ -44,7 +89,29 @@ class RedisBlockingKacheableStore(
 
     override fun get(key: String): String? = conn.sync().get(ordinaryRedisKey(key))
 
+    override fun getValues(keys: List<String>): Map<String, String> {
+        val redisKeys = keys.map(::ordinaryRedisKey)
+        if (redisKeys.isEmpty()) return emptyMap()
+
+        return buildMap {
+            conn.sync().mget(*redisKeys.toTypedArray()).forEach { entry ->
+                if (entry.hasValue()) put(entry.key, entry.value)
+            }
+        }
+    }
+
     override fun getHashValue(key: String, field: String): String? = conn.sync().hget(ordinaryRedisKey(key), field)
+
+    override fun getHashValues(key: String, fields: List<String>): Map<String, String> {
+        val redisKey = ordinaryRedisKey(key)
+        if (fields.isEmpty()) return emptyMap()
+
+        return buildMap {
+            conn.sync().hmget(redisKey, *fields.toTypedArray()).forEach { entry ->
+                if (entry.hasValue()) put(entry.key, entry.value)
+            }
+        }
+    }
 
     override fun deleteHashValue(key: String, field: String) {
         conn.sync().hdel(ordinaryRedisKey(key), field)
@@ -73,6 +140,23 @@ class RedisBlockingKacheableStore(
 
     override fun isSetMember(key: String, member: String): Boolean = conn.sync().sismember(ordinaryRedisKey(key), member)
 
+    override fun areSetMembers(key: String, members: List<String>): Set<String> {
+        val redisKey = ordinaryRedisKey(key)
+        if (members.isEmpty()) return emptySet()
+
+        val commands = conn.sync()
+        return try {
+            val membership = commands.smismember(redisKey, *members.toTypedArray())
+            buildSet {
+                members.forEachIndexed { index, member ->
+                    if (membership[index]) add(member)
+                }
+            }
+        } catch (_: RedisCommandExecutionException) {
+            members.filterTo(linkedSetOf()) { member -> commands.sismember(redisKey, member) }
+        }
+    }
+
     override fun setExpire(key: String, expiry: Duration) {
         conn.sync().pexpire(ordinaryRedisKey(key), expiry.inWholeMilliseconds)
     }
@@ -93,11 +177,27 @@ class RedisBlockingKacheableStore(
     }
 
     override fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        getValueRefreshingExpireRedisKey(ordinaryRedisKey(key), expiry)
+
+    override fun getValuesRefreshingExpire(keys: List<String>, expiry: Duration): Map<String, String> {
+        val redisKeys = keys.map(::ordinaryRedisKey)
+        if (redisKeys.isEmpty()) return emptyMap()
+
+        val values = checkNotNull(scripts.executeBlocking<List<String>>(
+            GET_VALUES_REFRESHING_EXPIRE_SCRIPT,
+            ScriptOutputType.MULTI,
+            redisKeys.toTypedArray(),
+            expiry.inWholeMilliseconds.toString(),
+        ))
+        return refreshingValuesByRequestedKey(keys, values)
+    }
+
+    private fun getValueRefreshingExpireRedisKey(redisKey: String, expiry: Duration): String? =
         try {
-            conn.sync().getex(ordinaryRedisKey(key), GetExArgs.Builder.px(expiry.inWholeMilliseconds))
+            conn.sync().getex(redisKey, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
         } catch (_: RedisCommandExecutionException) {
-            conn.sync().get(ordinaryRedisKey(key))?.also {
-                conn.sync().pexpire(ordinaryRedisKey(key), expiry.inWholeMilliseconds)
+            conn.sync().get(redisKey)?.also {
+                conn.sync().pexpire(redisKey, expiry.inWholeMilliseconds)
             }
         }
 

@@ -1087,6 +1087,11 @@ class ExactCacheKey1<P1, R> @PublishedApi internal constructor(
     private val key: KeyPart<P1>,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(vararg keys: P1): CacheManyRef<P1, R, KeyPart<P1>> = many(keys.asList())
+
+    fun many(keys: Iterable<P1>): CacheManyRef<P1, R, KeyPart<P1>> =
+        CacheManyRef(keys.toList(), key, ::invoke)
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(p1: P1): CacheEntryRef<R> = cacheEntryRef(
@@ -1177,6 +1182,11 @@ class SinglePartitionCacheKey1<K1, R, P : KeyPart<K1>> @PublishedApi internal co
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(vararg keys: K1): CacheManyRef<K1, R, P> = many(keys.asList())
+
+    fun many(keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey, ::invoke)
+
     fun all(): CacheAllRef<R> = singlePartitionAllRef(name, plannedStorage)
 
     operator fun invoke(k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
@@ -1361,6 +1371,11 @@ class PartitionedCacheKey1x1<I1, K1, R, P : KeyPart<K1>> @PublishedApi internal 
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(i1: I1, vararg keys: K1): CacheManyRef<K1, R, P> = many(i1, keys.asList())
+
+    fun many(i1: I1, keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey) { key -> invoke(i1, key) }
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(i1: I1, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
@@ -1536,6 +1551,11 @@ class PartitionedCacheKey2x1<I1, I2, K1, R, P : KeyPart<K1>> @PublishedApi inter
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(i1: I1, i2: I2, vararg keys: K1): CacheManyRef<K1, R, P> = many(i1, i2, keys.asList())
+
+    fun many(i1: I1, i2: I2, keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey) { key -> invoke(i1, i2, key) }
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(i1: I1, i2: I2, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
@@ -1668,6 +1688,11 @@ class PartitionedCacheKey3x1<I1, I2, I3, K1, R, P : KeyPart<K1>> @PublishedApi i
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(i1: I1, i2: I2, i3: I3, vararg keys: K1): CacheManyRef<K1, R, P> = many(i1, i2, i3, keys.asList())
+
+    fun many(i1: I1, i2: I2, i3: I3, keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey) { key -> invoke(i1, i2, i3, key) }
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(i1: I1, i2: I2, i3: I3, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
@@ -1757,6 +1782,11 @@ class PartitionedCacheKey4x1<I1, I2, I3, I4, K1, R, P : KeyPart<K1>> @PublishedA
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(i1: I1, i2: I2, i3: I3, i4: I4, vararg keys: K1): CacheManyRef<K1, R, P> = many(i1, i2, i3, i4, keys.asList())
+
+    fun many(i1: I1, i2: I2, i3: I3, i4: I4, keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey) { key -> invoke(i1, i2, i3, i4, key) }
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(
@@ -1821,6 +1851,11 @@ class PartitionedCacheKey5x1<I1, I2, I3, I4, I5, K1, R, P : KeyPart<K1>> @Publis
     private val itemKey: P,
     private val plannedStorage: PlannedStorage<R>,
 ) {
+    fun many(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, vararg keys: K1): CacheManyRef<K1, R, P> = many(i1, i2, i3, i4, i5, keys.asList())
+
+    fun many(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, keys: Iterable<K1>): CacheManyRef<K1, R, P> =
+        CacheManyRef(keys.toList(), itemKey) { key -> invoke(i1, i2, i3, i4, i5, key) }
+
     fun all(): CacheAllRef<R> = cacheAllRef(name, plannedStorage)
 
     operator fun invoke(i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, k1: K1): PartitionCacheEntryRef<K1, R, P> = PartitionCacheEntryRef(

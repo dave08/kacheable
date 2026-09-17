@@ -4,9 +4,14 @@ import com.github.dave08.kacheable.internal.CacheLoadTimeoutException
 import com.github.dave08.kacheable.store.AdmissionAwareDistributedSingleFlightStore
 import com.github.dave08.kacheable.store.DistributedLoadLease
 import com.github.dave08.kacheable.store.HashFieldEntry
+import com.github.dave08.kacheable.store.HashPublishManyResult
+import com.github.dave08.kacheable.store.HashPublishResult
+import com.github.dave08.kacheable.store.HashReadSnapshot
+import com.github.dave08.kacheable.store.HashVersion
 import com.github.dave08.kacheable.store.KacheableStore
 import com.github.dave08.kacheable.store.StoreMutationScope
 import com.github.dave08.kacheable.store.VersionedHashOperations
+import com.github.dave08.kacheable.store.VersionedHashValue
 import io.lettuce.core.ExperimentalLettuceCoroutinesApi
 import io.lettuce.core.GetExArgs
 import io.lettuce.core.RedisCommandExecutionException
@@ -19,6 +24,7 @@ import io.lettuce.core.api.coroutines
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.toList
 
 @OptIn(ExperimentalLettuceCoroutinesApi::class)
 class RedisKacheableStore(
@@ -27,9 +33,47 @@ class RedisKacheableStore(
     private val deleteScanCount: Long = 1000,
     private val deleteMode: RedisDeleteMode = RedisDeleteMode.Unlink,
 ) : KacheableStore, AdmissionAwareDistributedSingleFlightStore,
-    VersionedHashOperations by RedisVersionedHashes(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode) {
+    VersionedHashOperations {
     private val scripts = RedisScriptExecutor(conn)
     private val deletion = RedisKeyDeletion(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode)
+    private val versionedHashes = RedisVersionedHashes(conn, deleteFromPatternInChunksOf, deleteScanCount, deleteMode)
+
+    override suspend fun deleteHashes(keyPattern: String) = versionedHashes.deleteHashes(keyPattern)
+
+    override suspend fun openHash(key: String, expiry: Duration?): HashVersion = versionedHashes.openHash(key, expiry)
+
+    override suspend fun readHashSnapshot(
+        key: String,
+        expiry: Duration?,
+        fields: List<String>?,
+    ): HashReadSnapshot? = versionedHashes.readHashSnapshot(key, expiry, fields)
+
+    override suspend fun readHash(
+        key: String,
+        version: HashVersion,
+        fields: List<String>?,
+    ): Map<String, String>? = versionedHashes.readHash(key, version, fields)
+
+    override suspend fun readHashMetadata(key: String, version: HashVersion): Map<String, String?>? =
+        versionedHashes.readHashMetadata(key, version)
+
+    override suspend fun publishHash(
+        key: String,
+        version: HashVersion,
+        field: String,
+        value: String,
+        expiry: Duration?,
+        ifAbsent: Boolean,
+        metadata: String?,
+    ): HashPublishResult = versionedHashes.publishHash(key, version, field, value, expiry, ifAbsent, metadata)
+
+    override suspend fun publishHashes(
+        key: String,
+        version: HashVersion,
+        values: Map<String, VersionedHashValue>,
+        expiry: Duration?,
+        ifAbsent: Boolean,
+    ): HashPublishManyResult = versionedHashes.publishHashes(key, version, values, expiry, ifAbsent)
 
     override suspend fun delete(key: String) =
         deletion.delete(ordinaryRedisKey(key)) { !isVersionedRedisKey(it) }
@@ -44,7 +88,29 @@ class RedisKacheableStore(
 
     override suspend fun get(key: String): String? = conn.coroutines().get(ordinaryRedisKey(key))
 
+    override suspend fun getValues(keys: List<String>): Map<String, String> {
+        val redisKeys = keys.map(::ordinaryRedisKey)
+        if (redisKeys.isEmpty()) return emptyMap()
+
+        return buildMap {
+            conn.coroutines().mget(*redisKeys.toTypedArray()).toList().forEach { entry ->
+                if (entry.hasValue()) put(entry.key, entry.value)
+            }
+        }
+    }
+
     override suspend fun getHashValue(key: String, field: String): String? = conn.coroutines().hget(ordinaryRedisKey(key), field)
+
+    override suspend fun getHashValues(key: String, fields: List<String>): Map<String, String> {
+        val redisKey = ordinaryRedisKey(key)
+        if (fields.isEmpty()) return emptyMap()
+
+        return buildMap {
+            conn.coroutines().hmget(redisKey, *fields.toTypedArray()).toList().forEach { entry ->
+                if (entry.hasValue()) put(entry.key, entry.value)
+            }
+        }
+    }
 
     override suspend fun deleteHashValue(key: String, field: String) {
         conn.coroutines().hdel(ordinaryRedisKey(key), field)
@@ -119,6 +185,23 @@ class RedisKacheableStore(
     override suspend fun isSetMember(key: String, member: String): Boolean =
         conn.coroutines().sismember(ordinaryRedisKey(key), member) == true
 
+    override suspend fun areSetMembers(key: String, members: List<String>): Set<String> {
+        val redisKey = ordinaryRedisKey(key)
+        if (members.isEmpty()) return emptySet()
+
+        val commands = conn.coroutines()
+        return try {
+            val membership = commands.smismember(redisKey, *members.toTypedArray()).toList()
+            buildSet {
+                members.forEachIndexed { index, member ->
+                    if (membership[index]) add(member)
+                }
+            }
+        } catch (_: RedisCommandExecutionException) {
+            members.filterTo(linkedSetOf()) { member -> commands.sismember(redisKey, member) == true }
+        }
+    }
+
     override suspend fun setExpire(key: String, expiry: Duration) {
         conn.coroutines().pexpire(ordinaryRedisKey(key), expiry.inWholeMilliseconds)
     }
@@ -139,11 +222,27 @@ class RedisKacheableStore(
     }
 
     override suspend fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
+        getValueRefreshingExpireRedisKey(ordinaryRedisKey(key), expiry)
+
+    override suspend fun getValuesRefreshingExpire(keys: List<String>, expiry: Duration): Map<String, String> {
+        val redisKeys = keys.map(::ordinaryRedisKey)
+        if (redisKeys.isEmpty()) return emptyMap()
+
+        val values = checkNotNull(scripts.execute<List<String>>(
+            GET_VALUES_REFRESHING_EXPIRE_SCRIPT,
+            ScriptOutputType.MULTI,
+            redisKeys.toTypedArray(),
+            expiry.inWholeMilliseconds.toString(),
+        ))
+        return refreshingValuesByRequestedKey(keys, values)
+    }
+
+    private suspend fun getValueRefreshingExpireRedisKey(redisKey: String, expiry: Duration): String? =
         try {
-            conn.coroutines().getex(ordinaryRedisKey(key), GetExArgs.Builder.px(expiry.inWholeMilliseconds))
+            conn.coroutines().getex(redisKey, GetExArgs.Builder.px(expiry.inWholeMilliseconds))
         } catch (_: RedisCommandExecutionException) {
-            conn.coroutines().get(ordinaryRedisKey(key))?.also {
-                conn.coroutines().pexpire(ordinaryRedisKey(key), expiry.inWholeMilliseconds)
+            conn.coroutines().get(redisKey)?.also {
+                conn.coroutines().pexpire(redisKey, expiry.inWholeMilliseconds)
             }
         }
 
@@ -263,6 +362,33 @@ class RedisKacheableStore(
             if (released.compareAndSet(false, true)) {
                 releaseLock(lockKey, ownerToken)
             }
+        }
+    }
+}
+
+internal const val GET_VALUES_REFRESHING_EXPIRE_SCRIPT = """
+local values = {}
+for i = 1, #KEYS do
+  values[i] = redis.call('GET', KEYS[i])
+end
+
+local result = {}
+for i = 1, #KEYS do
+  local value = values[i]
+  if value then
+    redis.call('PEXPIRE', KEYS[i], ARGV[1])
+    table.insert(result, tostring(i))
+    table.insert(result, value)
+  end
+end
+return result
+"""
+
+internal fun refreshingValuesByRequestedKey(keys: List<String>, indexedValues: List<String>): Map<String, String> {
+    require(indexedValues.size % 2 == 0) { "Redis refreshing read returned malformed indexed values." }
+    return buildMap {
+        indexedValues.chunked(2).forEach { (oneBasedIndex, value) ->
+            put(keys[oneBasedIndex.toInt() - 1], value)
         }
     }
 }

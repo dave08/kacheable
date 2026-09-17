@@ -42,7 +42,11 @@ This is the current layering direction for the typed cache-key API.
 
 - `internal.storage.hash.PartitionCacheRoutes` selects configured behavior at construction.
 - `PartitionCacheRuntime` owns prerequisite loading, lazy sibling access, retries, and publication.
+  Scalar calls adapt to its selected-entry engine, so both use the same attempt and publication path.
 - `CacheLoadCoordinator` owns admission and load coordination; the partition runtime delegates to it.
+- The coordinator's final read runs under load ownership. Its version and selected values are
+  passed into the loader attempt rather than discarded and fetched again. Rechecks remain after
+  waits, and publication still validates generation and revision atomically.
 - Stores implement optional `VersionedHashOperations` capabilities. In-memory state and Redis
   scripts enforce atomicity below the typed API. Guarded invalidation uses the same capability.
 - Redis ordinary operations use native commands in the ordinary namespace. Versioned operations
@@ -55,3 +59,20 @@ This is the current layering direction for the typed cache-key API.
 - Move any remaining storage-aware helpers out of public package files when they are not part of the API story.
 - Keep narrowing public files so they read like declarations plus delegation.
 - If more internal grouping emerges, prefer subpackages under `internal.keys` or `internal.storage` before adding new public vocabulary.
+
+## Selected-entry loading
+
+- `CacheManyRef` selects existing typed entries without introducing another storage layout.
+- `CacheLoadContext` and `CacheEntry` define the common read vocabulary for scalar partition
+  loaders and batch loaders. The guarded implementation supplies version checking and
+  enumerable-key capabilities. Blocking loaders use the matching `BlockingCacheLoadContext`.
+- `CacheLifecycleSupport` shares the scalar miss/refresh/fallback lifecycle across ordinary
+  value and membership storage. `CachedValue` distinguishes present nulls from absence.
+- `CacheManyRuntime` groups loader work and normalizes partial results; `SelectedEntryStorage`
+  owns representation-specific reads and grouped publication. Both use the existing naming,
+  write decisions, store capabilities, load coordinator, and telemetry infrastructure.
+- Blocking selections adapt synchronous store operations into the same batch runtime and use
+  the existing blocking admission coordinator. They do not start an independent loading engine.
+- Guarded selections stay in `PartitionCacheRuntime` and use atomic `publishHashes` below the
+  typed API. Independent entries can publish together; sequential prerequisites still publish
+  before dependent loaders execute.

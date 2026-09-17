@@ -9,14 +9,18 @@ import com.github.dave08.kacheable.CacheWaitReason
 import com.github.dave08.kacheable.LoadConcurrencyConfig
 import com.github.dave08.kacheable.LoadConcurrencyGroup
 import com.github.dave08.kacheable.LoadConcurrencySettings
+import com.github.dave08.kacheable.UnresolvedCacheKeyException
 import com.github.dave08.kacheable.SingleFlightMode
 import com.github.dave08.kacheable.store.AdmissionAwareDistributedSingleFlightStore
 import com.github.dave08.kacheable.store.DistributedSingleFlightStore
 import com.github.dave08.kacheable.store.KacheableStore
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
@@ -110,7 +114,7 @@ internal class CacheLoadCoordinator(
                 val admissionAwareStore = store as? AdmissionAwareDistributedSingleFlightStore
                 if (limiter != null && admissionAwareStore != null) {
                     runWithLoadTimeout(resilience) {
-                        runAdmittedDistributedSingleFlight(
+                        runLeasedSingleFlight(
                             store = admissionAwareStore,
                             key = "$cacheName:${coordinationKey ?: entryKey}",
                             limiter = limiter,
@@ -130,6 +134,225 @@ internal class CacheLoadCoordinator(
                         readCached = readCached,
                         loadAndSave = guardedLoad,
                     )
+                }
+            }
+        }
+    }
+
+    /**
+     * Claims entries together, but completes each shared scalar flight independently.
+     * Ordinary batches use callbacks to retain progress and apply policies to each failed entry;
+     * guarded callers omit failure handling so a failed attempt still aborts their operation.
+     */
+    suspend fun <R> loadMany(
+        cacheName: String,
+        entryKeys: List<String>,
+        store: KacheableStore,
+        config: CacheConfig?,
+        observation: OperationObservation,
+        loadConcurrencyGroup: LoadConcurrencyGroup?,
+        execution: CacheExecution,
+        readCached: suspend (List<String>) -> Map<String, R>,
+        loadAndSave: suspend (List<String>, CacheExecution) -> Map<String, R>,
+        coordinationKey: String? = null,
+        onEntryResolved: (String, R) -> Unit = { _, _ -> },
+        onEntryFailure: ((String, Throwable) -> Unit)? = null,
+        initialMiss: Boolean = false,
+        loadAdmission: (suspend (suspend () -> Map<String, R>) -> Map<String, R>)? = null,
+    ): Map<String, R> {
+        val keys = entryKeys.distinct()
+        if (keys.isEmpty()) return emptyMap()
+        val resilience = resilienceFor(config)
+        val inherited = currentCoroutineContext()[CacheExecutionContext]?.execution
+        val effective = if (execution == CacheExecution.Background || inherited == CacheExecution.Background)
+            CacheExecution.Background else CacheExecution.Foreground
+        val limiter = resolveLoadConcurrency(cacheName, resilience, loadConcurrencyGroup)
+            ?.let { (name, configuration) -> limiterFor(name, configuration) }
+        suspend fun <T> execute(block: suspend () -> T): T = withContext(CacheExecutionContext(effective)) {
+            if (coordinationKey == null) block()
+            else withPartitionLock(coordinationKey, observation, block)
+        }
+        suspend fun <T> admitted(block: suspend () -> T): T = runWithLoadTimeout(resilience) {
+            withLoadPermit(limiter, effective, observation) { execute(block) }
+        }
+        suspend fun loadOwned(
+            owned: List<String>,
+            resolved: (String, R) -> Unit = onEntryResolved,
+        ): Map<String, R> {
+            val readAndLoad: suspend () -> Map<String, R> = {
+                val result = readCached(owned).toMutableMap()
+                result.forEach(resolved)
+                val missing = owned.filterNot(result::containsKey)
+                if (missing.isNotEmpty()) {
+                    val loaded = loadAndSave(missing, effective)
+                    result.putAll(loaded)
+                    loaded.forEach(resolved)
+                }
+                result
+            }
+            // Blocking callers acquire their shared admission here, before the final read.
+            // Never hold that permit while joining another owner's result.
+            return loadAdmission?.invoke(readAndLoad) ?: readAndLoad()
+        }
+        if (resilience.singleFlight == SingleFlightMode.None) return admitted { loadOwned(keys) }
+        if (resilience.singleFlight == SingleFlightMode.Redis && coordinationKey != null) {
+            val readComplete = suspend { readCached(keys).takeIf { values -> keys.all(values::containsKey) } }
+            if (store is AdmissionAwareDistributedSingleFlightStore && (limiter != null || initialMiss)) {
+                return runWithLoadTimeout(resilience) {
+                    runLeasedSingleFlight(
+                        store, "$cacheName:$coordinationKey", limiter, effective, resilience, observation,
+                        readCached = readComplete,
+                        loadAndSave = { execute { loadOwned(keys) } },
+                        initialMiss = initialMiss,
+                        loadRechecks = true,
+                    )
+                }
+            }
+            return runDistributedSingleFlight(
+                store, "$cacheName:$coordinationKey", resilience, observation,
+                readCached = readComplete,
+                loadAndSave = { admitted { loadOwned(keys) } },
+            )
+        }
+        if (resilience.singleFlight == SingleFlightMode.Redis) {
+            val distributed = store as? AdmissionAwareDistributedSingleFlightStore
+                ?: throw UnsupportedOperationException("Selected-entry Redis single-flight requires lease acquisition support.")
+            return runWithLoadTimeout(resilience) {
+                val results = linkedMapOf<String, R>()
+                val pending = keys.toMutableSet()
+                val deadline = TimeSource.Monotonic.markNow() + (resilience.loadTimeout ?: DefaultDistributedWaitTimeout)
+                var recheck = !initialMiss
+                while (pending.isNotEmpty()) {
+                    if (recheck) {
+                        val cached = readCached(pending.toList())
+                        results.putAll(cached)
+                        cached.forEach(onEntryResolved)
+                        pending.removeAll(results.keys)
+                        if (pending.isEmpty()) break
+                    }
+                    recheck = true
+                    admitted {
+                        val leases = linkedMapOf<String, com.github.dave08.kacheable.store.DistributedLoadLease>()
+                        try {
+                            for (key in pending.sorted()) {
+                                distributed.tryAcquireDistributedLoadLease(
+                                    "$cacheName:$key", resilience.loadTimeout ?: DefaultDistributedLockLease,
+                                )?.let { leases[key] = it }
+                            }
+                            if (leases.isNotEmpty()) {
+                                results.putAll(loadOwned(keys.filter(leases::containsKey)))
+                                // An omitted result is completed as unresolved, not retried forever.
+                                pending.removeAll(leases.keys)
+                            }
+                        } finally {
+                            withContext(NonCancellable) {
+                                leases.values.forEach { it.release() }
+                            }
+                        }
+                    }
+                    if (pending.isNotEmpty()) {
+                        if (deadline.hasPassedNow()) throw CacheLoadTimeoutException("Timed out waiting for selected cache entries.")
+                        val started = observation.startTimer()
+                        observation.loadWaitStarted(CacheWaitReason.RedisSingleFlight, CacheLoadRole.Joiner)
+                        try { delay(DefaultDistributedPollInterval) }
+                        finally { observation.loadWait(CacheWaitReason.RedisSingleFlight, CacheLoadRole.Joiner, started) }
+                    }
+                }
+                results
+            }
+        }
+
+        return runWithLoadTimeout(resilience) {
+            val owned = linkedMapOf<String, CompletableDeferred<Any?>>()
+            val joined = linkedMapOf<String, CompletableDeferred<Any?>>()
+            val result = linkedMapOf<String, R>()
+            try {
+                // Queued background work must not claim entries before it has loader capacity.
+                val permit = limiter?.acquire(effective, observation)
+                try {
+                    if (limiter != null && (!initialMiss || permit?.wasQueued == true)) {
+                        val cached = readCached(keys)
+                        result.putAll(cached)
+                        cached.forEach(onEntryResolved)
+                    }
+                    inFlightMutex.withLock {
+                        keys.filterNot(result::containsKey).forEach { key ->
+                            val identity = "$cacheName:$key"
+                            val existing = inFlightLoads[identity]
+                            if (existing != null) joined[key] = existing
+                            else CompletableDeferred<Any?>().also {
+                                owned[key] = it
+                                inFlightLoads[identity] = it
+                            }
+                        }
+                    }
+                    if (owned.isNotEmpty()) {
+                        var ownedFailure: Throwable? = null
+                        try {
+                            execute {
+                                loadOwned(owned.keys.toList()) { key, value ->
+                                    result[key] = value
+                                    onEntryResolved(key, value)
+                                }
+                            }
+                        } catch (timeout: TimeoutCancellationException) {
+                            currentCoroutineContext().ensureActive()
+                            if (onEntryFailure == null) throw timeout
+                            ownedFailure = timeout
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Throwable) {
+                            if (onEntryFailure == null) throw failure
+                            ownedFailure = failure
+                        }
+                        owned.forEach { (key, deferred) ->
+                            if (result.containsKey(key)) deferred.complete(result.getValue(key))
+                            else {
+                                val failure = ownedFailure ?: UnresolvedCacheKeyException(key)
+                                deferred.completeExceptionally(failure)
+                                if (ownedFailure != null) onEntryFailure?.invoke(key, failure)
+                            }
+                        }
+                    }
+                } finally { permit?.release() }
+
+                // Publish our entries and release capacity before waiting for another owner.
+                for ((key, deferred) in joined) {
+                    val started = observation.startTimer()
+                    observation.loadWaitStarted(CacheWaitReason.LocalSingleFlight, CacheLoadRole.Joiner)
+                    try {
+                        @Suppress("UNCHECKED_CAST")
+                        val value = deferred.await() as R
+                        result[key] = value
+                        onEntryResolved(key, value)
+                    } catch (_: UnresolvedCacheKeyException) {
+                        // The other loader also returned a partial map.
+                    } catch (timeout: TimeoutCancellationException) {
+                        // An owner's timeout is per-entry; our own deadline still aborts the wait.
+                        currentCoroutineContext().ensureActive()
+                        if (onEntryFailure == null) throw timeout
+                        onEntryFailure(key, timeout)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        if (onEntryFailure == null) throw failure
+                        onEntryFailure(key, failure)
+                    } finally {
+                        observation.loadWait(CacheWaitReason.LocalSingleFlight, CacheLoadRole.Joiner, started)
+                    }
+                }
+                result
+            } catch (failure: Throwable) {
+                owned.values.forEach { it.completeExceptionally(failure) }
+                throw failure
+            } finally {
+                withContext(NonCancellable) {
+                    inFlightMutex.withLock {
+                        owned.forEach { (key, deferred) ->
+                            val identity = "$cacheName:$key"
+                            if (inFlightLoads[identity] === deferred) inFlightLoads.remove(identity)
+                        }
+                    }
                 }
             }
         }
@@ -323,33 +546,42 @@ internal class CacheLoadCoordinator(
         }
     }
 
-    private suspend fun <R> runAdmittedDistributedSingleFlight(
+    /**
+     * Polling checks belong before a new ownership attempt. Once ownership is acquired, a loader
+     * that rechecks under its partition mutex owns the final read, so its snapshot can be reused.
+     * [initialMiss] skips only the first polling read; it never skips the owned load's recheck.
+     */
+    private suspend fun <R> runLeasedSingleFlight(
         store: AdmissionAwareDistributedSingleFlightStore,
         key: String,
-        limiter: LoadLimiter,
+        limiter: LoadLimiter?,
         execution: CacheExecution,
         resilience: CacheResilienceConfig,
         observation: OperationObservation,
         readCached: suspend () -> R?,
         loadAndSave: suspend () -> R,
+        initialMiss: Boolean = false,
+        loadRechecks: Boolean = false,
     ): R {
         val lockLease = resilience.loadTimeout ?: DefaultDistributedLockLease
         val waitTimeout = resilience.loadTimeout ?: DefaultDistributedWaitTimeout
         val deadline = TimeSource.Monotonic.markNow() + waitTimeout
         var redisWaitStarted = false
         var redisWaitDurationNanos = 0L
+        var recheck = !initialMiss
 
         try {
             while (deadline.hasNotPassedNow()) {
-                readCached()?.let { return it }
+                if (recheck) readCached()?.let { return it }
+                recheck = true
 
-                val permit = limiter.acquire(execution, observation)
+                val permit = limiter?.acquire(execution, observation)
                 try {
-                    readCached()?.let { return it }
+                    if (permit != null && (!initialMiss || permit.wasQueued)) readCached()?.let { return it }
                     val lease = store.tryAcquireDistributedLoadLease(key, lockLease)
                     if (lease != null) {
                         try {
-                            return readCached() ?: loadAndSave()
+                            return if (loadRechecks) loadAndSave() else readCached() ?: loadAndSave()
                         } finally {
                             withContext(NonCancellable) {
                                 lease.release()
@@ -357,7 +589,7 @@ internal class CacheLoadCoordinator(
                         }
                     }
                 } finally {
-                    permit.release()
+                    permit?.release()
                 }
 
                 if (observation.isEnabled && !redisWaitStarted) {
@@ -508,7 +740,7 @@ internal class CacheLoadCoordinator(
                         "Load concurrency '$name' rejected a load after its queue timeout.",
                     )
                 }
-                return LoadPermit(this, execution)
+                return LoadPermit(this, execution, wasQueued = true)
             } finally {
                 observation.loadWait(
                     CacheWaitReason.ConcurrencyLimit,
@@ -634,6 +866,7 @@ internal class CacheLoadCoordinator(
     private class LoadPermit(
         private val limiter: LoadLimiter,
         private val execution: CacheExecution,
+        val wasQueued: Boolean = false,
     ) {
         private val released = AtomicBoolean()
 

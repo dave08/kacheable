@@ -4,6 +4,35 @@ import com.github.dave08.kacheable.store.CacheCodec
 import kotlinx.serialization.KSerializer
 
 internal object NoopKacheable : Kacheable {
+    override suspend fun <K, V, P : KeyPart<K>> invoke(
+        ref: CacheManyRef<K, V, P>,
+        missPolicy: CacheMissPolicy<V>,
+        refreshPolicy: CacheRefreshPolicy<V>,
+        storeResultIf: (V) -> Boolean,
+        block: suspend (List<K>, CacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V> {
+        val keys = ref.keys.distinct()
+        if (keys.isEmpty()) return emptyMap()
+        if (missPolicy is CacheMissPolicy.LoadInBackground) return keys.associateWith { missPolicy.fallback() }
+        val context = com.github.dave08.kacheable.internal.SelectedLoadContext<K, V, P>(ref.keyPart) { emptyMap() }
+        val values = try {
+            block(keys, context).toMap().also { result ->
+                require(result.keys.all { it in keys }) { "Batch loader returned an unrequested key." }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (failure: Throwable) {
+            val fallback = (missPolicy as CacheMissPolicy.Load).fallbackOnFailure ?: throw failure
+            return keys.associateWith { fallback(failure) }
+        } finally { context.close() }
+        val fallback = (missPolicy as CacheMissPolicy.Load).fallbackOnFailure
+        return buildMap {
+            for (key in keys) {
+                if (values.containsKey(key)) put(key, values.getValue(key))
+                else if (fallback != null) put(key, fallback(UnresolvedCacheKeyException(key)))
+            }
+        }
+    }
+
     override suspend fun <R> invalidate(vararg keys: Pair<String, List<Any>>, block: suspend () -> R): R =
         block()
 

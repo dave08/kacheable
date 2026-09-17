@@ -26,8 +26,8 @@ val RedisPartitionContextSpec by testSuite {
                             releaseLeader.await()
                         }
                         when (sibling) {
-                            CachePartitionEntry.Missing -> "stale-page-$key"
-                            is CachePartitionEntry.Present -> "page-$key-from-${sibling.value}"
+                            CacheEntry.Missing -> "stale-page-$key"
+                            is CacheEntry.Present -> "page-$key-from-${sibling.value}"
                         }
                     }
                 }
@@ -58,7 +58,7 @@ val RedisPartitionContextSpec by testSuite {
                 firstEntered.await()
                 val second = async(start = CoroutineStart.UNDISPATCHED) {
                     subject.second.cache(subject.pages("delivery", 2)) { key, context ->
-                        val predecessor = context.entry(1) as CachePartitionEntry.Present
+                        val predecessor = context.entry(1) as CacheEntry.Present
                         "page-$key-after-${predecessor.value}"
                     }
                 }

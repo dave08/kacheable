@@ -2,10 +2,12 @@ package com.github.dave08.kacheable.blocking
 
 import com.github.dave08.kacheable.CacheArgs
 import com.github.dave08.kacheable.CacheEntryPartRef
+import com.github.dave08.kacheable.CacheManyRef
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
 import com.github.dave08.kacheable.EnumMemberCacheReturn
 import com.github.dave08.kacheable.PrimarySecondaryCacheArgs
+import com.github.dave08.kacheable.KeyPart
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
@@ -24,6 +26,15 @@ import kotlinx.serialization.serializer
  * has no background miss or refresh operations.
  */
 interface BlockingKacheable {
+    /** Loads unresolved selected entries through the same runtime used by scalar calls. */
+    operator fun <K, V, P : KeyPart<K>> invoke(
+        ref: CacheManyRef<K, V, P>,
+        cacheIf: (V) -> Boolean = { true },
+        block: (List<K>, BlockingCacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V> = throw UnsupportedOperationException(
+        "This cache runtime does not support selected-entry loading."
+    )
+
     /**
      * Runs [block] and invalidates the raw cache entries after the block succeeds.
      */

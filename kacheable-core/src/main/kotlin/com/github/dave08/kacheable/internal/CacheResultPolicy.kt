@@ -10,8 +10,9 @@ internal object CacheResultPolicy {
         saveResultIf: (R) -> Boolean,
         codec: CacheCodec<R>,
     ): String? = when {
+        !saveResultIf(blockResult) -> null
         blockResult == null && config?.nullPlaceholder != null -> config.nullPlaceholder
-        blockResult == null || !saveResultIf(blockResult) -> null
+        blockResult == null -> null
         else -> codec.encode(blockResult)
     }
 

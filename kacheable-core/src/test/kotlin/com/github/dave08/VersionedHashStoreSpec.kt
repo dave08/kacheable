@@ -107,6 +107,79 @@ val VersionedHashOperationsSpec by testSuite {
             assertNull(store.readHash(key, initial, null))
             assertEquals(mapOf("first" to "one"), store.readHash(key, written.version, null))
         }
+        test("versioned hash batch publication commits resolved fields as one revision") {
+            val initial = store.openHash(key, 10.seconds)
+
+            val published = assertIs<HashPublishManyResult.Success>(store.publishHashes(
+                key,
+                initial,
+                linkedMapOf(
+                    "first" to VersionedHashValue("one", "typed one"),
+                    "second" to VersionedHashValue("two"),
+                ),
+                10.seconds,
+                ifAbsent = true,
+            ))
+
+            assertEquals(initial.revision + 1, published.version.revision)
+            assertEquals(mapOf("first" to "one", "second" to "two"), published.values)
+            assertEquals(setOf("first", "second"), published.publishedFields)
+            assertEquals(published.values, store.readHash(key, published.version, null))
+            assertEquals(mapOf("first" to "typed one", "second" to null), store.readHashMetadata(key, published.version))
+        }
+        test("versioned hash batch publication rejects a stale revision without partial writes") {
+            val stale = store.openHash(key, null)
+            val current = assertIs<HashPublishResult.Published>(
+                store.publishHash(key, stale, "winner", "kept", null, true),
+            ).version
+
+            assertEquals(HashPublishManyResult.Conflict, store.publishHashes(
+                key,
+                stale,
+                linkedMapOf("first" to VersionedHashValue("one"), "second" to VersionedHashValue("two")),
+                null,
+                ifAbsent = false,
+            ))
+            assertEquals(mapOf("winner" to "kept"), store.readHash(key, current, null))
+        }
+        test("empty versioned hash batch validates its version without changing revision or expiry") {
+            val initial = store.openHash(key, 10.seconds)
+            val expiryCalls = store.expireCalls.size
+
+            assertEquals(
+                HashPublishManyResult.Success(initial, emptyMap(), emptySet()),
+                store.publishHashes(key, initial, emptyMap(), 10.seconds, ifAbsent = true),
+            )
+            assertEquals(expiryCalls, store.expireCalls.size)
+            val current = assertIs<HashPublishResult.Published>(
+                store.publishHash(key, initial, "winner", "kept", null, true),
+            ).version
+            assertEquals(HashPublishManyResult.Conflict, store.publishHashes(
+                key, initial, emptyMap(), 10.seconds, ifAbsent = true,
+            ))
+            assertEquals(mapOf("winner" to "kept"), store.readHash(key, current, null))
+        }
+        test("versioned hash batch if-absent publication retains winners and publishes misses") {
+            val initial = store.openHash(key, null)
+            val withWinner = assertIs<HashPublishResult.Published>(
+                store.publishHash(key, initial, "first", "winner", null, true, "winner key"),
+            ).version
+
+            val batch = assertIs<HashPublishManyResult.Success>(store.publishHashes(
+                key,
+                withWinner,
+                linkedMapOf(
+                    "first" to VersionedHashValue("loser", "loser key"),
+                    "second" to VersionedHashValue("two", "second key"),
+                ),
+                null,
+                ifAbsent = true,
+            ))
+
+            assertEquals(mapOf("first" to "winner", "second" to "two"), batch.values)
+            assertEquals(setOf("second"), batch.publishedFields)
+            assertEquals(mapOf("first" to "winner key", "second" to "second key"), store.readHashMetadata(key, batch.version))
+        }
         test("versioned hash losing insertion preserves expiry and revision") {
             val initial = store.openHash(key, 10.seconds)
             val written = assertIs<HashPublishResult.Published>(store.publishHash(key, initial, "first", "one", 10.seconds, true))

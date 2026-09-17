@@ -9,6 +9,7 @@ import de.infix.testBalloon.framework.core.TestSuiteScope
 import de.infix.testBalloon.framework.shared.TestElementName
 import de.infix.testBalloon.framework.shared.TestRegistering
 import io.lettuce.core.RedisClient
+import io.lettuce.core.event.command.CommandListener
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.sync.RedisCommands
 import kotlinx.serialization.Serializable
@@ -41,6 +42,10 @@ class RedisFixture private constructor(
         get() = connection.sync()
 
     fun newConnection(): StatefulRedisConnection<String, String> = client.connect()
+
+    fun addCommandListener(listener: CommandListener) = client.addListener(listener)
+
+    fun removeCommandListener(listener: CommandListener) = client.removeListener(listener)
 
     fun suspendFixture(vararg configs: CacheConfig): SuspendRedisFixture =
         SuspendRedisFixture(

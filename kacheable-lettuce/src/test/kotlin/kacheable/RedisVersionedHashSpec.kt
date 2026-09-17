@@ -4,8 +4,10 @@ import com.github.dave08.kacheable.blocking.redis.RedisBlockingKacheableStore
 import com.github.dave08.kacheable.redis.versionedRedisKey
 import com.github.dave08.kacheable.redis.RedisKacheableStore
 import com.github.dave08.kacheable.store.HashPublishResult
+import com.github.dave08.kacheable.store.HashPublishManyResult
 import com.github.dave08.kacheable.store.HashVersion
 import com.github.dave08.kacheable.store.VersionedHashOperations
+import com.github.dave08.kacheable.store.VersionedHashValue
 import de.infix.testBalloon.framework.core.testSuite
 import kotlin.test.*
 import kotlin.time.Duration
@@ -142,6 +144,56 @@ val RedisVersionedHashSpec by testSuite {
             assertNull(store.readHash("delivery", initial, null))
             assertEquals(mapOf("first" to "one"), store.readHash("delivery", winner.version, null))
         }
+        testWithRedis("$api batch publication atomically commits one revision with field metadata") {
+            val store = api.store(this)
+            val initial = store.openHash("delivery", 5.minutes)
+            val batch = assertIs<HashPublishManyResult.Success>(store.publishHashes(
+                "delivery",
+                initial,
+                linkedMapOf(
+                    "first" to VersionedHashValue("one", "typed one"),
+                    "second" to VersionedHashValue("two"),
+                ),
+                5.minutes,
+                ifAbsent = true,
+            ))
+            assertEquals(initial.revision + 1, batch.version.revision)
+            assertEquals(mapOf("first" to "one", "second" to "two"), batch.values)
+            assertEquals(setOf("first", "second"), batch.publishedFields)
+            assertEquals(mapOf("first" to "typed one", "second" to null), store.readHashMetadata("delivery", batch.version))
+        }
+        testWithRedis("$api batch publication rejects stale revisions without partial writes") {
+            val store = api.store(this)
+            val stale = store.openHash("delivery", null)
+            val current = assertIs<HashPublishResult.Published>(
+                store.publishHash("delivery", stale, "winner", "kept", null, true),
+            ).version
+            assertEquals(HashPublishManyResult.Conflict, store.publishHashes(
+                "delivery",
+                stale,
+                linkedMapOf("first" to VersionedHashValue("one"), "second" to VersionedHashValue("two")),
+                null,
+                ifAbsent = false,
+            ))
+            assertEquals(mapOf("winner" to "kept"), store.readHash("delivery", current, null))
+        }
+        testWithRedis("$api empty batch validates its version without changing revision or expiry") {
+            val store = api.store(this)
+            val initial = store.openHash("delivery", 5.minutes)
+            commands.pexpire(versionedRedisKey("delivery"), 60_000)
+            assertEquals(
+                HashPublishManyResult.Success(initial, emptyMap(), emptySet()),
+                store.publishHashes("delivery", initial, emptyMap(), 5.minutes, ifAbsent = true),
+            )
+            assertTrue(commands.pttl(versionedRedisKey("delivery")) in 1..60_000)
+            val current = assertIs<HashPublishResult.Published>(
+                store.publishHash("delivery", initial, "winner", "kept", null, true),
+            ).version
+            assertEquals(HashPublishManyResult.Conflict, store.publishHashes(
+                "delivery", initial, emptyMap(), 5.minutes, ifAbsent = true,
+            ))
+            assertEquals(mapOf("winner" to "kept"), store.readHash("delivery", current, null))
+        }
         testWithRedis("$api versioned hash validates revision before returning an existing value") {
             val store = api.store(this)
             val initial = store.openHash("delivery", null)
@@ -218,6 +270,8 @@ private enum class HashBackend {
             override suspend fun readHashMetadata(key: String, version: HashVersion) = store.readHashMetadata(key, version)
             override suspend fun publishHash(key: String, version: HashVersion, field: String, value: String, expiry: Duration?, ifAbsent: Boolean, metadata: String?) =
                 store.publishHash(key, version, field, value, expiry, ifAbsent, metadata)
+            override suspend fun publishHashes(key: String, version: HashVersion, values: Map<String, VersionedHashValue>, expiry: Duration?, ifAbsent: Boolean) =
+                store.publishHashes(key, version, values, expiry, ifAbsent)
         }
     }
 }

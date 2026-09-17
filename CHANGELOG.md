@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.3.0-alpha04
+
+- Add `cache(key.many(ids)) { keys, context -> ... }` for selected read-through
+  loading on existing string, hash, Boolean membership, and enum keys. Scalar and
+  batch calls reuse stored entries, codecs, expiry, and invalidation.
+- Support selected calls through Kotlin `Kacheable by delegate` and blocking
+  wrappers using public runtime dispatch.
+- Read and refresh selected string entries in Lettuce with one cached Lua call,
+  preserving access expiry without one client command per key.
+- Use one guarded loading engine for scalar and selected entries, retaining the
+  final coordination read for the loader instead of immediately reading again.
+- Add `HashReadSnapshot` and `readHashSnapshot` to the suspending and blocking
+  versioned-hash store contracts. Existing backends inherit a version-checked
+  fallback; Lettuce reads the generation, revision, and selected values in one
+  cached Lua call without renewing an existing partition's TTL.
+- Preserve resolved batch values when sibling keys are omitted; distinguish
+  explicit nullable results from unresolved keys. See [batch loading](docs/batch-loading.md).
+- Reuse selected loader contexts and existing miss, refresh, admission, and
+  single-flight policies. Blocking calls support foreground selected loading.
+- Extend guarded partitions with atomic multi-entry publication for `OnDemand`
+  and ordered prerequisite loading for `SequentialFrom`.
+- Add default batch reads to store interfaces and native Lettuce implementations.
+  Custom guarded stores need atomic `publishHashes` for multi-entry publication;
+  its default supports only empty and singleton writes.
+- Share ordinary scalar loading lifecycle across storage representations and fix
+  nullable fallback, null-predicate, and membership refresh recheck inconsistencies.
+
+### Breaking API changes
+
+- Replace `CachePartitionContext` with `CacheLoadContext` and
+  `BlockingCachePartitionContext` with `BlockingCacheLoadContext`. Scalar partition
+  loaders and batch loaders now use the same context type and read extensions.
+- Rename `CachePartitionEntry` to `CacheEntry`; `Present(value)` and `Missing`
+  retain their semantics for every context. Update explicit imports, type annotations,
+  and pattern matches. Compatibility aliases are not retained for these alpha APIs.
+- Recompile clients and update core and Lettuce together. Inferred loader parameters
+  retain their existing call syntax.
+
 ## 0.3.0-alpha03
 
 This release adds optional guarded loading to existing hash caches. Loaders can read published

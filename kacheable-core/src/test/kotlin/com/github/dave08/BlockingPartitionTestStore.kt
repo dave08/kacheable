@@ -4,6 +4,7 @@ import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingVersionedHashOperations
 import com.github.dave08.kacheable.store.HashVersion
 import com.github.dave08.kacheable.store.InMemoryKacheableStore
+import com.github.dave08.kacheable.store.VersionedHashValue
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Duration
 
@@ -28,4 +29,6 @@ internal class BlockingPartitionTestStore : BlockingKacheableStore, BlockingVers
     override fun readHashMetadata(key: String, version: HashVersion) = runBlocking { backing.readHashMetadata(key, version) }
     override fun publishHash(key: String, version: HashVersion, field: String, value: String, expiry: Duration?, ifAbsent: Boolean, metadata: String?) =
         runBlocking { backing.publishHash(key, version, field, value, expiry, ifAbsent, metadata) }
+    override fun publishHashes(key: String, version: HashVersion, values: Map<String, VersionedHashValue>, expiry: Duration?, ifAbsent: Boolean) =
+        runBlocking { backing.publishHashes(key, version, values, expiry, ifAbsent) }
 }

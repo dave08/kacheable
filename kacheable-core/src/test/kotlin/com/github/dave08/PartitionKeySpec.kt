@@ -28,7 +28,7 @@ val PartitionKeySpec by testSuite {
 
             anotherCache()(pages("one", Window(10, 10))) { _, partition ->
                 assertEquals(setOf(first), partition.keys())
-                assertEquals(CachePartitionEntry.Present("first"), partition.entry(first))
+                assertEquals(CacheEntry.Present("first"), partition.entry(first))
                 "second"
             }
         }
@@ -39,7 +39,7 @@ val PartitionKeySpec by testSuite {
 
             anotherCache()(pages("one", 1)) { _, partition ->
                 assertEquals(setOf<Int?>(null), partition.keys())
-                assertEquals(CachePartitionEntry.Present("default"), partition.entry(null))
+                assertEquals(CacheEntry.Present("default"), partition.entry(null))
                 "one"
             }
         }

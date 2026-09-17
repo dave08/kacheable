@@ -12,6 +12,17 @@ import kotlinx.serialization.serializer
  * for simple exact caches and migration cases.
  */
 interface Kacheable {
+    /** Existing per-entry policies also apply to selected entries; fallback values are never stored. */
+    suspend operator fun <K, V, P : KeyPart<K>> invoke(
+        ref: CacheManyRef<K, V, P>,
+        missPolicy: CacheMissPolicy<V>,
+        refreshPolicy: CacheRefreshPolicy<V> = CacheRefreshPolicy.neverRefresh(),
+        storeResultIf: (V) -> Boolean = { true },
+        block: suspend (List<K>, CacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V> = throw UnsupportedOperationException(
+        "This cache runtime does not support selected-entry loading."
+    )
+
     /**
      * Runs [block] and invalidates the raw cache entries after the block succeeds.
      */

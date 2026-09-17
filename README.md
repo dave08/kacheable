@@ -45,7 +45,7 @@ For the in-memory store and core API:
 
 ```kotlin
 dependencies {
-    implementation("com.github.dave08.kacheable:kacheable-core:0.3.0-alpha03")
+    implementation("com.github.dave08.kacheable:kacheable-core:0.3.0-alpha04")
 }
 ```
 
@@ -53,7 +53,7 @@ For Redis, use the Lettuce module instead; it brings in `kacheable-core` transit
 
 ```kotlin
 dependencies {
-    implementation("com.github.dave08.kacheable:kacheable-lettuce:0.3.0-alpha03")
+    implementation("com.github.dave08.kacheable:kacheable-lettuce:0.3.0-alpha04")
 }
 ```
 
@@ -315,6 +315,12 @@ val chunk = cache(deliveryChunks("D55", page)) { missingPage, partition ->
 
 This returns one requested chunk. `SequentialFrom` loads missing prerequisites in order;
 `OnDemand` loads only the requested entry. Ordinary caches leave `CacheConfig.partition` unset.
+
+Use `cache(songCache.many(songIds)) { keys, context -> ... }` to load selected
+entries together while sharing values with single-entry calls. The loader and
+caller use maps: explicit null is resolved absence, and omitted IDs remain
+unresolved. See [selected-entry loading](docs/batch-loading.md) for partial results,
+existing policies, storage formats, and blocking support.
 
 See the [partition loading guide](docs/partition-loading.md) for complete definitions, independent
 chunks, typed enumeration, expiry, retries, and supported operations. Before upgrading, read the

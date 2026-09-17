@@ -27,7 +27,7 @@ val BlockingPartitionContextSpec by testSuite {
             ))
             cache.cache(keys("mapped", Request(1))) { _, _ -> "one" }
             cache.cache(keys("mapped", Request(2))) { _, context ->
-                assertEquals(CachePartitionEntry.Present("one"), context.entry(Request(1)))
+                assertEquals(CacheEntry.Present("one"), context.entry(Request(1)))
                 "two"
             }
         }
@@ -42,7 +42,7 @@ val BlockingPartitionContextSpec by testSuite {
             }
         }
         test("blocking saved contexts reject reads after loader return") {
-            lateinit var escaped: BlockingCachePartitionContext<Int, String, EnumerableKeyPart<Int>>
+            lateinit var escaped: BlockingCacheLoadContext<Int, String, EnumerableKeyPart<Int>>
             cache.cache(pages("a", 1)) { _, context -> escaped = context; "one" }
             assertFailsWith<IllegalStateException> { escaped.entries() }
         }
@@ -55,8 +55,8 @@ val BlockingPartitionContextSpec by testSuite {
             val nullable = cacheKey("pages", returns<String?>(), key = partitioned(partition = keyPart<String>("group"), key = keyPart<Int>("page")))
             cache.cache(nullable("a", 1)) { _, _ -> null }
             cache.cache(nullable("a", 2)) { _, context ->
-                assertEquals(CachePartitionEntry.Present(null), context.entry(1))
-                assertEquals(CachePartitionEntry.Missing, context.entry(9))
+                assertEquals(CacheEntry.Present(null), context.entry(1))
+                assertEquals(CacheEntry.Missing, context.entry(9))
                 "two"
             }
         }
@@ -116,7 +116,7 @@ val BlockingPartitionContextSpec by testSuite {
         val loaded = mutableListOf<Int>()
         val value = fixture.cache.cache(fixture.pages("a", 3)) { key, context ->
             loaded += key
-            if (key == 0) "0" else (context.entry(key - 1) as CachePartitionEntry.Present).value + key
+            if (key == 0) "0" else (context.entry(key - 1) as CacheEntry.Present).value + key
         }
         assertEquals("0123", value)
         assertEquals(listOf(0, 1, 2, 3), loaded)

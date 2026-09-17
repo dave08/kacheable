@@ -43,10 +43,28 @@ interface KacheableStore {
 
     suspend fun get(key: String): String?
 
+    suspend fun getValues(keys: List<String>): Map<String, String> = buildMap {
+        keys.forEach { key ->
+            this@KacheableStore.get(key)?.let { value -> put(key, value) }
+        }
+    }
+
     suspend fun getHashValue(key: String, field: String): String?
+
+    suspend fun getHashValues(key: String, fields: List<String>): Map<String, String> = buildMap {
+        fields.forEach { field ->
+            getHashValue(key, field)?.let { value -> put(field, value) }
+        }
+    }
 
     suspend fun isSetMember(key: String, member: String): Boolean {
         unsupportedSetMembership()
+    }
+
+    suspend fun areSetMembers(key: String, members: List<String>): Set<String> = buildSet {
+        members.forEach { member ->
+            if (isSetMember(key, member)) add(member)
+        }
     }
 
     /**
@@ -94,6 +112,12 @@ interface KacheableStore {
 
     suspend fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
         get(key)?.also { setExpire(key, expiry) }
+
+    suspend fun getValuesRefreshingExpire(keys: List<String>, expiry: Duration): Map<String, String> = buildMap {
+        keys.forEach { key ->
+            getValueRefreshingExpire(key, expiry)?.let { value -> put(key, value) }
+        }
+    }
 
     suspend fun replaceSetMembership(
         member: String,

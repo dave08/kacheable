@@ -18,7 +18,7 @@ val ForwardPartitionLookupSpec by testSuite {
         cache(pages("owner", PageRequest(1))) { _, _ -> "first" }
 
         val result = cache(pages("owner", PageRequest(2))) { _, partition ->
-            assertEquals(CachePartitionEntry.Present("first"), partition.entry(PageRequest(1)))
+            assertEquals(CacheEntry.Present("first"), partition.entry(PageRequest(1)))
             assertEquals(mapOf(PageRequest(1) to "first"), partition.entries(listOf(PageRequest(1))))
             "second"
         }

@@ -5,8 +5,11 @@ import com.github.dave08.kacheable.CacheCorrelationProvider
 import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.CacheMaintenanceOperation
 import com.github.dave08.kacheable.CacheMaintenanceResult
+import com.github.dave08.kacheable.CacheManyRef
+import com.github.dave08.kacheable.CacheLoadContext
+import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.CachePartitionContext
+import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheReturn
 import com.github.dave08.kacheable.CacheStorage
@@ -20,13 +23,14 @@ import com.github.dave08.kacheable.PartitionCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
 import com.github.dave08.kacheable.StoredCacheEntryRef
 import com.github.dave08.kacheable.StoredCachePartRef
-import com.github.dave08.kacheable.blocking.BlockingCachePartitionContext
+import com.github.dave08.kacheable.blocking.BlockingCacheLoadContext
 import com.github.dave08.kacheable.blocking.BlockingKacheable
 import com.github.dave08.kacheable.blocking.BlockingPartitionCacheAccess
 import com.github.dave08.kacheable.blocking.store.BlockingKacheableStore
 import com.github.dave08.kacheable.blocking.store.BlockingVersionedHashOperations
 import com.github.dave08.kacheable.internal.BlockingLoadConcurrencyCoordinator
 import com.github.dave08.kacheable.internal.CacheLoadCoordinator
+import com.github.dave08.kacheable.internal.CacheManyRuntime
 import com.github.dave08.kacheable.internal.CacheTelemetryRuntime
 import com.github.dave08.kacheable.internal.storage.BlockingTypedStorage
 import com.github.dave08.kacheable.internal.storage.BlockingTypedStorages
@@ -48,6 +52,7 @@ internal class BlockingKacheableImpl(
     private val telemetryRuntime: CacheTelemetryRuntime,
     private val configs: Map<String, CacheConfig>,
     private val partitionRoutes: PartitionCacheRoutes,
+    private val manyRuntime: CacheManyRuntime,
 ) : BlockingKacheable, BlockingPartitionCacheAccess {
     constructor(
         store: BlockingKacheableStore,
@@ -89,16 +94,42 @@ internal class BlockingKacheableImpl(
             configs, { BlockingPartitionStoreBridge(store) }, namingStrategy,
             CacheLoadCoordinator(CacheResilienceConfig(), LoadConcurrencySettings()),
             telemetryRuntime,
-            PartitionLoaderAdmission { cacheName, group, observation, block ->
-                loadCoordinator.withPermit(cacheName, group, observation) { runBlocking { block() } }
-            },
+            blockingLoaderAdmission(loadCoordinator),
+        ),
+        manyRuntime = CacheManyRuntime(
+            store = BlockingStoreBridge(store),
+            // Ordinary blocking scalar calls do not apply coroutine resilience policies.
+            configs = configs.mapValues { (_, config) -> config.copy(resilience = null) },
+            naming = namingStrategy,
+            coordinator = CacheLoadCoordinator(CacheResilienceConfig(), LoadConcurrencySettings()),
+            telemetry = telemetryRuntime,
+            snapshots = null,
+            backgroundScope = { error("Blocking selected-entry loading does not run background work.") },
+            loaderAdmission = blockingLoaderAdmission(loadCoordinator),
         ),
     )
+
+    override fun <K, V, P : KeyPart<K>> invoke(
+        ref: CacheManyRef<K, V, P>,
+        cacheIf: (V) -> Boolean,
+        block: (List<K>, BlockingCacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V> = runBlocking {
+        partitionRoutes.loadMany(ref, cacheIf) { keys, context ->
+            block(keys, context.blocking())
+        } ?: manyRuntime.load(
+            ref = ref,
+            missPolicy = CacheMissPolicy.load(),
+            refreshPolicy = CacheRefreshPolicy.neverRefresh(),
+            storeResultIf = cacheIf,
+        ) { keys, context ->
+            block(keys, context.blocking())
+        }
+    }
 
     override fun <K, V, P : KeyPart<K>> loadPartition(
         ref: PartitionCacheEntryRef<K, V, P>,
         cacheIf: (V) -> Boolean,
-        block: (K, BlockingCachePartitionContext<K, V, P>) -> V,
+        block: (K, BlockingCacheLoadContext<K, V, P>) -> V,
     ): V = runBlocking {
         partitionRoutes.load(ref, cacheIf) { key, context -> block(key, context.blocking()) }
     }
@@ -292,13 +323,19 @@ internal class BlockingKacheableImpl(
     }
 }
 
-private fun <K, V, P : KeyPart<K>> CachePartitionContext<K, V, P>.blocking(): BlockingCachePartitionContext<K, V, P> {
+private fun <K, V, P : KeyPart<K>> CacheLoadContext<K, V, P>.blocking(): BlockingCacheLoadContext<K, V, P> {
     val context = this
-    return object : BlockingCachePartitionContext<K, V, P>() {
+    return object : BlockingCacheLoadContext<K, V, P>() {
         override val keyPart: P get() = context.keyPart
         override fun entry(key: K) = runBlocking { context.entry(key) }
         override fun entries(keys: Iterable<K>) = runBlocking { context.entries(keys) }
         override fun enumerateEntries(codec: CacheCodec<K>) = runBlocking { context.enumerateEntries(codec) }
         override fun enumerateKeys(codec: CacheCodec<K>) = runBlocking { context.enumerateKeys(codec) }
     }
+}
+
+private fun blockingLoaderAdmission(
+    loadCoordinator: BlockingLoadConcurrencyCoordinator,
+): PartitionLoaderAdmission = PartitionLoaderAdmission { cacheName, group, observation, block ->
+    loadCoordinator.withPermit(cacheName, group, observation) { runBlocking { block() } }
 }

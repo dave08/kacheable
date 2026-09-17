@@ -3,7 +3,8 @@ package com.github.dave08.kacheable.internal.storage.hash
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheEntryPartRef
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.CachePartitionContext
+import com.github.dave08.kacheable.CacheLoadContext
+import com.github.dave08.kacheable.CacheManyRef
 import com.github.dave08.kacheable.KeyPart
 import com.github.dave08.kacheable.PartitionCacheEntryRef
 import com.github.dave08.kacheable.StoredCacheAllRef
@@ -41,10 +42,22 @@ internal class PartitionCacheRoutes private constructor(
     suspend fun <K, V, P : KeyPart<K>> load(
         ref: PartitionCacheEntryRef<K, V, P>,
         cacheIf: (V) -> Boolean,
-        block: suspend (K, CachePartitionContext<K, V, P>) -> V,
+        block: suspend (K, CacheLoadContext<K, V, P>) -> V,
     ): V = requireNotNull(guarded[ref.entryRef.name]) {
         "Contextual partition loads require a partition policy."
     }.load(ref, cacheIf, block)
+
+    /** Returns null only when the selected cache has no guarded partition policy. */
+    suspend fun <K, V, P : KeyPart<K>> loadMany(
+        ref: CacheManyRef<K, V, P>,
+        cacheIf: (V) -> Boolean,
+        block: suspend (List<K>, CacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V>? {
+        if (ref.keys.isEmpty()) return emptyMap()
+        val first = ref.keys.first()
+        val runtime = guarded[ref.entry(first).entryRef.name] ?: return null
+        return runtime.loadMany(ref, cacheIf, block)
+    }
 
     suspend fun invalidate(ref: CacheEntryPartRef, ordinary: suspend () -> Unit) {
         val runtime = guarded[ref.name] ?: return ordinary()

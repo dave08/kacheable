@@ -86,11 +86,12 @@ checks still protect the data if a lock lease expires or another writer bypasses
 
 ## Read only what the loader needs
 
-A context reads published entries without invoking another loader:
+Scalar partition loaders and batch loaders both receive `CacheLoadContext` (or
+`BlockingCacheLoadContext`). A context reads published entries without invoking another loader:
 
 | Operation | Result | Key declaration |
 | --- | --- | --- |
-| `partition.entry(key)` | `Present(value)` or `Missing`; `Present(null)` is distinct from absence | Any `KeyPart<K>` |
+| `partition.entry(key)` | `CacheEntry.Present(value)` or `CacheEntry.Missing`; a present null is distinct from absence | Any `KeyPart<K>` |
 | `partition.entries(keys)` | Map of the requested entries that exist | Any `KeyPart<K>` |
 | `partition.keys()` | All published logical keys, without fetching value payloads | `EnumerableKeyPart<K>` |
 | `partition.entries()` | Map of all published keys and values | `EnumerableKeyPart<K>` |
@@ -201,14 +202,15 @@ prevented by the type system.
 | Capability | Guarded partition support |
 | --- | --- |
 | Storage | Hash values with one typed inner key; that key may map to multiple physical segments |
-| Return value | One requested entry per call |
+| Return value | One requested entry, or a selected map with `.many(...)` |
 | Nulls | Stored only when `nullPlaceholder` is configured and `cacheIf` accepts the value |
 | Suspend/blocking | Shared loading algorithm; blocking rejects non-default coroutine resilience settings |
 | Loader limits and telemetry | Supported |
 | Whole-partition/family invalidation | Supported |
 | Snapshot restoration, miss/refresh policies, stale fallback | Unsupported |
-| Whole-partition return views, bulk loaders, idle loading | Not implemented |
-| No-op caches and external cache decorators | Contextual overloads are unsupported; they require the factory-created runtime |
+| Selected bulk loaders | Supported through [`.many(...)`](batch-loading.md); sequential prerequisites remain ordered |
+| Whole-partition return views, idle loading | Not implemented |
+| Scalar contextual overloads on no-op caches and external decorators | Unsupported; they require the factory-created runtime. Selected `.many` calls support public runtime delegation |
 
 ## Backend contract
 
@@ -217,6 +219,27 @@ it (or `BlockingVersionedHashOperations`) to use this feature. That capability a
 key names and owns guarded reads, publication, and `deleteHashes(keyPattern)` invalidation.
 Ordinary and guarded data with the same logical name are independent. The in-memory store keeps
 guarded state privately; its public mutable maps expose ordinary data only.
+
+`readHashSnapshot(key, expiry, fields)` returns the current `HashVersion` together with the
+selected raw values. A null `fields` argument selects all user fields; an empty list selects
+only the version. A null result reports a concurrent version conflict. The default implementation
+opens the hash and performs a version-checked read, so existing custom stores remain supported.
+Lettuce combines those steps in one atomic script. Opening a missing hash starts its configured
+lifetime; reading an existing hash does not renew its TTL.
+
+Scalar and `.many` loads share the selection engine. A complete guarded Redis hit uses one
+`EVALSHA` once its script is loaded, whether it selects one entry or several. On a miss, the
+engine reuses the final coordination read as the loader's starting snapshot. Waiting for admission
+or another owner still requires revalidation, and publication still rejects expired generations
+and conflicting sibling revisions. Script loading, contention, retries, and loader context reads
+can add commands; the one-command guarantee applies to an uncontended complete hit with a warm
+script cache.
+
+Command-budget tests also cover an uncontended Redis-single-flight miss with partition
+coordination: scalar and multi-entry `OnDemand` loads, and the first `SequentialFrom` chunk,
+each use six client commands with warmed scripts. These cover the initial snapshot, lease
+acquisition, owned snapshot, publication, lease release, and final generation validation.
+The loaders in these tests do not perform context reads or nested cache operations.
 
 ### Redis storage strategies
 
@@ -244,6 +267,11 @@ transactions do not provide rollback after individual command failures.
 
 Recompile clients for the new public signatures. `CacheValueCodec<T>` remains a source alias
 for `CacheCodec<T>`, and the old value-codec factory names remain available.
+
+The current shared loader API replaces `CachePartitionContext` with `CacheLoadContext`,
+`BlockingCachePartitionContext` with `BlockingCacheLoadContext`, and `CachePartitionEntry`
+with `CacheEntry`. Update explicit type annotations, imports, and `Present`/`Missing` matches.
+These alpha types have no compatibility aliases; inferred loader parameter syntax is unchanged.
 
 Enabling a partition policy starts a separate, cold guarded cache. Existing ordinary values
 remain in the ordinary namespace and are not reused or deleted. Coordinate deployment because

@@ -34,10 +34,28 @@ interface BlockingKacheableStore {
 
     fun get(key: String): String?
 
+    fun getValues(keys: List<String>): Map<String, String> = buildMap {
+        keys.forEach { key ->
+            this@BlockingKacheableStore.get(key)?.let { value -> put(key, value) }
+        }
+    }
+
     fun getHashValue(key: String, field: String): String?
+
+    fun getHashValues(key: String, fields: List<String>): Map<String, String> = buildMap {
+        fields.forEach { field ->
+            getHashValue(key, field)?.let { value -> put(field, value) }
+        }
+    }
 
     fun isSetMember(key: String, member: String): Boolean {
         unsupportedSetMembership()
+    }
+
+    fun areSetMembers(key: String, members: List<String>): Set<String> = buildSet {
+        members.forEach { member ->
+            if (isSetMember(key, member)) add(member)
+        }
     }
 
     fun setExpire(key: String, expiry: Duration)
@@ -58,6 +76,12 @@ interface BlockingKacheableStore {
 
     fun getValueRefreshingExpire(key: String, expiry: Duration): String? =
         get(key)?.also { setExpire(key, expiry) }
+
+    fun getValuesRefreshingExpire(keys: List<String>, expiry: Duration): Map<String, String> = buildMap {
+        keys.forEach { key ->
+            getValueRefreshingExpire(key, expiry)?.let { value -> put(key, value) }
+        }
+    }
 
     fun replaceSetMembership(
         member: String,

@@ -3,6 +3,8 @@
 
 package com.github.dave08.kacheable.internal
 
+import com.github.dave08.kacheable.CacheManyRef
+import com.github.dave08.kacheable.CacheLoadContext
 import com.github.dave08.kacheable.CacheConfig
 import com.github.dave08.kacheable.CacheCorrelationProvider
 import com.github.dave08.kacheable.CacheEntryPartRef
@@ -10,7 +12,6 @@ import com.github.dave08.kacheable.CacheMaintenanceOperation
 import com.github.dave08.kacheable.CacheMaintenanceResult
 import com.github.dave08.kacheable.CacheMissPolicy
 import com.github.dave08.kacheable.CacheNamingStrategy
-import com.github.dave08.kacheable.CachePartitionContext
 import com.github.dave08.kacheable.CacheRefreshPolicy
 import com.github.dave08.kacheable.CacheResilienceConfig
 import com.github.dave08.kacheable.CacheReturn
@@ -101,10 +102,31 @@ internal class KacheableImpl(
         snapshotCoordinator?.start()
     }
 
+    private val manyRuntime = CacheManyRuntime(
+        store, configs, namingStrategy, loadCoordinator, telemetryRuntime, snapshotCoordinator, backgroundScopeProvider::get,
+    )
+
+    override suspend fun <K, V, P : KeyPart<K>> invoke(
+        ref: CacheManyRef<K, V, P>,
+        missPolicy: CacheMissPolicy<V>,
+        refreshPolicy: CacheRefreshPolicy<V>,
+        storeResultIf: (V) -> Boolean,
+        block: suspend (List<K>, CacheLoadContext<K, V, P>) -> Map<K, V>,
+    ): Map<K, V> {
+        if (ref.keys.isEmpty()) return emptyMap()
+        val guarded = configs[ref.entry(ref.keys.first()).entryRef.name]?.partition != null
+        if (guarded) {
+            require(missPolicy is CacheMissPolicy.Load && missPolicy.fallbackOnFailure == null &&
+                refreshPolicy is CacheRefreshPolicy.NeverRefresh) { "Guarded partitions do not support miss or refresh policies." }
+            return checkNotNull(partitionRoutes.loadMany(ref, storeResultIf, block))
+        }
+        return manyRuntime.load(ref, missPolicy, refreshPolicy, storeResultIf, block)
+    }
+
     override suspend fun <K, V, P : KeyPart<K>> loadPartition(
         ref: PartitionCacheEntryRef<K, V, P>,
         cacheIf: (V) -> Boolean,
-        block: suspend (K, CachePartitionContext<K, V, P>) -> V,
+        block: suspend (K, CacheLoadContext<K, V, P>) -> V,
     ): V = partitionRoutes.load(ref, cacheIf, block)
 
     override suspend fun <K, V, P : KeyPart<K>> loadPartition(

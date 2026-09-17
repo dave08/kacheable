@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.github.dave08.kacheable"
-version = "0.3.0-alpha03"
+version = "0.3.0-alpha04"
 
 kotlin {
     jvmToolchain(11)

@@ -120,6 +120,35 @@ class InMemoryKacheableStore(
         HashPublishResult.Published(state.version, value)
     }
 
+    override suspend fun publishHashes(
+        key: String,
+        version: HashVersion,
+        values: Map<String, VersionedHashValue>,
+        expiry: Duration?,
+        ifAbsent: Boolean,
+    ): HashPublishManyResult = synchronized(storageLock) {
+        validateHashExpiry(expiry)
+        val state = matchingHash(key, version) ?: return@synchronized HashPublishManyResult.Conflict
+        if (values.isEmpty()) {
+            return@synchronized HashPublishManyResult.Success(version, emptyMap(), emptySet())
+        }
+        val winners = linkedMapOf<String, String>()
+        val publications = linkedMapOf<String, VersionedHashValue>()
+        values.forEach { (field, candidate) ->
+            val existing = state.entries[field]
+            if (ifAbsent && existing != null) winners[field] = existing.value
+            else {
+                winners[field] = candidate.value
+                publications[field] = candidate
+            }
+        }
+        if (publications.isNotEmpty()) {
+            state.publish(publications)
+            applyVersionedExpiry(key, state, expiry)
+        }
+        HashPublishManyResult.Success(state.version, winners, publications.keys)
+    }
+
     override suspend fun deleteHashes(keyPattern: String) {
         synchronized(storageLock) {
             if (!keyPattern.contains('*')) versionedHashes.remove(keyPattern)
@@ -171,6 +200,13 @@ class InMemoryKacheableStore(
         fun publish(field: String, value: String, metadata: String?) {
             val next = version.copy(revision = Math.addExact(version.revision, 1))
             entries[field] = VersionedHashEntry(value, metadata)
+            version = next
+        }
+
+
+        fun publish(values: Map<String, VersionedHashValue>) {
+            val next = version.copy(revision = Math.addExact(version.revision, 1))
+            values.forEach { (field, value) -> entries[field] = VersionedHashEntry(value.value, value.metadata) }
             version = next
         }
     }
